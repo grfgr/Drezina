@@ -80,23 +80,27 @@ class Drezina_Motor extends CarScript
 
 	// ------------------------------------------------------------------ экипаж и посадка
 
+	// посадка как на мотоцикле: все трое сидят верхом, лицом вперёд, руки на руле / коленях
 	override int GetAnimInstance()
 	{
-		return VehicleAnimInstances.HATCHBACK;
+		return VehicleAnimInstances.MOTO1;
 	}
 
 	override int GetSeatAnimationType(int posIdx)
 	{
-		switch (posIdx)
-		{
-			case 0:
-				return DayZPlayerConstants.VEHICLESEAT_DRIVER;
-			case 1:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_R;   // после разворота модели место 1 — справа
-			case 2:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_L;
-		}
-		return 0;
+		return DayZPlayerConstants.VEHICLESEAT_DRIVER;
+	}
+
+	override bool HasDirectionalInOutAction()
+	{
+		return true;
+	}
+
+	override int GetSeatAnimationTypeDirectional(int posIdx, int directionIndex)
+	{
+		if (directionIndex == 0)
+			return 0;
+		return 1;
 	}
 
 	override bool CrewCanGetThrough(int posIdx)
