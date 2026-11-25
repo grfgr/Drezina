@@ -15,6 +15,7 @@ class Drezina_MetroLadder extends House
 }
 
 class Drezina_Tunnel10 extends House {}
+class Drezina_Tunnel2 extends House {}
 class Drezina_MetroStation extends House {}
 class Drezina_Rail10 extends House {}
 

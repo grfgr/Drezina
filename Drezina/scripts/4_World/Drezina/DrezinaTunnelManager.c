@@ -1,26 +1,41 @@
-// Метро: подземный тоннель с двумя станциями, люками-спусками на поверхности и рельсами внутри.
+// Метро: тоннель с поворотами, двумя станциями, павильонами-входами на поверхности и рельсами внутри.
 //
-// В рельефе DayZ нельзя сделать дыру, поэтому в метро попадают через павильон-люк:
-// действие «Спуститься в метро» переносит игрока на подземную станцию прямо под люком,
-// лестница на станции — обратно наверх.
+// В рельефе DayZ нельзя сделать дыру, поэтому в метро попадают через павильон:
+// «Спуститься в метро» переносит игрока на подземную станцию, лестница на станции — обратно наверх.
 //
-// Админ: стоит в точке входа A -> "/metro a", идёт/телепортируется к точке B -> "/metro b",
-// затем "/metro build [глубина]". Тоннель прямой, пол горизонтальный, ниже самой низкой точки рельефа
-// над трассой на заданную глубину.
+// Где находится сам тоннель:
+//  - «под землёй»: прямо под маршрутом, ниже самой низкой точки рельефа на заданную глубину;
+//  - «в локации»: если под землёй нельзя (берег, низина — пол ушёл бы ниже уровня моря и игрок «поплыл»),
+//    тоннель той же формы и длины строится в отдельной локации за картой (над морем, MetroZone* в settings.json).
+//    Игрок этого не замечает: спустился в павильон на берегу — вышел из павильона в городе.
+//
+// Админ: "/metro a" на месте входа, "/metro via" в местах поворотов (или "/metro auto 25" и просто идти),
+// "/metro b" на месте выхода, затем "/metro build".
 
 class DrezinaMetroDraft
 {
-	vector A;
+	ref array<vector> Points = new array<vector>; // A, повороты...
 	vector B;
-	bool HasA;
 	bool HasB;
+	float AutoStep;
+	PlayerBase Admin;
+
+	bool HasA()
+	{
+		return Points.Count() > 0;
+	}
+
+	void GetRoute(array<vector> outRoute)
+	{
+		outRoute.InsertAll(Points);
+		if (HasB)
+			outRoute.Insert(B);
+	}
 }
 
 class DrezinaTunnelManager
 {
-	// Готовая раскладка для Черноруси (координаты карты X, Z — примерные, около окраин посёлков):
-	// вход A — восточная окраина Старого Собора, вход B — южная окраина Выбора. ~2.3 км по прямой,
-	// всё время по высокому плато (~250-300 м), так что пол на глубине 20 м далеко от уровня моря.
+	// Готовая раскладка для Черноруси (координаты X, Z примерные): Старый Собор -> Выбор, ~2.3 км, по плато.
 	static const float PRESET_AX = 5900;
 	static const float PRESET_AZ = 7800;
 	static const float PRESET_BX = 3800;
@@ -29,6 +44,7 @@ class DrezinaTunnelManager
 	static ref DrezinaTunnelManager s_Instance;
 
 	ref map<int, ref DrezinaTunnelData> m_Tunnels = new map<int, ref DrezinaTunnelData>;
+	ref map<int, ref DrezinaTrack> m_Splines = new map<int, ref DrezinaTrack>;   // ось тоннеля (под землёй/в локации)
 	ref map<int, ref array<Object>> m_Objects = new map<int, ref array<Object>>;
 	ref map<string, ref DrezinaMetroDraft> m_Drafts = new map<string, ref DrezinaMetroDraft>;
 
@@ -48,12 +64,13 @@ class DrezinaTunnelManager
 			JsonFileLoader<DrezinaTunnelsDB>.JsonLoadFile(DrezinaConst.TUNNELS_FILE, db);
 		foreach (DrezinaTunnelData t : db.Tunnels)
 		{
-			if (!t)
+			if (!t || t.Route.Count() < 2)
 				continue;
 			m_Tunnels.Set(t.Id, t);
 			SpawnTunnel(t);
 		}
 		Print("[Drezina] loaded tunnels: " + m_Tunnels.Count());
+		GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(Tick, 250, true);
 	}
 
 	void Save()
@@ -77,23 +94,24 @@ class DrezinaTunnelManager
 		return maxId + 1;
 	}
 
-	// ------------------------------------------------------------------ геометрия
-
-	static vector FlatDir(DrezinaTunnelData t)
+	// авто-точки поворотов, пока админ идёт
+	void Tick()
 	{
-		vector d = t.B - t.A;
-		d[1] = 0;
-		return d.Normalized();
+		foreach (string uid, DrezinaMetroDraft d : m_Drafts)
+		{
+			if (!d || d.AutoStep <= 0 || !d.Admin || !d.HasA())
+				continue;
+			vector p = d.Admin.GetPosition();
+			if (FlatDistance(d.Points[d.Points.Count() - 1], p) >= d.AutoStep)
+				d.Points.Insert(p);
+		}
 	}
+
+	// ------------------------------------------------------------------ геометрия
 
 	static vector Side(vector dir)
 	{
-		return Vector(dir[2], 0, -dir[0]);
-	}
-
-	static vector Under(DrezinaTunnelData t, vector surface)
-	{
-		return Vector(surface[0], t.FloorY, surface[2]);
+		return Vector(dir[2], 0, -dir[0]).Normalized();
 	}
 
 	static float FlatDistance(vector a, vector b)
@@ -103,55 +121,114 @@ class DrezinaTunnelManager
 		return vector.Distance(a, b);
 	}
 
-	// Самая низкая точка рельефа над трассой (с запасом по ширине тоннеля).
-	static float MinSurfaceAlong(vector a, vector b)
+	static vector ToUnder(DrezinaTunnelData t, vector surface)
 	{
-		vector dir = b - a;
-		dir[1] = 0;
-		float len = dir.Length();
-		dir.Normalize();
-		vector side = Side(dir);
+		return Vector(surface[0] + t.Offset[0], t.FloorY, surface[2] + t.Offset[2]);
+	}
+
+	// Сплайн по точкам маршрута на фиксированной высоте y (форма та же, что у рельсов).
+	static DrezinaTrack MakeSpline(array<vector> route, vector offset, float y)
+	{
+		DrezinaTrackData td = new DrezinaTrackData();
+		foreach (vector p : route)
+			td.Nodes.Insert(Vector(p[0] + offset[0], y, p[2] + offset[2]));
+		return new DrezinaTrack(td);
+	}
+
+	DrezinaTrack GetSpline(DrezinaTunnelData t)
+	{
+		DrezinaTrack s = m_Splines.Get(t.Id);
+		if (!s)
+		{
+			s = MakeSpline(t.Route, t.Offset, t.FloorY);
+			m_Splines.Set(t.Id, s);
+		}
+		return s;
+	}
+
+	// Самая низкая точка рельефа над осью тоннеля (с запасом по ширине и за станциями).
+	static float MinSurfaceAlong(array<vector> route)
+	{
+		DrezinaTrack s = MakeSpline(route, vector.Zero, 0);
 		float minY = 100000;
+		float len = s.GetLength();
 		float d = -DrezinaConst.STATION_BACK;
 		while (d <= len + DrezinaConst.STATION_BACK)
 		{
+			vector pos, dir;
+			s.GetPosDir(Math.Clamp(d, 0, len), pos, dir);
+			if (d < 0)
+				pos = pos + dir * d;
+			else if (d > len)
+				pos = pos + dir * (d - len);
+			vector side = Side(dir);
 			for (int k = -1; k <= 1; k++)
 			{
-				vector p = a + dir * d + side * (k * 5.0);
+				vector p = pos + side * (k * 6.0);
 				float y = GetGame().SurfaceY(p[0], p[2]);
 				if (y < minY)
 					minY = y;
 			}
-			d += 5.0;
+			d += 4.0;
 		}
 		return minY;
 	}
 
-	// Где оказывается игрок после спуска (у лестницы станции) и после подъёма (рядом с люком).
-	vector GetStationSpawn(DrezinaTunnelData t, int end)
+	// Сдвиг для новой локации за картой: тоннели раскладываются друг за другом по Z.
+	vector NextZoneOffset(array<vector> route)
 	{
-		vector dir = FlatDir(t);
-		vector surf = t.A;
-		vector inward = dir;
-		if (end == 1)
+		DrezinaSettings st = DrezinaSettings.Get();
+		float startZ = st.MetroZoneZ;
+		foreach (int id, DrezinaTunnelData t : m_Tunnels)
 		{
-			surf = t.B;
-			inward = dir * -1;
+			if (!t.Zone)
+				continue;
+			foreach (vector p : t.Route)
+				startZ = Math.Max(startZ, p[2] + t.Offset[2] + 40 + st.MetroZoneGap);
 		}
-		// станции выдачи стоят справа от пути (+Side(dir)), лестница и точка появления — слева
-		return Under(t, surf) - inward * 2.0 - Side(dir) * 3.0 + Vector(0, 0.05, 0);
+		float minX = 1000000;
+		float minZ = 1000000;
+		foreach (vector q : route)
+		{
+			minX = Math.Min(minX, q[0]);
+			minZ = Math.Min(minZ, q[2]);
+		}
+		// запас 40 м на станции и изгибы сплайна
+		return Vector(st.MetroZoneX + 40 - minX, 0, startZ + 40 - minZ);
 	}
 
+	// Конец тоннеля: точка на оси, направление пути (A->B) и направление «внутрь тоннеля».
+	void GetEnd(DrezinaTunnelData t, int end, out vector pos, out vector dirTrack, out vector inward)
+	{
+		DrezinaTrack s = GetSpline(t);
+		float d = 0;
+		if (end == 1)
+			d = s.GetLength();
+		s.GetPosDir(d, pos, dirTrack);
+		dirTrack[1] = 0;
+		dirTrack.Normalize();
+		inward = dirTrack;
+		if (end == 1)
+			inward = dirTrack * -1;
+	}
+
+	// После спуска: у лестницы на станции. Станции выдачи стоят справа от пути, лестница — слева.
+	vector GetStationSpawn(DrezinaTunnelData t, int end)
+	{
+		vector pos, dirT, inward;
+		GetEnd(t, end, pos, dirT, inward);
+		return pos - inward * 2.0 - Side(dirT) * 3.0 + Vector(0, 0.05, 0);
+	}
+
+	// После подъёма: перед дверью павильона.
 	vector GetSurfaceSpawn(DrezinaTunnelData t, int end)
 	{
-		vector dir = FlatDir(t);
-		vector surf = t.A;
+		vector pos, dirT, inward;
+		GetEnd(t, end, pos, dirT, inward);
+		vector surf = t.Route[0];
 		if (end == 1)
-		{
-			surf = t.B;
-			dir = dir * -1;
-		}
-		vector p = surf + dir * 3.0;
+			surf = t.Route[t.Route.Count() - 1];
+		vector p = surf + inward * 3.0;
 		p[1] = GetGame().SurfaceY(p[0], p[2]) + 0.05;
 		return p;
 	}
@@ -161,55 +238,65 @@ class DrezinaTunnelManager
 	void SpawnTunnel(DrezinaTunnelData t)
 	{
 		DespawnTunnel(t.Id);
+		m_Splines.Remove(t.Id);
 		array<Object> objs = new array<Object>;
 
-		vector dir = FlatDir(t);
-		vector uA = Under(t, t.A);
-		vector uB = Under(t, t.B);
-		float total = FlatDistance(t.A, t.B);
-
-		// станции (открытый торец смотрит в тоннель)
+		DrezinaTrack s = GetSpline(t);
+		float len = s.GetLength();
 		float stCenter = DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK;
-		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", uA + dir * stCenter, dir));
-		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", uB - dir * stCenter, dir * -1));
 
-		// тоннель между станциями
+		// станции (открытым торцом в тоннель)
+		vector pA, dA, iA, pB, dB, iB;
+		GetEnd(t, 0, pA, dA, iA);
+		GetEnd(t, 1, pB, dB, iB);
+		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pA + iA * stCenter, iA));
+		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pB + iB * stCenter, iB));
+
+		// тоннель: на прямых — звенья 10 м, на поворотах — короткие с нахлёстом
 		float tStart = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
-		float tLen = total - tStart * 2;
-		float piece = DrezinaConst.TUNNEL_PIECE_LEN;
-		if (tLen > 0)
+		float tEnd = len - tStart;
+		float d = tStart;
+		while (d < tEnd - 0.01)
 		{
-			int pieces = Math.Ceil(tLen / piece);
-			for (int i = 0; i < pieces; i++)
+			string type = "Drezina_Tunnel2";
+			float piece = DrezinaConst.TUNNEL_SHORT_STEP;
+			if (d + DrezinaConst.TUNNEL_PIECE_LEN <= tEnd && DrezinaTrackManager.IsStraight(s, d, d + DrezinaConst.TUNNEL_PIECE_LEN))
 			{
-				float c = i * piece + piece * 0.5;
-				if (c + piece * 0.5 > tLen)
-					c = Math.Max(tLen - piece * 0.5, piece * 0.5);
-				AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel10", uA + dir * (tStart + c), dir));
+				type = "Drezina_Tunnel10";
+				piece = DrezinaConst.TUNNEL_PIECE_LEN;
 			}
+			float c = d + piece * 0.5;
+			if (c + piece * 0.5 > tEnd)
+				c = tEnd - piece * 0.5;
+			vector pos, dir;
+			s.GetPosDir(c, pos, dir);
+			dir[1] = 0;
+			AddObj(objs, DrezinaTrackManager.SpawnStatic(type, pos, dir.Normalized()));
+			d += piece;
 		}
 
 		// светильники под сводом
 		float lampD = 2.0;
-		while (lampD < total - 2.0)
+		while (lampD < len - 2.0)
 		{
-			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_TunnelLamp", uA + dir * lampD + Vector(0, 4.3, 0), dir));
+			vector lp, ld;
+			s.GetPosDir(lampD, lp, ld);
+			ld[1] = 0;
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_TunnelLamp", lp + Vector(0, 4.3, 0), ld.Normalized()));
 			lampD += DrezinaConst.LAMP_STEP;
 		}
 
-		// люки на поверхности и лестницы на станциях
 		SpawnEntrance(t, 0, objs);
 		SpawnEntrance(t, 1, objs);
-
 		m_Objects.Set(t.Id, objs);
 
-		// путь внутри (создаётся один раз, дальше живёт в tracks.json как обычный путь)
+		// путь внутри: те же узлы, что и ось тоннеля, + высота рельса
 		if (t.TrackId == 0 || !DrezinaTrackManager.Get().GetTrack(t.TrackId))
 		{
 			array<vector> nodes = new array<vector>;
 			vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR, 0);
-			nodes.Insert(uA + dir * 0.5 + railUp);
-			nodes.Insert(uB - dir * 0.5 + railUp);
+			foreach (vector rp : t.Route)
+				nodes.Insert(ToUnder(t, rp) + railUp);
 			t.TrackId = DrezinaTrackManager.Get().CreateTrack(nodes, "Метро " + t.Id);
 			Save();
 		}
@@ -217,19 +304,14 @@ class DrezinaTunnelManager
 
 	void SpawnEntrance(DrezinaTunnelData t, int end, array<Object> objs)
 	{
-		vector dir = FlatDir(t);
-		vector surf = t.A;
-		vector inward = dir;
-		if (end == 1)
-		{
-			surf = t.B;
-			inward = dir * -1;
-		}
+		vector pos, dirT, inward;
+		GetEnd(t, end, pos, dirT, inward);
 
-		// павильон на поверхности, вход смотрит по направлению тоннеля
-		vector hPos = surf;
-		hPos[1] = GetGame().SurfaceY(hPos[0], hPos[2]);
-		Drezina_MetroHatch hatch = Drezina_MetroHatch.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroHatch", hPos, inward));
+		vector surf = t.Route[0];
+		if (end == 1)
+			surf = t.Route[t.Route.Count() - 1];
+		surf[1] = GetGame().SurfaceY(surf[0], surf[2]);
+		Drezina_MetroHatch hatch = Drezina_MetroHatch.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroHatch", surf, inward));
 		if (hatch)
 		{
 			hatch.m_TunnelId = t.Id;
@@ -237,8 +319,7 @@ class DrezinaTunnelManager
 			objs.Insert(hatch);
 		}
 
-		// лестница у глухой стены станции
-		vector lPos = Under(t, surf) - inward * (DrezinaConst.STATION_BACK - 0.6) - Side(dir) * 3.0;
+		vector lPos = pos - inward * (DrezinaConst.STATION_BACK - 0.6) - Side(dirT) * 3.0;
 		Drezina_MetroLadder ladder = Drezina_MetroLadder.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroLadder", lPos, inward));
 		if (ladder)
 		{
@@ -275,16 +356,71 @@ class DrezinaTunnelManager
 		DrezinaTunnelData t = m_Tunnels.Get(tunnelId);
 		if (!t || !player || !player.IsAlive() || player.m_DrezinaHandcar)
 			return;
-		vector pos;
-		vector look = FlatDir(t);
-		if (end == 1)
-			look = look * -1;
+		vector pos, dirT, inward;
+		GetEnd(t, end, pos, dirT, inward);
 		if (down)
-			pos = GetStationSpawn(t, end);
+			player.SetPosition(GetStationSpawn(t, end));
 		else
-			pos = GetSurfaceSpawn(t, end);
-		player.SetPosition(pos);
-		player.SetDirection(look);
+			player.SetPosition(GetSurfaceSpawn(t, end));
+		player.SetDirection(inward);
+	}
+
+	// ------------------------------------------------------------------ постройка
+
+	// mode: "auto" (под землёй, если можно, иначе в локации), "under", "zone"
+	void Build(PlayerIdentity sender, DrezinaMetroDraft draft, string mode, float depth)
+	{
+		array<vector> route = new array<vector>;
+		draft.GetRoute(route);
+		if (route.Count() < 2 || !draft.HasB)
+		{
+			DrezinaTrackManager.Notify(sender, "Нужны вход и выход: /metro a ... /metro b");
+			return;
+		}
+
+		DrezinaTrack flat = MakeSpline(route, vector.Zero, 0);
+		float len = flat.GetLength();
+		if (len < DrezinaConst.METRO_MIN_LEN)
+		{
+			DrezinaTrackManager.Notify(sender, "Слишком коротко: нужно хотя бы " + DrezinaConst.METRO_MIN_LEN + " м.");
+			return;
+		}
+
+		DrezinaSettings st = DrezinaSettings.Get();
+		DrezinaTunnelData t = new DrezinaTunnelData();
+		t.Id = NextId();
+		t.Route.InsertAll(route);
+
+		float floorY = MinSurfaceAlong(route) - depth;
+		bool canUnder = floorY >= st.MetroMinFloorY;
+
+		if (mode == "under" && !canUnder)
+		{
+			DrezinaTrackManager.Notify(sender, "Под землёй нельзя: пол ушёл бы ниже уровня моря. Используйте /metro build zone");
+			return;
+		}
+
+		if (mode == "zone" || (mode == "auto" && !canUnder))
+		{
+			t.Zone = true;
+			t.Offset = NextZoneOffset(route);
+			t.FloorY = st.MetroZoneY;
+		}
+		else
+		{
+			t.Zone = false;
+			t.Offset = vector.Zero;
+			t.FloorY = floorY;
+		}
+
+		m_Tunnels.Set(t.Id, t);
+		SpawnTunnel(t);
+		Save();
+
+		string where = "под землёй, пол на высоте " + Math.Round(t.FloorY) + " м";
+		if (t.Zone)
+			where = "в локации за картой";
+		DrezinaTrackManager.Notify(sender, "Метро #" + t.Id + " построено " + where + ", длина " + Math.Round(len) + " м.");
 	}
 
 	// ------------------------------------------------------------------ команды
@@ -321,69 +457,93 @@ class DrezinaTunnelManager
 			draft = new DrezinaMetroDraft();
 			m_Drafts.Set(uid, draft);
 		}
+		draft.Admin = admin;
 		vector here = admin.GetPosition();
 
-		if (cmd == "a" || cmd == "b")
+		if (cmd == "a")
 		{
-			if (cmd == "a")
+			draft.Points.Clear();
+			draft.Points.Insert(here);
+			draft.HasB = false;
+			DrezinaTrackManager.Notify(sender, "Вход A запомнен. Повороты: /metro via (или /metro auto 25), выход: /metro b");
+		}
+		else if (cmd == "via")
+		{
+			if (!draft.HasA())
 			{
-				draft.A = here;
-				draft.HasA = true;
+				DrezinaTrackManager.Notify(sender, "Сначала /metro a");
+				return;
 			}
+			draft.Points.Insert(here);
+			DrezinaTrackManager.Notify(sender, "Точка поворота " + (draft.Points.Count() - 1) + " добавлена.");
+		}
+		else if (cmd == "auto")
+		{
+			float step = 0;
+			if (args.Count() >= 3)
+				step = args[2].ToFloat();
+			if (step > 0 && step < 10)
+				step = 10;
+			draft.AutoStep = step;
+			if (step > 0)
+				DrezinaTrackManager.Notify(sender, "Авто-точки каждые " + step + " м. Выключить: /metro auto 0");
 			else
+				DrezinaTrackManager.Notify(sender, "Авто-точки выключены.");
+		}
+		else if (cmd == "undo")
+		{
+			if (draft.HasB)
+				draft.HasB = false;
+			else if (draft.Points.Count() > 1)
+				draft.Points.Remove(draft.Points.Count() - 1);
+			DrezinaTrackManager.Notify(sender, "Последняя точка убрана.");
+		}
+		else if (cmd == "b")
+		{
+			if (!draft.HasA())
 			{
-				draft.B = here;
-				draft.HasB = true;
+				DrezinaTrackManager.Notify(sender, "Сначала /metro a");
+				return;
 			}
-			string info = "Точка " + cmd + " запомнена.";
-			if (draft.HasA && draft.HasB)
-				info += " Расстояние " + Math.Round(FlatDistance(draft.A, draft.B)) + " м. Строить: /metro build";
-			DrezinaTrackManager.Notify(sender, info);
+			draft.B = here;
+			draft.HasB = true;
+			draft.AutoStep = 0;
+			array<vector> r = new array<vector>;
+			draft.GetRoute(r);
+			DrezinaTrackManager.Notify(sender, "Выход B запомнен. Длина ~" + Math.Round(MakeSpline(r, vector.Zero, 0).GetLength()) + " м. /metro info или /metro build");
 		}
 		else if (cmd == "info")
 		{
-			if (!draft.HasA || !draft.HasB)
+			array<vector> ri = new array<vector>;
+			draft.GetRoute(ri);
+			if (ri.Count() < 2 || !draft.HasB)
 			{
-				DrezinaTrackManager.Notify(sender, "Нужны обе точки: /metro a и /metro b");
+				DrezinaTrackManager.Notify(sender, "Нужны вход и выход: /metro a ... /metro b");
 				return;
 			}
-			float minY = MinSurfaceAlong(draft.A, draft.B);
-			DrezinaTrackManager.Notify(sender, "Длина " + Math.Round(FlatDistance(draft.A, draft.B)) + " м, минимум рельефа " + Math.Round(minY) + " м, пол будет на " + Math.Round(minY - DrezinaSettings.Get().MetroDefaultDepth) + " м");
+			float depthI = DrezinaSettings.Get().MetroDefaultDepth;
+			float floorI = MinSurfaceAlong(ri) - depthI;
+			string modeI = "под землёй, пол на " + Math.Round(floorI) + " м";
+			if (floorI < DrezinaSettings.Get().MetroMinFloorY)
+				modeI = "под землёй нельзя (низко) — будет в локации за картой";
+			DrezinaTrackManager.Notify(sender, "Длина " + Math.Round(MakeSpline(ri, vector.Zero, 0).GetLength()) + " м, точек " + ri.Count() + ", " + modeI);
 		}
 		else if (cmd == "build")
 		{
-			if (!draft.HasA || !draft.HasB)
-			{
-				DrezinaTrackManager.Notify(sender, "Нужны обе точки: /metro a и /metro b");
-				return;
-			}
-			float dist = FlatDistance(draft.A, draft.B);
-			float minLen = (DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK) * 2 + 10;
-			if (dist < minLen)
-			{
-				DrezinaTrackManager.Notify(sender, "Слишком близко: нужно хотя бы " + minLen + " м между точками.");
-				return;
-			}
+			// /metro build [under|zone] [глубина]
+			string mode = "auto";
 			float depth = DrezinaSettings.Get().MetroDefaultDepth;
-			if (args.Count() >= 3)
-				depth = Math.Max(args[2].ToFloat(), 8.0);
-			float floorY = MinSurfaceAlong(draft.A, draft.B) - depth;
-			if (floorY < DrezinaSettings.Get().MetroMinFloorY)
+			for (int i = 2; i < args.Count(); i++)
 			{
-				DrezinaTrackManager.Notify(sender, "Местность слишком низкая (пол ушёл бы ниже моря). Выберите место выше или глубину меньше.");
-				return;
+				string arg = args[i];
+				arg.ToLower();
+				if (arg == "under" || arg == "zone")
+					mode = arg;
+				else if (arg.ToFloat() > 0)
+					depth = Math.Max(arg.ToFloat(), 8.0);
 			}
-
-			DrezinaTunnelData t = new DrezinaTunnelData();
-			t.Id = NextId();
-			t.A = draft.A;
-			t.B = draft.B;
-			t.FloorY = floorY;
-			m_Tunnels.Set(t.Id, t);
-			SpawnTunnel(t);
-			Save();
+			Build(sender, draft, mode, depth);
 			m_Drafts.Remove(uid);
-			DrezinaTrackManager.Notify(sender, "Метро #" + t.Id + " построено: " + Math.Round(dist) + " м, пол на высоте " + Math.Round(floorY) + " м.");
 		}
 		else if (cmd == "del")
 		{
@@ -401,6 +561,7 @@ class DrezinaTunnelManager
 			DespawnTunnel(delId);
 			DrezinaTrackManager.Get().DeleteTrack(dt.TrackId);
 			m_Tunnels.Remove(delId);
+			m_Splines.Remove(delId);
 			Save();
 			DrezinaTrackManager.Notify(sender, "Метро #" + delId + " удалено.");
 		}
@@ -408,27 +569,32 @@ class DrezinaTunnelManager
 		{
 			string msg = "";
 			foreach (int lid, DrezinaTunnelData lt : m_Tunnels)
-				msg += "#" + lid + " " + Math.Round(FlatDistance(lt.A, lt.B)) + "м (" + Math.Round(lt.A[0]) + "," + Math.Round(lt.A[2]) + ")->(" + Math.Round(lt.B[0]) + "," + Math.Round(lt.B[2]) + "); ";
+			{
+				string kind = "под землёй";
+				if (lt.Zone)
+					kind = "локация";
+				msg += "#" + lid + " " + Math.Round(GetSpline(lt).GetLength()) + "м, " + kind + "; ";
+			}
 			if (msg == "")
 				msg = "Метро нет.";
 			DrezinaTrackManager.Notify(sender, msg);
 		}
 		else if (cmd == "preset")
 		{
-			draft.A = Vector(PRESET_AX, GetGame().SurfaceY(PRESET_AX, PRESET_AZ), PRESET_AZ);
+			draft.Points.Clear();
+			draft.Points.Insert(Vector(PRESET_AX, GetGame().SurfaceY(PRESET_AX, PRESET_AZ), PRESET_AZ));
 			draft.B = Vector(PRESET_BX, GetGame().SurfaceY(PRESET_BX, PRESET_BZ), PRESET_BZ);
-			draft.HasA = true;
 			draft.HasB = true;
-			DrezinaTrackManager.Notify(sender, "Раскладка Старый Собор - Выбор (" + Math.Round(FlatDistance(draft.A, draft.B)) + " м). Проверьте места: /metro tp a, /metro tp b. Строить: /metro build");
+			DrezinaTrackManager.Notify(sender, "Раскладка Старый Собор - Выбор. Проверьте места: /metro tp a, /metro tp b. Строить: /metro build");
 		}
 		else if (cmd == "tp" && args.Count() == 3)
 		{
-			// /metro tp a | b — к точке черновика, /metro tp 1 — ко входу метро №1
+			// /metro tp a | b — к точкам черновика, /metro tp <id> — ко входу A метро
 			string which = args[2];
 			which.ToLower();
 			vector tpPos = vector.Zero;
-			if (which == "a" && draft.HasA)
-				tpPos = draft.A;
+			if (which == "a" && draft.HasA())
+				tpPos = draft.Points[0];
 			else if (which == "b" && draft.HasB)
 				tpPos = draft.B;
 			else if (m_Tunnels.Get(which.ToInt()))
@@ -438,7 +604,7 @@ class DrezinaTunnelManager
 		}
 		else if (cmd == "tp")
 		{
-			// /metro tp <x> <z>  — телепорт на поверхность по координатам карты
+			// /metro tp <x> <z>
 			if (args.Count() >= 4)
 			{
 				float x = args[2].ToFloat();
@@ -454,7 +620,7 @@ class DrezinaTunnelManager
 		}
 		else
 		{
-			DrezinaTrackManager.Notify(sender, "/metro preset | a | b | info | build [глубина] | del [id] | list | tp a|b|<id>|<x> <z> | rebuild");
+			DrezinaTrackManager.Notify(sender, "/metro a | via | auto <м> | undo | b | info | build [under|zone] [глубина] | preset | del [id] | list | tp a|b|<id>|<x> <z> | rebuild");
 		}
 	}
 
@@ -464,14 +630,19 @@ class DrezinaTunnelManager
 		float bestD = maxDist;
 		foreach (int id, DrezinaTunnelData t : m_Tunnels)
 		{
-			float da = FlatDistance(p, t.A);
-			float db = FlatDistance(p, t.B);
-			float du = Math.Min(vector.Distance(p, Under(t, t.A)), vector.Distance(p, Under(t, t.B)));
-			float d = Math.Min(Math.Min(da, db), du);
-			if (d < bestD)
+			for (int end = 0; end <= 1; end++)
 			{
-				bestD = d;
-				best = id;
+				vector surf = t.Route[0];
+				if (end == 1)
+					surf = t.Route[t.Route.Count() - 1];
+				vector pos, dirT, inward;
+				GetEnd(t, end, pos, dirT, inward);
+				float d = Math.Min(FlatDistance(p, surf), vector.Distance(p, pos));
+				if (d < bestD)
+				{
+					bestD = d;
+					best = id;
+				}
 			}
 		}
 		return best;

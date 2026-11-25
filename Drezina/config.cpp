@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts"};
@@ -110,6 +110,14 @@ class CfgVehicles
 		scope = 1;
 		displayName = "Тоннель";
 		model = "\Drezina\data\tunnel_10m.p3d";
+	};
+
+	// Короткое звено тоннеля для поворотов: 2.4 м, ставится через 2 м (с нахлёстом, чтобы не было щелей).
+	class Drezina_Tunnel2: HouseNoDestruct
+	{
+		scope = 1;
+		displayName = "Тоннель";
+		model = "\Drezina\data\tunnel_2m.p3d";
 	};
 
 	// Подземная станция 24 x 12 м, один торец глухой, другой открыт в тоннель.

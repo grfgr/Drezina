@@ -364,17 +364,19 @@ def geometry_box(name, size, loc):
     return o
 
 
-def build_tunnel(outdir):
+def build_tunnel(outdir, L=10.0, name="tunnel_10m"):
     reset_scene()
     m = concrete_mats()
-    L = 10.0
-    parts = [box("floor", (TUN_W + 2 * WALL, L, 0.3), (0, 0, -0.15), m["concrete_dark"])]
-    parts += arch("t", TUN_W, TUN_H, L, 0, m["concrete"])
+    # у короткого звена пол ровно 2 м (без нахлёста — иначе мерцание), стены и свод 2.2 м с нахлёстом
+    floor_len = L if L >= 5 else 2.02
+    wall_len = L if L >= 5 else 2.2
+    parts = [box("floor", (TUN_W + 2 * WALL, floor_len, 0.3), (0, 0, -0.15), m["concrete_dark"])]
+    parts += arch("t", TUN_W, TUN_H, wall_len, 0, m["concrete"])
     # кабели вдоль стены
     for k in range(3):
-        parts.append(cyl(f"cable_{k}", 0.03, L, (-TUN_W / 2 + 0.06, 0, 1.6 + k * 0.12), m["iron"], (math.radians(90), 0, 0), 6))
-    # рёбра-тюбинги
-    for yy in (-L / 2 + 0.15, L / 2 - 0.15):
+        parts.append(cyl(f"cable_{k}", 0.03, wall_len, (-TUN_W / 2 + 0.06, 0, 1.6 + k * 0.12), m["iron"], (math.radians(90), 0, 0), 6))
+    # рёбра-тюбинги (только у длинного звена; короткое идёт на повороты)
+    for yy in ((-L / 2 + 0.15, L / 2 - 0.15) if L >= 5 else ()):
         parts += arch(f"rib{yy}", TUN_W - 0.3, TUN_H - 0.15, 0.3, yy, m["concrete_dark"], thickness=0.2, segs=8)
     t = join(parts, "tunnel")
     add_selection_group(t, "tunnel")
@@ -383,7 +385,7 @@ def build_tunnel(outdir):
     for sx in (-1, 1):
         geometry_box(f"geometry_wall_{sx}", (0.5, L, TUN_H), (sx * (TUN_W / 2 + 0.25), 0, TUN_H / 2))
     geometry_box("geometry_roof", (TUN_W + 1, L, 0.5), (0, 0, TUN_H + 0.25))
-    save(outdir, "tunnel_10m")
+    save(outdir, name)
 
 
 def build_station(outdir):
@@ -490,6 +492,7 @@ def main():
     build_dispenser(outdir)
     build_rail10(outdir)
     build_tunnel(outdir)
+    build_tunnel(outdir, 2.4, "tunnel_2m")
     build_station(outdir)
     build_hatch(outdir)
     build_ladder(outdir)

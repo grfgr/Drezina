@@ -30,6 +30,8 @@ class DrezinaConst
 	static const float  STATION_BACK      = 4.0;  // сколько станции «за» точкой входа
 	static const float  RAIL_TOP_ABOVE_FLOOR = 0.27; // головка рельса над полом
 	static const float  LAMP_STEP         = 30.0;
+	static const float  TUNNEL_SHORT_STEP = 2.0;  // шаг коротких звеньев на поворотах (модель 2.4 м, с нахлёстом)
+	static const float  METRO_MIN_LEN     = 50.0;
 
 	static const float  RAIL_PIECE_LEN = 2.0;   // длина модели Drezina_Rail
 	static const float  SPLINE_STEP    = 1.0;   // шаг сглаженной линии пути, м
@@ -57,6 +59,12 @@ class DrezinaSettings
 	float AutoNodeMinStep     = 2.0;   // минимальный шаг для режима "/rail auto"
 	float MetroDefaultDepth   = 20.0;  // пол тоннеля ниже самой низкой точки рельефа над трассой
 	float MetroMinFloorY      = 3.0;   // пол не ниже уровня моря + 3 м (иначе игрок «поплывёт»)
+	// Локация за картой для метро, которое нельзя спрятать под рельефом (берег, низины).
+	// По умолчанию — над морем восточнее Черноруси (карта 15360 x 15360), на высоте 600 м.
+	float MetroZoneX          = 17500;
+	float MetroZoneZ          = 500;
+	float MetroZoneY          = 600;
+	float MetroZoneGap        = 150;   // зазор между тоннелями в локации
 
 	static ref DrezinaSettings s_Instance;
 
