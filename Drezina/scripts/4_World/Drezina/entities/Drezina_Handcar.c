@@ -259,7 +259,10 @@ class Drezina_Handcar extends ItemBase
 
 		// синхронизация ~10 раз в секунду или при смене состояния
 		m_SyncTimer += dt;
-		if (m_SyncTimer >= 0.1 || pumping != m_Pumping || braking != m_Braking)
+		float syncEvery = 0.25;
+		if (m_Speed > 0.05)
+			syncEvery = 0.05;   // на ходу 20 раз в секунду: клиент держит дрезину там же, где сервер
+		if (m_SyncTimer >= syncEvery || pumping != m_Pumping || braking != m_Braking)
 		{
 			m_SyncTimer = 0;
 			m_Pumping = pumping;
@@ -295,7 +298,7 @@ class Drezina_Handcar extends ItemBase
 
 		// дистанция: маленькое расхождение сглаживаем, большое — прыжок
 		m_PredDist = m_SyncDist;
-		if (Math.AbsFloat(m_SyncDist - m_Dist) > 3.0)
+		if (Math.AbsFloat(m_SyncDist - m_Dist) > 1.5)
 			m_Dist = m_SyncDist;
 		m_Speed = m_SyncSpeed;
 	}
@@ -309,7 +312,7 @@ class Drezina_Handcar extends ItemBase
 		float step = m_Speed * m_Dir * dt;
 		m_PredDist = Math.Clamp(m_PredDist + step, 0, t.GetLength());
 		m_Dist += step;
-		m_Dist += (m_PredDist - m_Dist) * Math.Clamp(dt * 4.0, 0, 1);
+		m_Dist += (m_PredDist - m_Dist) * Math.Clamp(dt * 20.0, 0, 1);
 		m_Dist = Math.Clamp(m_Dist, 0, t.GetLength());
 		ApplyTransform();
 	}
@@ -519,15 +522,14 @@ class Drezina_Handcar extends ItemBase
 	// ставим его на место сами (сервер — для всех, клиент водителя — чтобы не было рывков).
 	void KeepDriverOnDeck()
 	{
-		if (!m_Driver || !HasDriver())
-			return;
-		bool mine = !GetGame().IsDedicatedServer() && m_Driver == GetGame().GetPlayer();
-		if (!GetGame().IsServer() && !mine)
+		// только сервер и только если персонаж реально слетел (команда езды не держит его):
+		// мелкие расхождения сервера и клиента нормальны, их поправлять нельзя — будут рывки
+		if (!m_Driver || !HasDriver() || !GetGame().IsServer())
 			return;
 		vector seat;
 		float yaw;
 		GetDriverTransform(seat, yaw);
-		if (vector.Distance(m_Driver.GetPosition(), seat) > 0.25)
+		if (vector.Distance(m_Driver.GetPosition(), seat) > 2.0)
 		{
 			m_Driver.SetPosition(seat);
 			m_Driver.SetOrientation(Vector(yaw, 0, 0));
