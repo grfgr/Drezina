@@ -193,7 +193,20 @@ class Drezina_Handcar extends ItemBase
 		else if (rpc_type == DrezinaRPC.HC_LEAVE)
 		{
 			if (IsSenderDriver(sender))
+			{
+				PlayerBase leaving = m_Driver;
 				ServerClearDriver();
+				if (leaving)
+				{
+					// поставить рядом с дрезиной, а не на платформе
+					vector side = Vector(GetDirection()[2], 0, -GetDirection()[0]).Normalized();
+					vector off = GetPosition() + side * 1.3;
+					off[1] = GetPosition()[1] + 0.05;
+					leaving.SetPosition(off);
+					leaving.m_DrezinaLeftTime = GetGame().GetTime();
+					Print("[Drezina] водитель сошёл");
+				}
+			}
 		}
 	}
 

@@ -2,6 +2,13 @@ modded class PlayerBase
 {
 	Drezina_Handcar m_DrezinaHandcar; // дрезина, на которой игрок стоит водителем
 	bool m_DrezinaInputOff;           // обычное управление персонажем выключено на время езды
+	int m_DrezinaLeftTime = -100000;  // когда сошёл с дрезины (мс игрового времени)
+
+	// сразу после схода нельзя снова встать за рычаг: то же нажатие F запускало «Встать за рычаг»
+	bool DrezinaBoardCooldown()
+	{
+		return GetGame().GetTime() - m_DrezinaLeftTime < 1500;
+	}
 
 	override void SetActions(out TInputActionMap InputActionMap)
 	{

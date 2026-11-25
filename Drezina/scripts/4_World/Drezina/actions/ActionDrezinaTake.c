@@ -16,7 +16,7 @@ class ActionDrezinaTake extends ActionInteractBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		if (!target || player.m_DrezinaHandcar)
+		if (!target || player.m_DrezinaHandcar || player.DrezinaBoardCooldown())
 			return false;
 		return Drezina_Dispenser.Cast(target.GetObject()) != null;
 	}
@@ -48,7 +48,7 @@ class ActionDrezinaBoard extends ActionInteractBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		if (!target || player.m_DrezinaHandcar)
+		if (!target || player.m_DrezinaHandcar || player.DrezinaBoardCooldown())
 			return false;
 		Drezina_Handcar hc = Drezina_Handcar.Cast(target.GetObject());
 		return hc && !hc.HasDriver() && hc.m_SyncSpeed < 0.5;
@@ -57,7 +57,7 @@ class ActionDrezinaBoard extends ActionInteractBase
 	override void OnExecuteServer(ActionData action_data)
 	{
 		Drezina_Handcar hc = Drezina_Handcar.Cast(action_data.m_Target.GetObject());
-		if (hc && !hc.HasDriver() && !action_data.m_Player.m_DrezinaHandcar)
+		if (hc && !hc.HasDriver() && !action_data.m_Player.m_DrezinaHandcar && !action_data.m_Player.DrezinaBoardCooldown())
 			hc.ServerSetDriver(action_data.m_Player);
 	}
 }
@@ -80,7 +80,7 @@ class ActionDrezinaReverse extends ActionInteractBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		if (!target || player.m_DrezinaHandcar)
+		if (!target || player.m_DrezinaHandcar || player.DrezinaBoardCooldown())
 			return false;
 		Drezina_Handcar hc = Drezina_Handcar.Cast(target.GetObject());
 		return hc && !hc.HasDriver() && hc.m_SyncSpeed < 0.5;

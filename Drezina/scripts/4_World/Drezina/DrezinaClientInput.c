@@ -47,6 +47,9 @@ class DrezinaClientInput
 			GetGame().RPCSingleParam(hc, DrezinaRPC.HC_REVERSE, new Param1<int>(0), true);
 
 		if (leave && leave.LocalPress())
+		{
+			player.m_DrezinaLeftTime = GetGame().GetTime();
 			GetGame().RPCSingleParam(hc, DrezinaRPC.HC_LEAVE, new Param1<int>(0), true);
+		}
 	}
 }
