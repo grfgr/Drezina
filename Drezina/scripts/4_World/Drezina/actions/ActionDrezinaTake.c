@@ -23,9 +23,10 @@ class ActionDrezinaTake extends ActionInteractBase
 
 	override void OnExecuteServer(ActionData action_data)
 	{
-		Drezina_Dispenser disp = Drezina_Dispenser.Cast(action_data.m_Target.GetObject());
-		if (disp)
-			DrezinaTrackManager.Get().ServerTakeHandcar(action_data.m_Player, disp);
+		Object obj = action_data.m_Target.GetObject();
+		Print("[Drezina] ActionDrezinaTake: цель " + obj);
+		Drezina_Dispenser disp = Drezina_Dispenser.Cast(obj);
+		DrezinaTrackManager.Get().ServerTakeHandcar(action_data.m_Player, disp);
 	}
 }
 

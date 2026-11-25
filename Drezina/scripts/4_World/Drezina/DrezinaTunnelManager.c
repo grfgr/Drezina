@@ -894,6 +894,44 @@ class DrezinaTunnelManager
 		}
 	}
 
+	// /rail start и /rail end: две точки — вход и выход, метро между ними строится само
+	// (под землёй, если позволяет рельеф, иначе в локации за картой)
+	void ServerStartEnd(PlayerIdentity sender, bool isStart)
+	{
+		PlayerBase admin = PlayerBase.Cast(sender.GetPlayer());
+		if (!admin)
+			return;
+		string uid = sender.GetPlainId();
+		DrezinaMetroDraft draft = m_Drafts.Get(uid);
+		if (!draft)
+		{
+			draft = new DrezinaMetroDraft();
+			m_Drafts.Set(uid, draft);
+		}
+		draft.Admin = admin;
+		vector here = admin.GetPosition();
+
+		if (isStart)
+		{
+			draft.Points.Clear();
+			draft.Points.Insert(here);
+			draft.HasB = false;
+			draft.AutoStep = 0;
+			DrezinaTrackManager.Notify(sender, "Вход метро отмечен. Переместитесь к выходу и напишите /rail end");
+			return;
+		}
+
+		if (!draft.HasA())
+		{
+			DrezinaTrackManager.Notify(sender, "Сначала /rail start на месте входа.");
+			return;
+		}
+		draft.B = here;
+		draft.HasB = true;
+		Build(sender, draft, "auto", DrezinaSettings.Get().MetroDefaultDepth);
+		m_Drafts.Remove(uid);
+	}
+
 	int FindNearestTunnel(vector p, float maxDist)
 	{
 		int best = 0;

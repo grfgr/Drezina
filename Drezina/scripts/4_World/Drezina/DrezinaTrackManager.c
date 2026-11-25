@@ -254,14 +254,37 @@ class DrezinaTrackManager
 	// Взять дрезину на станции: свободная рядом — садимся в неё, иначе спавним новую.
 	void ServerTakeHandcar(PlayerBase player, Drezina_Dispenser disp)
 	{
-		DrezinaTrack t = GetTrack(disp.m_TrackId);
-		if (!t || !player || !player.IsAlive() || player.m_DrezinaHandcar)
+		if (!disp)
+		{
+			Print("[Drezina] take: нет станции выдачи");
 			return;
+		}
+		Print("[Drezina] take: станция выдачи пути #" + disp.m_TrackId + ", начало=" + disp.m_AtStart);
+		ServerTakeAt(player, disp.m_TrackId, disp.m_AtStart);
+	}
+
+	// Выдать дрезину у конца пути (у станции выдачи или по команде /rail take).
+	void ServerTakeAt(PlayerBase player, int trackId, bool atStart)
+	{
+		DrezinaTrack t = GetTrack(trackId);
+		if (!player || !player.IsAlive())
+			return;
+		if (!t)
+		{
+			Print("[Drezina] take: путь #" + trackId + " не найден");
+			Notify(player.GetIdentity(), "Путь #" + trackId + " не найден на сервере.");
+			return;
+		}
+		if (player.m_DrezinaHandcar)
+		{
+			Notify(player.GetIdentity(), "Вы уже на дрезине.");
+			return;
+		}
 
 		DrezinaSettings st = DrezinaSettings.Get();
 		float startDist = st.HandcarClearance * 0.5 + 1.0;
 		int dir = 1;
-		if (!disp.m_AtStart)
+		if (!atStart)
 		{
 			startDist = t.GetLength() - startDist;
 			dir = -1;
@@ -296,7 +319,12 @@ class DrezinaTrackManager
 			int flags = ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
 			hc = Drezina_Handcar.Cast(GetGame().CreateObjectEx("Drezina_Handcar", pos, flags, RF_DEFAULT));
 			if (!hc)
+			{
+				Print("[Drezina] take: !!! не удалось создать Drezina_Handcar");
+				Notify(player.GetIdentity(), "Не удалось создать дрезину (см. лог сервера).");
 				return;
+			}
+			Print("[Drezina] take: дрезина создана на " + pos);
 			hc.ServerPlaceOnTrack(t.GetId(), startDist, dir);
 		}
 
@@ -423,6 +451,7 @@ class DrezinaTrackManager
 
 		text.TrimInPlace();
 		array<string> args = new array<string>;
+		text.Replace(",", " ");
 		text.Split(" ", args);
 		// убираем пустые
 		for (int i = args.Count() - 1; i >= 0; i--)
@@ -436,6 +465,30 @@ class DrezinaTrackManager
 		cmd.ToLower();
 		if (cmd == "delete")
 			cmd = "del";
+
+		// метро двумя точками: /rail start — вход здесь, телепорт, /rail end — выход и постройка
+		if (cmd == "start" || cmd == "старт" || cmd == "end" || cmd == "энд" || cmd == "конец")
+		{
+			DrezinaTunnelManager.Get().ServerStartEnd(sender, cmd == "start" || cmd == "старт");
+			return;
+		}
+		// проверка выдачи без будки: дрезина у ближайшего конца ближайшего пути
+		if (cmd == "take")
+		{
+			vector tp = admin.GetPosition();
+			int tid = FindNearestTrack(tp, 30.0);
+			if (tid == 0)
+			{
+				Notify(sender, "Рядом (30 м) нет пути.");
+				return;
+			}
+			DrezinaTrack tt = GetTrack(tid);
+			vector a0, a1, dd;
+			tt.GetPosDir(0, a0, dd);
+			tt.GetPosDir(tt.GetLength(), a1, dd);
+			ServerTakeAt(admin, tid, vector.Distance(tp, a0) <= vector.Distance(tp, a1));
+			return;
+		}
 
 		string uid = sender.GetPlainId();
 		DrezinaDraft draft = m_Drafts.Get(uid);
@@ -633,7 +686,7 @@ class DrezinaTrackManager
 			}
 			default:
 			{
-				Notify(sender, "/rail new | add | auto <м> | undo | done | cancel | extend | del [id] | list | tp <id> | reload");
+				Notify(sender, "/rail start (вход метро) -> /rail end (выход) | new | add | auto <м> | undo | done | cancel | extend | del [id] | list | tp <id> | take | reload");
 				break;
 			}
 		}
