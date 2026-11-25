@@ -84,12 +84,15 @@ class DrezinaTrackManager
 
 	static Object SpawnStatic(string type, vector pos, vector dir)
 	{
-		int flags = ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
+		int flags = ECE_SETUP | ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
 		Object obj = GetGame().CreateObjectEx(type, pos, flags, RF_DEFAULT);
 		if (obj)
 		{
 			obj.SetPosition(pos);
 			obj.SetDirection(dir);
+			// коллизия статического объекта не поворачивается вместе с моделью:
+			// повторно применить ориентацию и обновить (так же делает экспорт DayZ Editor)
+			obj.SetOrientation(obj.GetOrientation());
 			obj.Update();
 		}
 		return obj;

@@ -396,7 +396,12 @@ def build_entrance(outdir, save_fn, reset_fn):
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
     # геометрия
-    geo("geometry_block", (BW + 0.4, BD + 0.7, 3.8), (0, -BD / 2 + 0.3, 1.9))
+    # коллизия блока заканчивается на фасаде (y = 0), портал и дверь — отдельными боксами, ниша свободна
+    geo("geometry_block", (BW, BD, 3.6), (0, -BD / 2, 1.8))
+    for sx in (-1, 1):
+        geo(f"geometry_portal{sx}", (0.9, 0.6, 3.5), (sx * 1.43, 0.2, 1.75))
+    geo("geometry_portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04))
+    geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))     # закрытая дверь: к ней можно подойти вплотную
     for sx in (-1, 1):
         geo(f"geometry_wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), (math.radians(-32), 0, 0))
     geo("geometry_mound", (11, 8, 3.5), (0, -4.5, 1.75))
