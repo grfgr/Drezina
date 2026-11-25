@@ -18,6 +18,7 @@ class Drezina_Trailer extends CarScript
 	int m_Face = 1;
 	bool m_OffRail;
 	float m_LeadHint = -1;    // дистанция ведущей по пути (поиск проекции)
+	int m_LeadHintTrack;      // на каком пути эта подсказка
 	float m_WheelPhase;
 	bool m_GravityOff;
 	bool m_BrakeShown;
@@ -272,6 +273,9 @@ class Drezina_Trailer extends CarScript
 			return;
 		// где ведущая: проекция её положения на путь (с подсказкой от прошлого кадра)
 		float ld = m_LeadHint;
+		if (m_LeadHintTrack != t.GetId())
+			ld = -1;                     // ведущая перешла на другой путь
+		m_LeadHintTrack = t.GetId();
 		if (ld < 0)
 		{
 			float off;
@@ -284,14 +288,22 @@ class Drezina_Trailer extends CarScript
 			ld = Math.Clamp(ld + vector.Dot(lead.GetPosition() - p, dir), 0, t.GetLength());
 		}
 		m_LeadHint = ld;
-		if (GetGame().IsServer() && (m_TrackId != lead.m_TrackId || m_Face != lead.m_Face))
+		if (GetGame().IsServer() && m_Face != lead.m_Face)
 		{
-			m_TrackId = lead.m_TrackId;
 			m_Face = lead.m_Face;
 			SetSynchDirty();
 		}
 		vector vel = GetVelocity(lead);
-		FollowAt(t, ld - lead.m_Face * Drezina_Motor.TRAILER_GAP, lead.m_Face, vel);
+		DrezinaTrack tt;
+		float td;
+		int tface;
+		lead.TrailerPose(t, ld, tt, td, tface);
+		FollowAt(tt, td, tface, vel);
+		if (GetGame().IsServer() && tt.GetId() != m_TrackId)
+		{
+			m_TrackId = tt.GetId();
+			SetSynchDirty();
+		}
 		// колёса крутятся со скоростью ведущей
 		if (!GetGame().IsDedicatedServer() && dt > 0 && dt < 0.5)
 		{

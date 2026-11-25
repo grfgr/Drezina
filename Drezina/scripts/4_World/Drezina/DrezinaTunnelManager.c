@@ -45,6 +45,7 @@ class DrezinaTunnelManager
 
 	ref map<int, ref DrezinaTunnelData> m_Tunnels = new map<int, ref DrezinaTunnelData>;
 	ref map<int, ref DrezinaTrack> m_Splines = new map<int, ref DrezinaTrack>;   // ось тоннеля (под землёй/в локации)
+	ref array<ref DrezinaJunction> m_Junctions = new array<ref DrezinaJunction>;  // пересечения метро (залы со стрелками)
 	ref map<int, ref array<Object>> m_Objects = new map<int, ref array<Object>>;
 	ref map<string, ref DrezinaMetroDraft> m_Drafts = new map<string, ref DrezinaMetroDraft>;
 
@@ -76,9 +77,9 @@ class DrezinaTunnelManager
 			if (!t || t.Route.Count() < 2)
 				continue;
 			m_Tunnels.Set(t.Id, t);
-			SpawnTunnel(t);
 		}
-		Print("[Drezina] loaded tunnels: " + m_Tunnels.Count());
+		RespawnAll();
+		Print("[Drezina] loaded tunnels: " + m_Tunnels.Count() + ", пересечений: " + m_Junctions.Count());
 		GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(Tick, 250, true);
 	}
 
@@ -363,7 +364,11 @@ class DrezinaTunnelManager
 		{
 			string type = "Drezina_Tunnel2";
 			float piece = DrezinaConst.TUNNEL_SHORT_STEP;
-			if (d + DrezinaConst.TUNNEL_PIECE_LEN <= tEnd && DrezinaTrackManager.IsStraight(s, d, d + DrezinaConst.TUNNEL_PIECE_LEN))
+			vector jp, jd;
+			s.GetPosDir(d + DrezinaConst.TUNNEL_PIECE_LEN * 0.5, jp, jd);
+			float jr;
+			bool nearJ = JunctionDist(t.Id, jp, jr) < jr + 12.0;   // у зала развязки — короткими звеньями
+			if (!nearJ && d + DrezinaConst.TUNNEL_PIECE_LEN <= tEnd && DrezinaTrackManager.IsStraight(s, d, d + DrezinaConst.TUNNEL_PIECE_LEN))
 			{
 				type = variants[(piece10 * 5 + t.Id) % variants.Count()];
 				piece10++;
@@ -375,7 +380,9 @@ class DrezinaTunnelManager
 			vector pos, dir;
 			s.GetPosDir(c, pos, dir);
 			dir[1] = 0;
-			AddObj(objs, DrezinaTrackManager.SpawnStatic(type, pos, dir.Normalized()));
+			float jr2;
+			if (JunctionDist(t.Id, pos, jr2) >= jr2 - 0.2)          // внутри зала развязки тоннеля нет
+				AddObj(objs, DrezinaTrackManager.SpawnStatic(type, pos, dir.Normalized()));
 			d += piece;
 		}
 
@@ -547,7 +554,9 @@ class DrezinaTunnelManager
 			int tkey = Key(t.Id, 0);
 			if (d > len * 0.5)
 				tkey = Key(t.Id, 1);
-			SpawnLamp(tkey, lp + up * 4.85, ld.Normalized(), objs);
+			float jr3;
+			if (JunctionDist(t.Id, lp, jr3) > jr3 + 1.0)
+				SpawnLamp(tkey, lp + up * 4.85, ld.Normalized(), objs);
 			d += DrezinaConst.LAMP_STEP;
 		}
 	}
@@ -681,6 +690,439 @@ class DrezinaTunnelManager
 		}
 	}
 
+
+	// ================================================================== пересечения линий: залы со стрелками
+	//
+	// Линии на одном уровне, которые пересекаются вдали от станций (>= 60 м), получают круглый зал
+	// радиусом 24 м. Под большим углом (>= 55°) внутри — кольцо R=11 м, с каждой из 4 веток на кольцо
+	// съезды налево и направо (руль A/D), прямо — насквозь через центр. Под малым углом (20..55°) —
+	// два плавных съезда с линии на линию. Острее 20° — без развязки (тоннели слились бы надолго).
+
+	static const float JUNC_RADIUS = 24.0;
+	static const float JUNC_END_CLEAR = 60.0;
+	static const float JUNC_RING_R = 11.0;
+	static const float JUNC_ARM_R = 20.0;
+	static const float JUNC_WYE_L = 15.0;
+
+	// расстояние от точки до ближайшего зала этой линии (и его радиус)
+	float JunctionDist(int tunnelId, vector p, out float radius)
+	{
+		float best = 1000000.0;
+		radius = 0;
+		foreach (DrezinaJunction j : m_Junctions)
+		{
+			if (j.A != tunnelId && j.B != tunnelId)
+				continue;
+			float dd = FlatDistance(p, j.Center);
+			if (dd < best)
+			{
+				best = dd;
+				radius = j.Radius;
+			}
+		}
+		return best;
+	}
+
+	static vector Flat(vector v)
+	{
+		v[1] = 0;
+		return v.Normalized();
+	}
+
+	// пересечение отрезков на плоскости XZ: параметры ta, tb на [0,1]
+	static bool SegCross(vector a0, vector a1, vector b0, vector b1, out float ta, out float tb)
+	{
+		float rx = a1[0] - a0[0];
+		float rz = a1[2] - a0[2];
+		float sx = b1[0] - b0[0];
+		float sz = b1[2] - b0[2];
+		float den = rx * sz - rz * sx;
+		if (Math.AbsFloat(den) < 0.000001)
+			return false;
+		float qx = b0[0] - a0[0];
+		float qz = b0[2] - a0[2];
+		ta = (qx * sz - qz * sx) / den;
+		tb = (qx * rz - qz * rx) / den;
+		return ta >= 0 && ta <= 1 && tb >= 0 && tb <= 1;
+	}
+
+	// первое пересечение двух осей (по 4 м), вдали от концов обеих
+	bool FirstCrossing(DrezinaTrack sa, DrezinaTrack sb, out vector x, out float da, out float db, out vector dirA, out vector dirB)
+	{
+		array<vector> found = new array<vector>;
+		array<float> fa = new array<float>;
+		array<float> fb = new array<float>;
+		AllCrossings(sa, sb, found, fa, fb);
+		if (found.Count() == 0)
+			return false;
+		x = found[0];
+		da = fa[0];
+		db = fb[0];
+		vector p;
+		sa.GetPosDir(da, p, dirA);
+		sb.GetPosDir(db, p, dirB);
+		dirA = Flat(dirA);
+		dirB = Flat(dirB);
+		return true;
+	}
+
+	void AllCrossings(DrezinaTrack sa, DrezinaTrack sb, array<vector> outX, array<float> outDA, array<float> outDB)
+	{
+		float step = 4.0;
+		float la = sa.GetLength();
+		float lb = sb.GetLength();
+		for (float a = JUNC_END_CLEAR - step; a < la - JUNC_END_CLEAR + step; a += step)
+		{
+			vector a0, a1, dd;
+			sa.GetPosDir(a, a0, dd);
+			sa.GetPosDir(a + step, a1, dd);
+			for (float b = JUNC_END_CLEAR - step; b < lb - JUNC_END_CLEAR + step; b += step)
+			{
+				vector b0, b1;
+				sb.GetPosDir(b, b0, dd);
+				sb.GetPosDir(b + step, b1, dd);
+				float ta, tb;
+				if (!SegCross(a0, a1, b0, b1, ta, tb))
+					continue;
+				float da = a + ta * step;
+				float db = b + tb * step;
+				if (da < JUNC_END_CLEAR || da > la - JUNC_END_CLEAR || db < JUNC_END_CLEAR || db > lb - JUNC_END_CLEAR)
+					continue;
+				vector x = a0 + (a1 - a0) * ta;
+				bool dup = false;
+				foreach (vector fx : outX)
+				{
+					if (FlatDistance(fx, x) < JUNC_RADIUS * 2.5)
+						dup = true;
+				}
+				if (dup)
+					continue;
+				outX.Insert(x);
+				outDA.Insert(da);
+				outDB.Insert(db);
+			}
+		}
+	}
+
+	void ComputeJunctions()
+	{
+		m_Junctions.Clear();
+		array<DrezinaTunnelData> list = new array<DrezinaTunnelData>;
+		foreach (int id, DrezinaTunnelData t : m_Tunnels)
+		{
+			if (!t.Zone)
+				list.Insert(t);
+		}
+		for (int i = 0; i < list.Count(); i++)
+		{
+			for (int k = i + 1; k < list.Count(); k++)
+			{
+				DrezinaTunnelData a = list[i];
+				DrezinaTunnelData b = list[k];
+				if (Math.AbsFloat(a.FloorY - b.FloorY) > 0.3)
+					continue;
+				DrezinaTrack sa = GetSpline(a);
+				DrezinaTrack sb = GetSpline(b);
+				array<vector> xs = new array<vector>;
+				array<float> das = new array<float>;
+				array<float> dbs = new array<float>;
+				AllCrossings(sa, sb, xs, das, dbs);
+				for (int n = 0; n < xs.Count(); n++)
+				{
+					bool clash = false;
+					foreach (DrezinaJunction ej : m_Junctions)
+					{
+						if (FlatDistance(ej.Center, xs[n]) < JUNC_RADIUS * 2.5)
+							clash = true;
+					}
+					if (clash)
+						continue;
+					vector p, dA, dB;
+					sa.GetPosDir(das[n], p, dA);
+					sb.GetPosDir(dbs[n], p, dB);
+					dA = Flat(dA);
+					dB = Flat(dB);
+					float cosv = Math.AbsFloat(vector.Dot(dA, dB));
+					float ang = Math.Acos(Math.Clamp(cosv, 0, 1)) * Math.RAD2DEG;
+					if (ang < 20)
+					{
+						Print("[Drezina] пересечение метро #" + a.Id + " и #" + b.Id + " слишком острое (" + Math.Round(ang) + "°) — без развязки");
+						continue;
+					}
+					DrezinaJunction j = new DrezinaJunction();
+					j.A = a.Id;
+					j.B = b.Id;
+					j.Center = Vector(xs[n][0], a.FloorY, xs[n][2]);
+					j.DirA = dA;
+					j.DirB = dB;
+					j.Ring = ang >= 55;
+					j.Radius = JUNC_RADIUS;
+					m_Junctions.Insert(j);
+					Print("[Drezina] пересечение метро #" + a.Id + " и #" + b.Id + ": " + Math.Round(ang) + "°, кольцо=" + j.Ring);
+				}
+			}
+		}
+	}
+
+	// всё метро заново: пересечения -> тоннели (с пропуском залов) -> залы, служебные пути и стрелки
+	void RespawnAll()
+	{
+		foreach (DrezinaJunction oj : m_Junctions)
+		{
+			foreach (Object o : oj.Objects)
+			{
+				if (o)
+					GetGame().ObjectDelete(o);
+			}
+		}
+		DrezinaTrackManager.Get().RemoveServiceTracks();
+		m_Splines.Clear();
+		ComputeJunctions();
+		foreach (int id, DrezinaTunnelData t : m_Tunnels)
+			SpawnTunnel(t);
+		foreach (DrezinaJunction j : m_Junctions)
+			SpawnJunction(j);
+		DrezinaUnderground.SyncAll();
+		DrezinaTrackManager.Get().ServerJunctionsChanged();
+	}
+
+	static vector ArmDir(float ang)
+	{
+		return Vector(Math.Sin(ang), 0, Math.Cos(ang));
+	}
+
+	static float DirAngle(vector d)
+	{
+		return Math.Atan2(d[0], d[2]);
+	}
+
+	static vector Hermite(vector p0, vector m0, vector p1, vector m1, float s)
+	{
+		float s2 = s * s;
+		float s3 = s2 * s;
+		return p0 * (2 * s3 - 3 * s2 + 1) + m0 * (s3 - 2 * s2 + s) + p1 * (-2 * s3 + 3 * s2) + m1 * (s3 - s2);
+	}
+
+	static int SideSign(vector motion, vector from, vector to)
+	{
+		if (vector.Dot(Side(Flat(motion)), to - from) >= 0)
+			return 1;
+		return -1;
+	}
+
+	// съезд: узлы по кривой Эрмита от p0 (касательная t0) до p1 (касательная t1)
+	static void ConnectorNodes(vector p0, vector t0, vector p1, vector t1, float y, array<vector> nodes)
+	{
+		float L = FlatDistance(p0, p1);
+		for (int i = 0; i <= 10; i++)
+		{
+			float sp = i;
+			sp = sp / 10.0;
+			vector q = Hermite(p0, t0 * L, p1, t1 * L, sp);
+			q[1] = y;
+			nodes.Insert(q);
+		}
+	}
+
+	void SpawnJunction(DrezinaJunction j)
+	{
+		DrezinaTunnelData ta = m_Tunnels.Get(j.A);
+		DrezinaTunnelData tb = m_Tunnels.Get(j.B);
+		if (!ta || !tb)
+			return;
+		DrezinaTrackManager tm = DrezinaTrackManager.Get();
+		DrezinaTrack ma = tm.GetTrack(ta.TrackId);
+		DrezinaTrack mb = tm.GetTrack(tb.TrackId);
+		if (!ma || !mb)
+			return;
+		vector c = j.Center;
+		float R = j.Radius;
+
+		// зал: пол, свод на балках; стены панелями по кругу, у входа каждой ветки — портал под тоннель
+		AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHall", c, j.DirA));
+		array<vector> arms = new array<vector>;
+		arms.Insert(j.DirA);
+		arms.Insert(j.DirA * -1.0);
+		arms.Insert(j.DirB);
+		arms.Insert(j.DirB * -1.0);
+		foreach (vector arm : arms)
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionPortal", c + arm * R, arm * -1.0));
+		float stepA = 2.7 / (R + 0.25);
+		float gap = Math.Asin(4.4 / R);          // панели с центром ближе 4.4 м к оси входа — за порталом (он 12 м)
+		for (float ang = 0; ang < Math.PI2 - stepA * 0.5; ang += stepA)
+		{
+			vector o = ArmDir(ang);
+			bool skip = false;
+			foreach (vector a2 : arms)
+			{
+				if (vector.Dot(o, a2) > Math.Cos(gap))
+					skip = true;
+			}
+			if (!skip)
+				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", c + o * (R + 0.25), o * -1.0));
+		}
+		AddObj(j.Objects, DrezinaUnderground.AddZone(c + Vector(0, 3.4, 0), Vector(R * 2 + 1, 7.2, R * 2 + 1), j.DirA, "drezina junction " + j.A + "x" + j.B));
+		// свет зала — от генератора ближней станции линии A
+		for (int li = 0; li < 8; li++)
+		{
+			vector lo = ArmDir(DirAngle(j.DirA) + li * Math.PI * 0.25 + Math.PI * 0.125);
+			SpawnLamp(Key(ta.Id, 0), c + lo * (R - 5.0) + Vector(0, 6.4, 0), lo, j.Objects);
+		}
+
+		float railY = c[1] + DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset;
+		float off;
+		float dXA = ma.ClosestDistance(Vector(c[0], railY, c[2]), off);
+		float dXB = mb.ClosestDistance(Vector(c[0], railY, c[2]), off);
+		vector cr = Vector(c[0], railY, c[2]);
+
+		if (j.Ring)
+			BuildRing(j, ma, mb, dXA, dXB, cr, railY);
+		else
+			BuildWye(j, ma, mb, dXA, dXB, railY);
+	}
+
+	void BuildRing(DrezinaJunction j, DrezinaTrack ma, DrezinaTrack mb, float dXA, float dXB, vector cr, float railY)
+	{
+		DrezinaTrackManager tm = DrezinaTrackManager.Get();
+		// кольцо: по часовой (вид сверху), замкнуто само на себя
+		array<vector> ring = new array<vector>;
+		for (int k = 0; k <= 36; k++)
+		{
+			vector rp = cr + ArmDir(k * Math.PI2 / 36.0) * JUNC_RING_R;
+			rp[1] = railY;
+			ring.Insert(rp);
+		}
+		array<ref DrezinaLink> rl = new array<ref DrezinaLink>;
+		DrezinaLink l1 = new DrezinaLink();
+		l1.End = 1;
+		l1.ToTrack = -1;
+		l1.ToD = 0;
+		l1.MergeDir = 1;
+		l1.Side = 0;
+		rl.Insert(l1);
+		DrezinaLink l0 = new DrezinaLink();
+		l0.End = 0;
+		l0.ToTrack = -1;
+		l0.MergeDir = -1;
+		l0.Side = 0;
+		rl.Insert(l0);
+		int ringId = tm.CreateServiceTrack(ring, "Кольцо развязки", rl);
+		DrezinaTrack rt = tm.GetTrack(ringId);
+		if (!rt)
+			return;
+		l0.ToD = rt.GetLength();
+
+		array<vector> arms = new array<vector>;
+		arms.Insert(j.DirA);
+		arms.Insert(j.DirA * -1.0);
+		arms.Insert(j.DirB);
+		arms.Insert(j.DirB * -1.0);
+		for (int ai = 0; ai < 4; ai++)
+		{
+			vector o = arms[ai];
+			DrezinaTrack m = ma;
+			float dX = dXA;
+			vector mdir = j.DirA;
+			if (ai >= 2)
+			{
+				m = mb;
+				dX = dXB;
+				mdir = j.DirB;
+			}
+			int sM = 1;
+			if (vector.Dot(o, mdir) < 0)
+				sM = -1;
+			float dP = dX + sM * JUNC_ARM_R;
+			vector P, pdir;
+			m.GetPosDir(dP, P, pdir);
+			for (int sg = -1; sg <= 1; sg += 2)
+			{
+				float aq = DirAngle(o) + sg * 50 * Math.DEG2RAD;
+				vector Q = cr + ArmDir(aq) * JUNC_RING_R;
+				Q[1] = railY;
+				vector tr = Vector(Math.Cos(aq), 0, -Math.Sin(aq));    // касательная кольца по росту дистанции
+				vector tq = tr;
+				int mergeQ = 1;
+				if (vector.Dot(tr, Q - P) < 0)
+				{
+					tq = tr * -1.0;
+					mergeQ = -1;
+				}
+				array<vector> nodes = new array<vector>;
+				ConnectorNodes(P, o * -1.0, Q, tq, railY, nodes);
+				array<ref DrezinaLink> cl = new array<ref DrezinaLink>;
+				DrezinaLink a = new DrezinaLink();
+				a.End = 0;
+				a.ToTrack = m.GetId();
+				a.ToD = dP;
+				a.MergeDir = sM;
+				a.Side = SideSign(o * -1.0, P, nodes[3]);
+				cl.Insert(a);
+				DrezinaLink b = new DrezinaLink();
+				b.End = 1;
+				b.ToTrack = ringId;
+				float offQ;
+				b.ToD = rt.ClosestDistance(Q, offQ);
+				b.MergeDir = mergeQ;
+				b.Side = SideSign(tq * -1.0, Q, nodes[7]);
+				cl.Insert(b);
+				tm.CreateServiceTrack(nodes, "Съезд на кольцо", cl);
+			}
+		}
+	}
+
+	void BuildWye(DrezinaJunction j, DrezinaTrack ma, DrezinaTrack mb, float dXA, float dXB, float railY)
+	{
+		DrezinaTrackManager tm = DrezinaTrackManager.Get();
+		int sB = 1;
+		if (vector.Dot(j.DirA, j.DirB) < 0)
+			sB = -1;
+		// съезд 1: с A (до пересечения) на B (после), съезд 2: с B (до) на A (после)
+		for (int n = 0; n < 2; n++)
+		{
+			DrezinaTrack m0 = ma;
+			DrezinaTrack m1 = mb;
+			float d0 = dXA - JUNC_WYE_L;
+			float d1 = dXB + sB * JUNC_WYE_L;
+			int s0 = 1;
+			int s1 = sB;
+			if (n == 1)
+			{
+				m0 = mb;
+				m1 = ma;
+				d0 = dXB - sB * JUNC_WYE_L;
+				d1 = dXA + JUNC_WYE_L;
+				s0 = sB;
+				s1 = 1;
+			}
+			vector P, pd, Q, qd;
+			m0.GetPosDir(d0, P, pd);
+			m1.GetPosDir(d1, Q, qd);
+			float fs0 = s0;
+			float fs1 = s1;
+			vector t0 = Flat(pd) * fs0;
+			vector t1 = Flat(qd) * fs1;
+			array<vector> nodes = new array<vector>;
+			ConnectorNodes(P, t0, Q, t1, railY, nodes);
+			array<ref DrezinaLink> cl = new array<ref DrezinaLink>;
+			DrezinaLink a = new DrezinaLink();
+			a.End = 0;
+			a.ToTrack = m0.GetId();
+			a.ToD = d0;
+			a.MergeDir = -s0;
+			a.Side = SideSign(t0, P, nodes[3]);
+			cl.Insert(a);
+			DrezinaLink b = new DrezinaLink();
+			b.End = 1;
+			b.ToTrack = m1.GetId();
+			b.ToD = d1;
+			b.MergeDir = s1;
+			b.Side = SideSign(t1 * -1.0, Q, nodes[7]);
+			cl.Insert(b);
+			tm.CreateServiceTrack(nodes, "Съезд", cl);
+		}
+	}
+
 	// ------------------------------------------------------------------ постройка
 
 	// mode: "auto" (под землёй, если можно, иначе в локации), "under", "zone"
@@ -727,12 +1169,29 @@ class DrezinaTunnelManager
 			t.Zone = false;
 			t.Offset = vector.Zero;
 			t.FloorY = floorY;
+			// пересекает другую линию — пол на её уровне (если это не выше допустимого), чтобы получилась развязка
+			foreach (int oid, DrezinaTunnelData ot : m_Tunnels)
+			{
+				if (ot.Zone || ot.FloorY > floorY)
+					continue;
+				vector cx, cdA, cdB;
+				float cda, cdb;
+				if (FirstCrossing(MakeSpline(route, vector.Zero, ot.FloorY), GetSpline(ot), cx, cda, cdb, cdA, cdB))
+				{
+					t.FloorY = ot.FloorY;
+					DrezinaTrackManager.Notify(sender, "Линия пересекает метро #" + ot.Id + ": пол на его уровне для перехода.");
+					break;
+				}
+			}
 		}
 
 		m_Tunnels.Set(t.Id, t);
-		SpawnTunnel(t);
+		int jBefore = m_Junctions.Count();
+		RespawnAll();
 		Save();
 		BroadcastAll();
+		if (m_Junctions.Count() > jBefore)
+			DrezinaTrackManager.Notify(sender, "Пересечений с другими линиями: " + (m_Junctions.Count() - jBefore) + " — построены залы со стрелками.");
 
 		string where = "под землёй, пол на высоте " + Math.Round(t.FloorY) + " м";
 		if (t.Zone)
@@ -883,6 +1342,7 @@ class DrezinaTunnelManager
 			m_Generators.Remove(Key(delId, 1));
 			m_Lamps.Remove(Key(delId, 0));
 			m_Lamps.Remove(Key(delId, 1));
+			RespawnAll();
 			Save();
 			BroadcastAll();
 			DrezinaTrackManager.Notify(sender, "Метро #" + delId + " удалено.");
@@ -936,9 +1396,8 @@ class DrezinaTunnelManager
 		}
 		else if (cmd == "rebuild")
 		{
-			foreach (int rid, DrezinaTunnelData rt : m_Tunnels)
-				SpawnTunnel(rt);
-			DrezinaTrackManager.Notify(sender, "Метро пересоздано.");
+			RespawnAll();
+			DrezinaTrackManager.Notify(sender, "Метро пересоздано, пересечений со стрелками: " + m_Junctions.Count() + ".");
 		}
 		else
 		{
@@ -1018,4 +1477,17 @@ class DrezinaTunnelManager
 		}
 		return best;
 	}
+}
+
+// Пересечение двух линий метро (зал со стрелками). Пересчитывается при запуске и после постройки/удаления.
+class DrezinaJunction
+{
+	int A;
+	int B;
+	vector Center;     // y — пол
+	vector DirA;       // направления осей линий в точке пересечения (по росту дистанции, горизонтально)
+	vector DirB;
+	bool Ring;         // кольцо (угол >= 55°) или два съезда
+	float Radius;
+	ref array<Object> Objects = new array<Object>;
 }

@@ -1301,6 +1301,83 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="
     save_fn(outdir, name)
 
 
+# ============================================================================ зал развязки (пересечение линий)
+
+JUNC_R = 24.0
+JUNC_H = 6.5
+
+
+def build_junction_hall(outdir, save_fn, reset_fn):
+    """Круглый зал R=24 м: пол, плоский свод на радиальных балках и двух кольцевых, ступица в центре.
+    Стены — отдельные панели (junction_wall) и порталы тоннелей (junction_portal): их ставит скрипт по кругу."""
+    reset_fn()
+    m = mats()
+    p = []
+    p.append(cyl("floor", JUNC_R + 0.6, 0.3, (0, 0, -0.15), m["concrete"], (0, 0, 0), 64))
+    p.append(cyl("ceiling", JUNC_R + 0.6, 0.4, (0, 0, JUNC_H + 0.2), m["concrete"], (0, 0, 0), 64))
+    for k in range(16):
+        a = k * math.pi / 8
+        L = JUNC_R - 1.0
+        p.append(box(f"beam{k}", (0.4, L, 0.5), (math.sin(a) * L / 2, math.cos(a) * L / 2, JUNC_H - 0.25), m["concrete"], (0, 0, -a)))
+    for r, w in ((12.0, 0.5), (JUNC_R - 0.6, 0.6)):
+        n = 48
+        for k in range(n):
+            a0 = k * 2 * math.pi / n
+            a1 = (k + 1) * 2 * math.pi / n
+            mx, my = (math.sin(a0) + math.sin(a1)) / 2 * r, (math.cos(a0) + math.cos(a1)) / 2 * r
+            ln = 2 * r * math.sin(math.pi / n) + 0.05
+            p.append(box(f"ringbeam{r}_{k}", (ln, w, 0.55), (mx, my, JUNC_H - 0.28), m["tubing"], (0, 0, -(a0 + a1) / 2 + math.pi / 2)))
+    p.append(cyl("hub", 1.2, 0.6, (0, 0, JUNC_H - 0.3), m["tubing"], (0, 0, 0), 32))
+    # на полу: водоотводное кольцо у стен и пятна сырости
+    n = 64
+    for k in range(n):
+        a0 = k * 2 * math.pi / n
+        a1 = (k + 1) * 2 * math.pi / n
+        r = JUNC_R - 0.4
+        mx, my = (math.sin(a0) + math.sin(a1)) / 2 * r, (math.cos(a0) + math.cos(a1)) / 2 * r
+        ln = 2 * r * math.sin(math.pi / n) + 0.02
+        p.append(box(f"drain{k}", (ln, 0.3, 0.02), (mx, my, 0.01), m["steel"], (0, 0, -(a0 + a1) / 2 + math.pi / 2), round_edges=False))
+    for k, (x, y, sx, sy) in enumerate(((8, 5, 1.4, 0.9), (-6, -9, 1.0, 1.3), (14, -6, 0.8, 0.7), (-15, 7, 1.1, 0.8))):
+        p += puddle_blob(f"hall_pud{k}", x, y, sx, sy, m)
+    finish(p, "junction_hall")
+    geo("geometry_floor", (2 * JUNC_R + 1, 2 * JUNC_R + 1, 0.4), (0, 0, -0.2))
+    geo("geometry_ceiling", (2 * JUNC_R + 1, 2 * JUNC_R + 1, 0.5), (0, 0, JUNC_H + 0.25))
+    save_fn(outdir, "junction_hall")
+
+
+def build_junction_wall(outdir, save_fn, reset_fn):
+    """Стеновая панель зала: 2.75 м, лицом в +Y (внутрь зала), с кабелями и трубой вдоль стены."""
+    reset_fn()
+    m = mats()
+    p = [box("panel", (2.75, 0.5, JUNC_H + 0.5), (0, 0, (JUNC_H + 0.5) / 2), m["wall"], round_edges=False)]
+    p.append(box("plinth", (2.75, 0.06, 0.3), (0, 0.27, 0.15), m["concrete"], round_edges=False))
+    for k in range(3):
+        p.append(cyl(f"cable{k}", 0.018, 2.8, (0, 0.3, 2.6 - k * 0.05), m["tape"], ROT_Y, 8))
+    p.append(box("cable_hook", (0.02, 0.1, 0.02), (0.3, 0.29, 2.65), m["steel"]))
+    p.append(cyl("pipe", 0.06, 2.8, (0, 0.35, 3.3), m["rust"], ROT_Y, 12))
+    p.append(box("pipe_bracket", (0.05, 0.12, 0.18), (-0.6, 0.3, 3.3), m["steel"]))
+    finish(p, "junction_wall")
+    geo("geometry_panel", (2.75, 0.5, JUNC_H + 0.5), (0, 0, (JUNC_H + 0.5) / 2))
+    save_fn(outdir, "junction_wall")
+
+
+def build_junction_portal(outdir, save_fn, reset_fn):
+    """Портал тоннеля в стене зала: стена 12 м с вырезом по профилю тоннеля, жёлто-чёрные полосы."""
+    reset_fn()
+    m = mats()
+    w, h = 12.0, JUNC_H + 0.5          # шире выреза: крайние панели стены заходят за портал — без щелей
+    wall = box("portal_wall", (w, 0.5, h), (0, 0, h / 2), m["concrete"], round_edges=False)
+    p = [boolean_cut(wall, profile_prism("cut_tun", TUN_W, TUN_WALL_H, TUN_RISE, 1.0, 0))]
+    for sx in (-1, 1):
+        p.append(box(f"portal_hz{sx}", (0.3, 0.04, TUN_WALL_H), (sx * (TUN_W / 2 + 0.15), 0.27, TUN_WALL_H / 2), m["hazard"]))
+    p.append(box("portal_lintel", (TUN_W + 0.6, 0.1, 0.3), (0, 0.3, TUN_WALL_H + TUN_RISE + 0.3), m["tubing"]))
+    finish(p, "junction_portal")
+    for sx in (-1, 1):
+        geo(f"geometry_side{sx}", ((w - TUN_W) / 2, 0.5, h), (sx * (TUN_W / 2 + (w - TUN_W) / 4), 0, h / 2))
+    geo("geometry_top", (TUN_W, 0.5, h - (TUN_WALL_H + TUN_RISE)), (0, 0, (h + TUN_WALL_H + TUN_RISE) / 2))
+    save_fn(outdir, "junction_portal")
+
+
 def build_all(outdir, tex_dir, save_fn, reset_fn):
     global TEX_DIR
     TEX_DIR = tex_dir
@@ -1313,5 +1390,8 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     for v in "bcd":                                  # варианты звена с антуражем
         build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_" + v, v)
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
+    build_junction_hall(outdir, save_fn, reset_fn)
+    build_junction_wall(outdir, save_fn, reset_fn)
+    build_junction_portal(outdir, save_fn, reset_fn)
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)
     build_lamp(outdir, save_fn, reset_fn, tex_dir)

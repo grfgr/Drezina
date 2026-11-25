@@ -28,6 +28,21 @@ class Drezina_Motor extends CarScript
 	float m_StillTime;
 	bool m_OffRail;              // снята с рельсов (стоит рядом с путём, чтобы разъехаться со встречной)
 	int m_TrailerLink;           // номер сцепки с прицепом (0 — без прицепа); тот же номер у прицепа
+	// последний переход на стрелке (для прицепа: сразу после стрелки он ещё на прежнем пути)
+	int m_PrevTrack;
+	float m_PrevD;
+	int m_PrevMove;
+	int m_PrevFace;
+	float m_EntryD;
+	int m_TransferTime = -100000;
+	// клиент водителя: свой переход важнее устаревшей синхронизации с сервера
+	int m_LTrack;
+	int m_LFace;
+	int m_LPrevTrack;
+	float m_LPrevD;
+	int m_LPrevMove;
+	int m_LPrevFace;
+	float m_LEntryD;
 
 	static const float TRAILER_GAP = 2.9;   // между центрами мотодрезины и прицепа (прицеп сзади)
 
@@ -37,6 +52,11 @@ class Drezina_Motor extends CarScript
 		RegisterNetSyncVariableInt("m_Face", -1, 1);
 		RegisterNetSyncVariableBool("m_OffRail");
 		RegisterNetSyncVariableInt("m_TrailerLink");
+		RegisterNetSyncVariableInt("m_PrevTrack");
+		RegisterNetSyncVariableFloat("m_PrevD", 0, 100000, 2);
+		RegisterNetSyncVariableInt("m_PrevMove", -1, 1);
+		RegisterNetSyncVariableInt("m_PrevFace", -1, 1);
+		RegisterNetSyncVariableFloat("m_EntryD", 0, 100000, 2);
 
 		m_EngineStartOK = "Motorbike_01_engine_start_SoundSet";
 		m_EngineStartBattery = "";
@@ -409,22 +429,37 @@ class Drezina_Motor extends CarScript
 			v = 0;
 
 		float nd = d + v * m_Face * dt;
-		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции)
+		// стрелки и примыкания развязок метро: переход на другой путь
+		if (v != 0 && TryTransfer(t, d, nd, v))
+		{
+			t = GetTrack();
+			nd = m_DistHint;
+		}
+		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
 		float hi = Math.Max(t.GetLength() - END_GAP, lo);
+		bool linked0 = t.LinkAt(0) != null;
+		bool linked1 = t.LinkAt(1) != null;
 		Drezina_Trailer tr = Trailer();
 		if (tr && !tr.m_OffRail)
 		{
 			// прицеп сзади (на стороне -нос): ему тоже нужно место до торца
-			if (m_Face > 0)
+			if (m_Face > 0 && !linked0)
 				lo = Math.Min(lo + TRAILER_GAP, hi);
-			else
+			else if (m_Face < 0 && !linked1)
 				hi = Math.Max(hi - TRAILER_GAP, lo);
 		}
+		if (linked0)
+			lo = 0;
+		if (linked1)
+			hi = t.GetLength();
 		if (nd <= lo || nd >= hi)
 		{
 			nd = Math.Clamp(nd, lo, hi);
-			v = 0;
+			if (!linked0 && !linked1)
+				v = 0;
+			else if ((nd <= lo && !linked0) || (nd >= hi && !linked1))
+				v = 0;
 		}
 		m_DistHint = nd;
 
@@ -434,7 +469,13 @@ class Drezina_Motor extends CarScript
 		SetVelocity(this, mat[2] * v);
 		// прицеп ставим в тот же кадр — на клиенте водителя он едет вплотную, без отставания
 		if (tr && !tr.m_OffRail)
-			tr.FollowAt(t, nd - m_Face * TRAILER_GAP, m_Face, mat[2] * v);
+		{
+			DrezinaTrack tt;
+			float td;
+			int tface;
+			TrailerPose(t, nd, tt, td, tface);
+			tr.FollowAt(tt, td, tface, mat[2] * v);
+		}
 
 		// стоим и газа нет — усыпляем физику: тело больше не шевелится (иначе дрожь на месте)
 		if (v == 0 && throttle <= 0.01)
@@ -487,6 +528,131 @@ class Drezina_Motor extends CarScript
 				return true;
 		}
 		return false;
+	}
+
+	// ------------------------------------------------------------------ стрелки
+
+	// Пересекли стрелку, едучи в её сторону, с рулём к ветке — уходим на ветку; доехали до конца
+	// служебного пути — переходим на путь, к которому он примыкает. Руль: A/D (вправо — плюс).
+	bool TryTransfer(DrezinaTrack t, float d, float nd, float v)
+	{
+		int md = 1;
+		if (nd < d)
+			md = -1;
+		DrezinaTrackManager tm = DrezinaTrackManager.Get();
+		float steer = 0;
+		if (CrewDriver())
+			steer = GetSteering();
+		foreach (DrezinaSwitch sw : t.m_Switches)
+		{
+			if (sw.Dir != md)
+				continue;
+			if ((sw.D - d) * md <= 0 || (nd - sw.D) * md < 0)
+				continue;                       // эту стрелку в этом шаге не пересекли
+			if (steer * sw.Side < 0.35)
+				continue;                       // руль не в сторону ветки — едем прямо
+			DrezinaTrack b = tm.GetTrack(sw.Branch);
+			if (!b)
+				continue;
+			float over = Math.AbsFloat(nd - sw.D);
+			float entry = 0;
+			int bmd = 1;
+			if (sw.BranchEnd == 1)
+			{
+				entry = b.GetLength();
+				bmd = -1;
+			}
+			DoTransfer(sw.D, md, sw.Branch, entry, entry + bmd * over, bmd, v);
+			return true;
+		}
+		int end = -1;
+		float over2 = 0;
+		if (nd < 0)
+		{
+			end = 0;
+			over2 = -nd;
+		}
+		else if (nd > t.GetLength())
+		{
+			end = 1;
+			over2 = nd - t.GetLength();
+		}
+		if (end < 0)
+			return false;
+		DrezinaLink l = t.LinkAt(end);
+		if (!l || !tm.GetTrack(l.ToTrack))
+			return false;
+		float fromD = 0;
+		if (end == 1)
+			fromD = t.GetLength();
+		DoTransfer(fromD, md, l.ToTrack, l.ToD, l.ToD + l.MergeDir * over2, l.MergeDir, v);
+		return true;
+	}
+
+	void DoTransfer(float fromD, int fromMove, int toId, float entryD, float toD, int toMove, float v)
+	{
+		m_PrevTrack = m_TrackId;
+		m_PrevD = fromD;
+		m_PrevMove = fromMove;
+		m_PrevFace = m_Face;
+		m_EntryD = entryD;
+		m_TrackId = toId;
+		if (v >= 0)
+			m_Face = toMove;
+		else
+			m_Face = -toMove;
+		m_DistHint = toD;
+		m_TransferTime = GetGame().GetTime();
+		if (GetGame().IsServer())
+		{
+			SetSynchDirty();
+		}
+		else
+		{
+			m_LTrack = m_TrackId;
+			m_LFace = m_Face;
+			m_LPrevTrack = m_PrevTrack;
+			m_LPrevD = m_PrevD;
+			m_LPrevMove = m_PrevMove;
+			m_LPrevFace = m_PrevFace;
+			m_LEntryD = m_EntryD;
+		}
+		Print("[Drezina] motor: стрелка, путь #" + m_PrevTrack + " -> #" + m_TrackId);
+	}
+
+	override void OnVariablesSynchronized()
+	{
+		super.OnVariablesSynchronized();
+		// водитель только что сам перешёл на стрелке, а сервер ещё не прислал этот переход
+		if (!GetGame().IsServer() && IsOwner() && GetGame().GetTime() - m_TransferTime < 3000 && m_TrackId != m_LTrack)
+		{
+			m_TrackId = m_LTrack;
+			m_Face = m_LFace;
+			m_PrevTrack = m_LPrevTrack;
+			m_PrevD = m_LPrevD;
+			m_PrevMove = m_LPrevMove;
+			m_PrevFace = m_LPrevFace;
+			m_EntryD = m_LEntryD;
+		}
+	}
+
+	// Где прицеп: на TRAILER_GAP позади по текущему пути, а сразу после стрелки — ещё на прежнем.
+	void TrailerPose(DrezinaTrack t, float d, out DrezinaTrack tt, out float td, out int tface)
+	{
+		tt = t;
+		tface = m_Face;
+		td = d - m_Face * TRAILER_GAP;
+		if (m_PrevTrack <= 0 || Math.AbsFloat(d - m_EntryD) > TRAILER_GAP)
+			return;
+		if ((td - m_EntryD) * (d - m_EntryD) >= 0)
+			return;                            // прицеп уже прошёл точку перехода
+		DrezinaTrack pt = DrezinaTrackManager.Get().GetTrack(m_PrevTrack);
+		if (!pt)
+			return;
+		float over = Math.AbsFloat(td - m_EntryD);
+		tt = pt;
+		td = m_PrevD - m_PrevMove * over;
+		tface = m_PrevFace;
 	}
 
 	// ------------------------------------------------------------------ прицеп

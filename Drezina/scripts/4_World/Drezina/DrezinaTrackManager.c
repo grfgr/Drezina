@@ -51,6 +51,8 @@ class DrezinaTrackManager extends Managed
 		{
 			if (!data || data.Nodes.Count() < 2)
 				continue;
+			if (data.Service)
+				continue;
 			DrezinaTrack t = new DrezinaTrack(data);
 			m_Tracks.Set(data.Id, t);
 			SpawnTrackObjects(t);
@@ -65,7 +67,10 @@ class DrezinaTrackManager extends Managed
 
 		DrezinaTracksDB db = new DrezinaTracksDB();
 		foreach (int id, DrezinaTrack t : m_Tracks)
-			db.Tracks.Insert(t.m_Data);
+		{
+			if (!t.IsService())          // служебные пути развязок строятся заново при запуске
+				db.Tracks.Insert(t.m_Data);
+		}
 		JsonFileLoader<DrezinaTracksDB>.JsonSaveFile(DrezinaConst.TRACKS_FILE, db);
 	}
 
@@ -74,7 +79,7 @@ class DrezinaTrackManager extends Managed
 		int maxId = 0;
 		foreach (int id, DrezinaTrack t : m_Tracks)
 		{
-			if (id > maxId)
+			if (id > maxId && !t.IsService())
 				maxId = id;
 		}
 		return maxId + 1;
@@ -143,9 +148,12 @@ class DrezinaTrackManager extends Managed
 		array<Object> objs = new array<Object>;
 		SpawnRails(t, objs);
 
-		// Станции выдачи у обоих концов пути.
-		SpawnDispenser(t, true, objs);
-		SpawnDispenser(t, false, objs);
+		// Станции выдачи у обоих концов пути (у служебных путей развязок — нет).
+		if (!t.IsService())
+		{
+			SpawnDispenser(t, true, objs);
+			SpawnDispenser(t, false, objs);
+		}
 
 		m_WorldObjects.Set(t.GetId(), objs);
 	}
@@ -434,6 +442,7 @@ class DrezinaTrackManager extends Managed
 				if (data)
 					m_Tracks.Set(data.Id, new DrezinaTrack(data));
 			}
+			RebuildSwitches();
 			Print("[Drezina] клиент: получено путей " + m_Tracks.Count());
 			return true;
 		}
@@ -442,6 +451,7 @@ class DrezinaTrackManager extends Managed
 			DrezinaTrackData d2 = DrezinaTrack.Read(ctx);
 			if (d2)
 				m_Tracks.Set(d2.Id, new DrezinaTrack(d2));
+			RebuildSwitches();
 			return true;
 		}
 		if (rpc_type == DrezinaRPC.TRACK_REMOVE)
@@ -449,6 +459,7 @@ class DrezinaTrackManager extends Managed
 			int rid;
 			if (ctx.Read(rid))
 				m_Tracks.Remove(rid);
+			RebuildSwitches();
 			return true;
 		}
 		return false;
@@ -745,6 +756,97 @@ class DrezinaTrackManager extends Managed
 		SaveTracks();
 		BroadcastTrack(t);
 		return data.Id;
+	}
+
+	// ------------------------------------------------------------------ развязки метро: служебные пути и стрелки
+
+	// Служебный путь: рельсы без терминалов; примыкания (links) задаются сразу, id ещё не известен —
+	// для ссылки на самого себя (замыкание кольца) ToTrack = -1.
+	int CreateServiceTrack(array<vector> nodes, string name, array<ref DrezinaLink> links)
+	{
+		DrezinaTrackData data = new DrezinaTrackData();
+		// служебные — с 100000: не пересекаются с номерами обычных путей, а при одинаковом порядке
+		// постройки после рестарта получают те же номера
+		int sid = 100000;
+		foreach (int eid, DrezinaTrack et : m_Tracks)
+		{
+			if (eid >= sid)
+				sid = eid + 1;
+		}
+		data.Id = sid;
+		data.Name = name;
+		data.Service = true;
+		data.Nodes.InsertAll(nodes);
+		if (links)
+		{
+			foreach (DrezinaLink l : links)
+			{
+				if (l.ToTrack == -1)
+					l.ToTrack = data.Id;
+				data.Links.Insert(l);
+			}
+		}
+		DrezinaTrack t = new DrezinaTrack(data);
+		m_Tracks.Set(data.Id, t);
+		SpawnTrackObjects(t);
+		return data.Id;
+	}
+
+	void RemoveServiceTracks()
+	{
+		array<int> ids = new array<int>;
+		foreach (int id, DrezinaTrack t : m_Tracks)
+		{
+			if (t.IsService())
+				ids.Insert(id);
+		}
+		foreach (int rid : ids)
+		{
+			DespawnTrackObjects(rid);
+			m_Tracks.Remove(rid);
+		}
+	}
+
+	// после изменения путей: стрелки на основных путях из примыканий служебных; и разослать всем
+	void ServerJunctionsChanged()
+	{
+		RebuildSwitches();
+		BroadcastAllTracks();
+	}
+
+	void BroadcastAllTracks()
+	{
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+		foreach (Man m : players)
+		{
+			if (m && m.GetIdentity())
+				SendAllTo(m.GetIdentity());
+		}
+	}
+
+	void RebuildSwitches()
+	{
+		foreach (int id, DrezinaTrack t : m_Tracks)
+			t.m_Switches.Clear();
+		foreach (int bid, DrezinaTrack b : m_Tracks)
+		{
+			foreach (DrezinaLink l : b.m_Data.Links)
+			{
+				if (l.Side == 0)
+					continue;
+				DrezinaTrack target = m_Tracks.Get(l.ToTrack);
+				if (!target)
+					continue;
+				DrezinaSwitch sw = new DrezinaSwitch();
+				sw.D = l.ToD;
+				sw.Dir = -l.MergeDir;
+				sw.Side = l.Side;
+				sw.Branch = bid;
+				sw.BranchEnd = l.End;
+				target.m_Switches.Insert(sw);
+			}
+		}
 	}
 
 	void DeleteTrack(int id)

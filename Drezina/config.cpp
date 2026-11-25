@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel2", "Drezina_JunctionHall", "Drezina_JunctionWall", "Drezina_JunctionPortal", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
@@ -722,6 +722,26 @@ class CfgVehicles
 		scope = 1;
 		displayName = "Тоннель";
 		model = "\Drezina\data\tunnel_2m.p3d";
+	};
+
+	// Зал развязки на пересечении линий метро: круг R=24 м; стены — панелями, у тоннелей — порталы.
+	class Drezina_JunctionHall: HouseNoDestruct
+	{
+		scope = 1;
+		displayName = "Развязка метро";
+		model = "\Drezina\data\junction_hall.p3d";
+	};
+	class Drezina_JunctionWall: HouseNoDestruct
+	{
+		scope = 1;
+		displayName = "Стена";
+		model = "\Drezina\data\junction_wall.p3d";
+	};
+	class Drezina_JunctionPortal: HouseNoDestruct
+	{
+		scope = 1;
+		displayName = "Портал тоннеля";
+		model = "\Drezina\data\junction_portal.p3d";
 	};
 
 	// Подземная станция 24 x 12 м, один торец глухой, другой открыт в тоннель.

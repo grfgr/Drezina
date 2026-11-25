@@ -7,6 +7,31 @@ class DrezinaTrackData
 	int Id;
 	string Name;
 	ref array<vector> Nodes = new array<vector>; // точки, поставленные админом
+	bool Service;                                // служебный путь развязки метро: без терминалов, не сохраняется
+	ref array<ref DrezinaLink> Links = new array<ref DrezinaLink>; // концы этого пути, примыкающие к другим путям
+}
+
+// Примыкание конца служебного пути (End: 0 — начало, 1 — конец) к точке ToD другого пути ToTrack.
+// Доехав по этому пути до конца, дрезина переходит на ToTrack и едет в сторону MergeDir (+1 — к росту дистанции).
+// И наоборот: едущая по ToTrack в сторону -MergeDir через точку ToD с рулём в сторону Side (+1 вправо,
+// -1 влево по ходу) уходит на этот путь. Side = 0 — примыкание без стрелки (замыкание кольца).
+class DrezinaLink
+{
+	int End;
+	int ToTrack;
+	float ToD;
+	int MergeDir;
+	int Side;
+}
+
+// Стрелка на пути (строится из примыканий служебных путей, на сервере и на клиенте одинаково)
+class DrezinaSwitch
+{
+	float D;          // где на этом пути
+	int Dir;          // в какую сторону надо ехать, чтобы уйти на ветку (+1 / -1 по дистанции)
+	int Side;         // руль: +1 вправо, -1 влево
+	int Branch;       // id служебного пути
+	int BranchEnd;    // с какого его конца въезжаем (0 / 1)
 }
 
 class DrezinaTracksDB
@@ -20,6 +45,7 @@ class DrezinaTrack
 	ref DrezinaTrackData m_Data;
 
 	ref array<vector> m_Points = new array<vector>; // сглаженная линия
+	ref array<ref DrezinaSwitch> m_Switches = new array<ref DrezinaSwitch>; // стрелки на этом пути
 	ref array<float>  m_Cum    = new array<float>;  // накопленная длина до точки i
 	float m_Length;
 
@@ -161,6 +187,17 @@ class DrezinaTrack
 		ctx.Write(c);
 		for (int i = 0; i < c; i++)
 			ctx.Write(data.Nodes[i]);
+		ctx.Write(data.Service);
+		int lc = data.Links.Count();
+		ctx.Write(lc);
+		foreach (DrezinaLink l : data.Links)
+		{
+			ctx.Write(l.End);
+			ctx.Write(l.ToTrack);
+			ctx.Write(l.ToD);
+			ctx.Write(l.MergeDir);
+			ctx.Write(l.Side);
+		}
 	}
 
 	static DrezinaTrackData Read(ParamsReadContext ctx)
@@ -180,6 +217,34 @@ class DrezinaTrack
 				return null;
 			data.Nodes.Insert(v);
 		}
+		if (!ctx.Read(data.Service))
+			return null;
+		int lc;
+		if (!ctx.Read(lc))
+			return null;
+		for (int k = 0; k < lc; k++)
+		{
+			DrezinaLink l = new DrezinaLink();
+			if (!ctx.Read(l.End) || !ctx.Read(l.ToTrack) || !ctx.Read(l.ToD) || !ctx.Read(l.MergeDir) || !ctx.Read(l.Side))
+				return null;
+			data.Links.Insert(l);
+		}
 		return data;
+	}
+
+	// примыкание у конца end (0 / 1) или null
+	DrezinaLink LinkAt(int end)
+	{
+		foreach (DrezinaLink l : m_Data.Links)
+		{
+			if (l.End == end)
+				return l;
+		}
+		return null;
+	}
+
+	bool IsService()
+	{
+		return m_Data.Service;
 	}
 }
