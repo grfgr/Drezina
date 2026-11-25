@@ -329,7 +329,7 @@ class Drezina_Trailer extends CarScript
 			{
 				m_TailLight = Drezina_TailLight.Cast(ScriptedLightBase.CreateLight(Drezina_TailLight, GetPosition()));
 				if (m_TailLight)
-					m_TailLight.AttachOnObject(this, GetMemoryPointPos("light_reverse") + "0 0 -0.15", "0 0 0");
+					m_TailLight.AttachOnObject(this, GetMemoryPointPos("light_reverse") + Vector(0, 0, -0.15), vector.Zero);
 			}
 		}
 		else

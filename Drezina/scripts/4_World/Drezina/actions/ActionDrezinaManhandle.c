@@ -36,7 +36,7 @@ class ActionDrezinaManhandleBase : ActionContinuousBase
 		return true;
 	}
 
-	Drezina_Motor Car(ActionTarget target)
+	Drezina_Motor TargetCar(ActionTarget target)
 	{
 		if (!target)
 			return null;
@@ -56,13 +56,13 @@ class ActionDrezinaTurnAround : ActionDrezinaManhandleBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = Car(target);
+		Drezina_Motor car = TargetCar(target);
 		return car && !player.IsInVehicle() && car.CanTurnAround();
 	}
 
 	override void OnFinishProgressServer(ActionData action_data)
 	{
-		Drezina_Motor car = Car(action_data.m_Target);
+		Drezina_Motor car = TargetCar(action_data.m_Target);
 		if (car && car.CanTurnAround() && !car.ServerTurnAround())
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Мало места для прицепа: отъедьте от конца пути.");
 	}
@@ -77,13 +77,13 @@ class ActionDrezinaOffRail : ActionDrezinaManhandleBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = Car(target);
+		Drezina_Motor car = TargetCar(target);
 		return car && !player.IsInVehicle() && car.CanTakeOffRail();
 	}
 
 	override void OnFinishProgressServer(ActionData action_data)
 	{
-		Drezina_Motor car = Car(action_data.m_Target);
+		Drezina_Motor car = TargetCar(action_data.m_Target);
 		if (car && car.CanTakeOffRail() && !car.ServerTakeOffRail())
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Некуда сдвинуть: с обеих сторон стена.");
 	}
@@ -98,13 +98,13 @@ class ActionDrezinaOnRail : ActionDrezinaManhandleBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = Car(target);
+		Drezina_Motor car = TargetCar(target);
 		return car && !player.IsInVehicle() && car.CanPutOnRail();
 	}
 
 	override void OnFinishProgressServer(ActionData action_data)
 	{
-		Drezina_Motor car = Car(action_data.m_Target);
+		Drezina_Motor car = TargetCar(action_data.m_Target);
 		if (car && car.CanPutOnRail() && !car.ServerPutOnRail())
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Рядом нет пути (подкатите ближе, до 4 м).");
 	}
