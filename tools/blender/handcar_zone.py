@@ -8,6 +8,15 @@
             керосиновый фонарь на штанге, ящик с инструментом, мешки с песком, моток проволоки,
             изолента на ручках, табличка с трафаретным номером.
   СЛОЙ 4 — материалы: процедурные текстуры (tools/textures/make_textures.py) + UV-развёртка кубом.
+  СЛОЙ 5 — крепёж и сварка: сварные швы, шайбы под гайками, U-болты рессор, шплинты, пресс-маслёнки,
+            гайки на концах осей.
+  СЛОЙ 6 — быт путевого обходчика: маслёнка с носиком, ведро с песком, канистра, навесной замок на ящике,
+            термос, моток верёвки на штанге фонаря, тряпка на поручне.
+  СЛОЙ 7 — повреждения: вмятины на листовом металле, пулевые отверстия в кожухе и ящике, расщеп доски.
+
+Скругление: все бруски получают фаску (bevel), цилиндры — до 32 граней, всё сглаживается по углу
+(Smooth by Angle 35°), поэтому граней не видно, а плоскости остаются плоскими.
+Дополнительно сохраняются упрощённые handcar_lod1 / handcar_lod2 для дальних LOD.
 
 Named selections / memory-точки (не менять — на них завязаны model.cfg и скрипт):
   lever, wheel_fl, wheel_fr, wheel_rl, wheel_rr, body;
@@ -76,20 +85,82 @@ def _finish(o, name, mat):
     return o
 
 
-def box(name, size, loc, mat, rot=(0, 0, 0)):
+def bevel(o, width, segments):
+    mod = o.modifiers.new("bevel", "BEVEL")
+    mod.width = width
+    mod.segments = segments
+    mod.limit_method = "ANGLE"
+    mod.angle_limit = math.radians(40)
+    mod.harden_normals = False
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+def box(name, size, loc, mat, rot=(0, 0, 0), round_edges=True):
+    """Брусок с фаской: на рёбрах ловится блик, граней не видно."""
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=rot)
     o = bpy.context.active_object
     o.scale = size
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    smallest = min(size)
+    if round_edges and smallest > 0.004:
+        bevel(o, min(0.012, smallest * 0.3), 2 if smallest > 0.03 else 1)
     return _finish(o, name, mat)
 
 
-def cyl(name, r, depth, loc, mat, rot=(0, 0, 0), verts=12):
+def auto_verts(r):
+    """Число граней цилиндра по радиусу: мелочь 12, крупное до 32."""
+    return int(max(12, min(32, round(r * 160 / 4) * 4)))
+
+
+def cyl(name, r, depth, loc, mat, rot=(0, 0, 0), verts=None):
+    if verts is None or verts > 6:
+        verts = max(verts or 0, auto_verts(r))
     bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=depth, location=loc, rotation=rot)
+    o = bpy.context.active_object
+    if verts > 6 and depth > 0.02:
+        bevel(o, min(r * 0.15, depth * 0.2, 0.006), 1)
+    return _finish(o, name, mat)
+
+
+def cone(name, r1, r2, depth, loc, mat, rot=(0, 0, 0), verts=12):
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r1, radius2=r2, depth=depth, location=loc, rotation=rot)
     return _finish(bpy.context.active_object, name, mat)
 
 
+def sphere(name, r, loc, mat, scale=(1, 1, 1), seg=(16, 10), rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg[0], ring_count=seg[1], radius=r, location=loc, rotation=rot)
+    o = bpy.context.active_object
+    o.scale = scale
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    return _finish(o, name, mat)
+
+
+def smooth(obj, angle=35):
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.shade_smooth_by_angle(angle=math.radians(angle))
+
+
+def dent(obj, amount, cuts=4, seed=0):
+    """Вмятины: подразбить лист и сдвинуть вершины гладким «шумом» из синусов."""
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.subdivide(number_cuts=cuts)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for v in obj.data.vertices:
+        x, y, z = v.co
+        n = (math.sin(x * 23 + seed) * math.sin(y * 19 + seed * 2) + math.sin(z * 17 + y * 7 + seed)) * 0.5
+        v.co.x += n * amount
+        v.co.y += math.sin(x * 13 + z * 11 + seed) * amount * 0.6
+
+
 def torus(name, R, r, loc, mat, rot=(0, 0, 0), seg=(20, 6)):
+    seg = (max(seg[0], 24), max(seg[1], 8))
     bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, major_segments=seg[0], minor_segments=seg[1],
                                      location=loc, rotation=rot)
     return _finish(bpy.context.active_object, name, mat)
@@ -99,7 +170,7 @@ ROT_X = (0, math.radians(90), 0)   # ось цилиндра вдоль X
 ROT_Y = (math.radians(90), 0, 0)   # ось цилиндра вдоль Y
 
 
-def tube_x(name, r_out, r_in, width, loc, mat, segments=24):
+def tube_x(name, r_out, r_in, width, loc, mat, segments=48):
     """Кольцо с осью X (бандаж/обод)."""
     import bmesh
     mesh = bpy.data.meshes.new(name)
@@ -286,11 +357,19 @@ def wheel(name, x, y, m):
     for i in range(spokes):
         a = 2 * math.pi * i / spokes
         r = (WHEEL_R - 0.06 + 0.075) / 2
-        parts.append(box(f"{name}_spoke{i}", (0.03, 0.028, WHEEL_R - 0.11),
-                         (x, y + math.sin(a) * r, WHEEL_R + math.cos(a) * r), m["rust"], (-a, 0, 0)))
+        # спица — овальный конус: толще у ступицы
+        sp = cone(f"{name}_spoke{i}", 0.017, 0.012, WHEEL_R - 0.10,
+                  (x, y + math.sin(a) * r, WHEEL_R + math.cos(a) * r), m["rust"], (-a, 0, 0), 10)
+        sp.scale = (0.8, 1.0, 1.0)
+        parts.append(sp)
+    # гайки ступицы
+    for k in range(5):
+        a = 2 * math.pi * k / 5
+        parts.append(cyl(f"{name}_nut{k}", 0.009, 0.16, (x, y + math.sin(a) * 0.05, WHEEL_R + math.cos(a) * 0.05), m["steel"], ROT_X, 6))
     o = join(parts, name)
     set_origin(o, (x, y, WHEEL_R))
     uv_cube(o, 0.6)
+    smooth(o)
     selection(o, name)
     return o
 
@@ -454,12 +533,14 @@ def layer3_props(m, out_props):
 
     # мешки с песком спереди (вместо буфера)
     for i, x in enumerate((-0.35, 0.0, 0.35)):
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=6, radius=1, location=(x, 1.02, DECK_TOP + 0.07))
-        s = bpy.context.active_object
-        s.scale = (0.2, 0.13, 0.075)
-        s.rotation_euler = (0, 0, math.radians(rnd.uniform(-8, 8)))
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-        p.append(_finish(s, f"sandbag{i}", m["canvas"]))
+        bag = sphere(f"sandbag{i}", 1, (x, 1.02, DECK_TOP + 0.07), m["canvas"], (0.2, 0.13, 0.075), (20, 12),
+                     (0, 0, math.radians(rnd.uniform(-8, 8))))
+        # прижать низ к полу и «завязать» угол
+        for v in bag.data.vertices:          # координаты локальные, мешок от -0.075 до 0.075 по Z
+            if v.co.z < -0.035:
+                v.co.z = -0.035 - (-0.035 - v.co.z) * 0.25
+        p.append(bag)
+        p.append(sphere(f"sandbag_tie{i}", 0.025, (x + 0.2, 1.02, DECK_TOP + 0.08), m["canvas"], (1.4, 0.8, 0.8), (10, 6)))
     # брезент, скатанный у стойки
     p.append(cyl("tarp_roll", 0.07, 0.6, (-0.4, 0.55, DECK_TOP + 0.07), m["canvas"], ROT_X, 10))
     for k in (-0.2, 0.2):
@@ -473,6 +554,111 @@ def layer3_plate(m):
     pl = box("number_plate", (0.008, 0.36, 0.13), (SILL_X + 0.075, 0.25, DECK_TOP - 0.12), m["plate"])
     uv_fit(pl)
     return pl
+
+
+# ============================================================================ СЛОЙ 5: крепёж и сварка
+
+def weld_seam(prefix, start, end, mat, out, r=0.006):
+    """Сварной шов — цепочка сплюснутых капель."""
+    n = max(3, int(math.dist(start, end) / 0.012))
+    for i in range(n):
+        f = i / (n - 1)
+        p = [start[k] + (end[k] - start[k]) * f for k in range(3)]
+        out.append(sphere(f"{prefix}{i}", r, p, mat, (1.3, 1.3, 0.7), (8, 5)))
+
+
+def layer5_fasteners(m, out):
+    # швы по краям заплаток на раме
+    for sx in (-1, 1):
+        x = sx * (SILL_X + 0.018)
+        for (y, ln) in ((-0.55, 0.28), (0.8, 0.2)):
+            z0, z1 = DECK_TOP - 0.175, DECK_TOP - 0.065
+            weld_seam(f"weld{sx}{y}a", (x, y - ln / 2, z0), (x, y - ln / 2, z1), m["rust"], out)
+            weld_seam(f"weld{sx}{y}b", (x, y + ln / 2, z0), (x, y + ln / 2, z1), m["rust"], out)
+    # гайки + шайбы на концах осей, шплинты
+    for y in (-AXLE_Y, AXLE_Y):
+        for sx in (-1, 1):
+            xe = sx * (GAUGE / 2 + 0.075)
+            out.append(cyl(f"axnut{y}{sx}", 0.03, 0.03, (xe, y, WHEEL_R), m["steel"], ROT_X, 6))
+            out.append(cyl(f"axwash{y}{sx}", 0.042, 0.006, (xe - sx * 0.018, y, WHEEL_R), m["steel"], ROT_X))
+            out.append(torus(f"cotter{y}{sx}", 0.012, 0.0025, (xe + sx * 0.02, y, WHEEL_R + 0.02), m["steel"], (0, 0, 0), (12, 6)))
+            # пресс-маслёнка на буксе
+            out.append(cyl(f"grease{y}{sx}", 0.008, 0.03, (sx * SILL_X, y, WHEEL_R + 0.09), m["steel"]))
+            out.append(sphere(f"greaseball{y}{sx}", 0.009, (sx * SILL_X, y, WHEEL_R + 0.108), m["steel"]))
+            # U-болты рессоры
+            for dy in (-0.04, 0.04):
+                out.append(torus(f"ubolt{y}{sx}{dy}", 0.04, 0.006, (sx * SILL_X, y + dy, WHEEL_R + 0.1), m["steel"], ROT_Y, (16, 6)))
+    # угловые косынки рамы (закрывают стык швеллеров)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            out.append(box(f"gusset{sx}{sy}", (0.012, 0.16, 0.17), (sx * (SILL_X + 0.008), sy * 1.06, DECK_TOP - 0.12), m["paint"]))
+            out.append(box(f"gusset_end{sx}{sy}", (0.16, 0.012, 0.17), (sx * (SILL_X - 0.07), sy * (1.10 + 0.008), DECK_TOP - 0.12), m["paint"]))
+            bolt_row(f"gb{sx}{sy}", (sx * (SILL_X + 0.016), sy * 1.02, DECK_TOP - 0.16), (sx * (SILL_X + 0.016), sy * 1.02, DECK_TOP - 0.08), 2, "x" if sx > 0 else "-x", m["steel"], out)
+    # шайбы под болтами ног стойки
+    for sx in (-0.17, 0.17):
+        for sy in (-1, 1):
+            for dx in (-0.03, 0.03):
+                out.append(cyl(f"legwash{sx}{sy}{dx}", 0.018, 0.004, (sx + dx, sy * 0.42, DECK_TOP + 0.011), m["steel"]))
+
+
+# ============================================================================ СЛОЙ 6: быт обходчика
+
+def layer6_life(m, out):
+    # маслёнка с длинным носиком на крышке ящика
+    ox, oy, oz = 0.32, -0.97, DECK_TOP + 0.215
+    out.append(cyl("oilcan_body", 0.045, 0.07, (ox, oy, oz + 0.035), m["steel"]))
+    out.append(cone("oilcan_top", 0.045, 0.012, 0.04, (ox, oy, oz + 0.09), m["steel"], (0, 0, 0), 16))
+    out.append(cyl("oilcan_spout", 0.004, 0.16, (ox + 0.06, oy, oz + 0.13), m["steel"], (0, math.radians(55), 0), 8))
+    out.append(torus("oilcan_handle", 0.03, 0.005, (ox - 0.045, oy, oz + 0.05), m["steel"], ROT_Y, (16, 6)))
+    # ведро с песком (задний левый угол)
+    bx, by = -0.4, -0.78
+    out.append(cone("bucket", 0.1, 0.13, 0.24, (bx, by, DECK_TOP + 0.12), m["paint2"], (0, 0, 0), 28))
+    out.append(cyl("bucket_sand", 0.122, 0.01, (bx, by, DECK_TOP + 0.225), m["canvas"], (0, 0, 0), 28))
+    out.append(torus("bucket_rim", 0.13, 0.006, (bx, by, DECK_TOP + 0.24), m["steel"], (0, 0, 0), (28, 6)))
+    out.append(torus("bucket_handle", 0.13, 0.004, (bx, by, DECK_TOP + 0.24), m["steel"], (math.radians(70), 0, 0), (24, 6)))
+    # канистра (передний правый угол), скруглённая
+    cx, cy = 0.46, 0.66
+    out.append(box("jerrycan", (0.17, 0.3, 0.4), (cx, cy, DECK_TOP + 0.2), m["paint"], (0, 0, math.radians(-6))))
+    for k in (-1, 1):
+        out.append(box(f"jerry_x{k}", (0.012, 0.26, 0.03), (cx + 0.086, cy, DECK_TOP + 0.2), m["paint"], (math.radians(35 * k), 0, math.radians(-6))))
+    out.append(cyl("jerry_cap", 0.025, 0.04, (cx, cy + 0.1, DECK_TOP + 0.42), m["rust"]))
+    for k in range(3):
+        out.append(box(f"jerry_handle{k}", (0.03, 0.03, 0.06), (cx, cy - 0.1 + k * 0.08, DECK_TOP + 0.43), m["paint"]))
+    # навесной замок на ящике
+    out.append(box("hasp", (0.04, 0.008, 0.07), (0.42, -0.877, DECK_TOP + 0.17), m["steel"], (0, 0, math.radians(4))))
+    out.append(box("padlock", (0.05, 0.022, 0.045), (0.42, -0.868, DECK_TOP + 0.12), m["steel"], (0, 0, math.radians(4))))
+    out.append(torus("padlock_shackle", 0.016, 0.004, (0.42, -0.868, DECK_TOP + 0.15), m["steel"], ROT_Y, (16, 6)))
+    # термос у брезента
+    out.append(cyl("thermos", 0.04, 0.3, (-0.46, 0.2, DECK_TOP + 0.15), m["paint2"]))
+    out.append(cyl("thermos_cup", 0.045, 0.06, (-0.46, 0.2, DECK_TOP + 0.33), m["steel"]))
+    # моток верёвки на штанге фонаря
+    out.append(torus("rope_coil", 0.1, 0.014, (-SILL_X - 0.05, 0.99, DECK_TOP + 0.75), m["canvas"], (0, math.radians(90), 0), (24, 8)))
+    out.append(torus("rope_coil2", 0.095, 0.014, (-SILL_X - 0.05, 1.0, DECK_TOP + 0.74), m["canvas"], (0, math.radians(84), 0), (24, 8)))
+    # тряпка, перекинутая через поручень
+    rag = box("rag", (0.006, 0.18, 0.32), (-SILL_X - 0.025, -0.45, DECK_TOP + 0.4), m["canvas"], round_edges=False)
+    dent(rag, 0.02, 5, 3)
+    out.append(rag)
+
+
+# ============================================================================ СЛОЙ 7: повреждения
+
+def layer7_damage(m, body_parts):
+    # вмятины на листовом металле
+    for o in body_parts:
+        if o and o.name in ("gear_guard", "toolbox", "toolbox_lid", "buffer_plate1", "buffer_plate-1", "plank_sheet"):
+            dent(o, 0.006 if o.name != "toolbox" else 0.008, 3, hash(o.name) % 7)
+    holes = []
+    # пулевые отверстия: в кожухе шестерни и боковине ящика (тёмные кольца с вывороченным краем)
+    for (x, y, z, rot) in ((0.343, 0.55, WHEEL_R + 0.15, ROT_X), (0.343, 0.66, WHEEL_R + 0.08, ROT_X),
+                           (0.42, -0.877, DECK_TOP + 0.05, ROT_Y), (0.55, -0.9, DECK_TOP + 0.13, ROT_Y)):
+        holes.append(cyl(f"hole{x}{y}{z}", 0.007, 0.004, (x, y, z), m["tape"], rot, 10))
+        holes.append(torus(f"hole_lip{x}{y}{z}", 0.009, 0.0025, (x, y, z), m["rust"], rot, (12, 6)))
+    # расщеп обломанной доски
+    for k in range(4):
+        holes.append(cone(f"splinter{k}", 0.012, 0.0, 0.08 + k * 0.02,
+                          (-0.6 + 0.12 + k * 0.012, 0.98 - 0.08 + k * 0.05, DECK_TOP - 0.02),
+                          m["wood"], (0, math.radians(-90), math.radians(rnd.uniform(-20, 20))), 6))
+    return holes
 
 
 # ============================================================================ коромысло (слой 2+3)
@@ -497,6 +683,7 @@ def build_lever(m):
     lever = join(lv, "lever")
     set_origin(lever, (0, 0, PIVOT_Z))
     uv_cube(lever, 0.6)
+    smooth(lever)
     selection(lever, "lever")
     return lever
 
@@ -520,11 +707,15 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     layer3_wear(m, body_parts)                  # СЛОЙ 3
     props = []
     layer3_props(m, props)
+    layer5_fasteners(m, body_parts)             # СЛОЙ 5
+    layer6_life(m, props)                       # СЛОЙ 6
+    damage = layer7_damage(m, body_parts + props + metal)   # СЛОЙ 7
 
-    body = join(body_parts + wood + metal + props, "body")
+    body = join(body_parts + wood + metal + props + damage, "body")
     uv_cube(body, 0.8)                          # СЛОЙ 4
     plate = layer3_plate(m)
     body = join([body, plate], "body")
+    smooth(body)
     selection(body, "body")
 
     for name, x, y in (("wheel_fl", -HALF, AXLE_Y), ("wheel_fr", HALF, AXLE_Y),
@@ -544,6 +735,17 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     geo = box("geometry_deck", (1.34, 2.3, 0.30), (0, 0, DECK_TOP - 0.15), m["wood"])
     geo.display_type = "WIRE"
 
-    tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry"))
-    print(f"[Drezina] handcar faces: {tris}")
+    meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry")]
+    print(f"[Drezina] handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
     save_fn(outdir, "handcar")
+
+    # упрощённые LOD (selections сохраняются)
+    for lod, ratio in ((1, 0.4), (2, 0.15)):
+        for o in meshes:
+            mod = o.modifiers.new("decimate", "DECIMATE")
+            mod.ratio = ratio
+            bpy.context.view_layer.objects.active = o
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+        print(f"[Drezina] handcar faces LOD{lod}: {sum(len(o.data.polygons) for o in meshes)}")
+        save_fn(outdir, f"handcar_lod{lod}")
+    bpy.ops.wm.open_mainfile(filepath=os.path.join(outdir, "handcar.blend"))
