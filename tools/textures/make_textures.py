@@ -399,6 +399,13 @@ DETAIL_MAPS = {
     "drezina_canvas": (1.2, 0.03),
     "drezina_leather": (1.2, 0.15),
     "drezina_plate": (0.8, 0.3),
+    "metro_concrete": (1.4, 0.05),
+    "metro_wall": (0.9, 0.12),
+    "metro_door": (1.0, 0.3),
+    "metro_tubing": (1.2, 0.25),
+    "metro_tile": (1.0, 0.25),
+    "metro_hazard": (0.6, 0.15),
+    "drezina_ballast": (2.0, 0.04),
 }
 
 
@@ -449,19 +456,19 @@ def main():
     save(vanilla_grade(leather_tex(size // 2)), os.path.join(out, "drezina_leather_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
-    save(concrete_tex(size), os.path.join(out, "metro_concrete_co.png"))
-    save(ballast_tex(size // 2), os.path.join(out, "drezina_ballast_co.png"))
+    save(vanilla_grade(concrete_tex(size), 0.6), os.path.join(out, "metro_concrete_co.png"))
+    save(vanilla_grade(ballast_tex(size // 2), 0.6), os.path.join(out, "drezina_ballast_co.png"))
     save(railtop_tex(size // 4), os.path.join(out, "drezina_railtop_co.png"))
-    save(wall_two_tone_tex(size), os.path.join(out, "metro_wall_co.png"))
-    save(hazard_tex(size // 2), os.path.join(out, "metro_hazard_co.png"))
-    save(door_tex(size), os.path.join(out, "metro_door_co.png"))
-    save(tubing_tex(size), os.path.join(out, "metro_tubing_co.png"))
-    save(dirt_tex(size // 2), os.path.join(out, "metro_dirt_co.png"))
+    save(vanilla_grade(wall_two_tone_tex(size), 0.6), os.path.join(out, "metro_wall_co.png"))
+    save(vanilla_grade(hazard_tex(size // 2), 0.6), os.path.join(out, "metro_hazard_co.png"))
+    save(vanilla_grade(door_tex(size), 0.6), os.path.join(out, "metro_door_co.png"))
+    save(vanilla_grade(tubing_tex(size), 0.6), os.path.join(out, "metro_tubing_co.png"))
+    save(vanilla_grade(dirt_tex(size // 2), 0.6), os.path.join(out, "metro_dirt_co.png"))
     save(sign_tex(size // 2, ["ОБЪЕКТ 17", "ВХОД ВОСПРЕЩЁН"]), os.path.join(out, "metro_sign_entrance_co.png"))
     save(sign_tex(size // 2, ["ВЫХОД"], bg=(40, 110, 50)), os.path.join(out, "metro_sign_exit_co.png"))
     save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
     save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
-    save(tile_tex(size), os.path.join(out, "metro_tile_co.png"))
+    save(vanilla_grade(tile_tex(size), 0.6), os.path.join(out, "metro_tile_co.png"))
     for name, (strength, shine) in DETAIL_MAPS.items():
         detail_maps(out, name, strength, shine)
     write_rvmats(out)

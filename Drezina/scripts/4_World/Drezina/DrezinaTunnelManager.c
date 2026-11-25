@@ -600,16 +600,16 @@ class DrezinaTunnelManager
 		vector surf = t.Route[0];
 		if (end == 1)
 			surf = t.Route[t.Route.Count() - 1];
-		// на склоне ставим по самой низкой точке под входом: фундамент и отмостка уходят в землю на 3 м,
-		// поэтому со стороны склона вход утоплен, а снизу нигде не видно щели
+		// на склоне ставим по самой низкой точке перед фасадом: дверь не засыпана землёй, а фундамент,
+		// отмостка и насыпь уходят в землю на 3 м — снизу нигде не видно щели
 		vector fwd = inward;
 		vector side = Side(inward);
 		float minY = GetGame().SurfaceY(surf[0], surf[2]);
 		for (int ix = -1; ix <= 1; ix++)
 		{
-			for (int iz = -1; iz <= 1; iz++)
+			for (int iz = 0; iz <= 2; iz++)             // перед фасадом (сзади насыпь и фундамент сами уйдут в склон)
 			{
-				vector q = surf + side * (ix * 2.3) + fwd * (iz * 1.3 + 1.0);
+				vector q = surf + side * (ix * 2.0) + fwd * (iz * 1.2);
 				minY = Math.Min(minY, GetGame().SurfaceY(q[0], q[2]));
 			}
 		}
