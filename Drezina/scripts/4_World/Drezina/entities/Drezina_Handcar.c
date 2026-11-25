@@ -23,6 +23,10 @@ class Drezina_Handcar extends ItemBase
 	// с персонажем, иначе камера дрожит); общий цикл обновления такую дрезину пропускает
 	bool m_TickedByRide;
 
+	// клиент водителя сам считает разгон от своих нажатий (как сервер), чтобы не ждать сервер
+	int   m_LocalThrottle;
+	float m_PredSpeed;
+
 	// --- локальное состояние (сервер и клиент)
 	float m_Dist;
 	float m_Speed;
@@ -244,18 +248,7 @@ class Drezina_Handcar extends ItemBase
 			m_IdleTime = 0;
 		}
 
-		vector pos, dir;
-		t.GetPosDir(m_Dist, pos, dir);
-
-		float accel = -st.RollingFriction;
-		if (m_Throttle > 0)
-			accel += st.PumpAcceleration;
-		else if (m_Throttle < 0)
-			accel -= st.BrakeDeceleration;
-		// уклон: dir[1] — вертикальная составляющая направления пути
-		accel -= st.SlopeFactor * dir[1] * m_Dir;
-
-		m_Speed = Math.Clamp(m_Speed + accel * dt, 0, st.MaxSpeed);
+		m_Speed = Math.Clamp(m_Speed + Accel(t, m_Throttle) * dt, 0, st.MaxSpeed);
 
 		float newDist = m_Dist + m_Speed * m_Dir * dt;
 		if (DrezinaTrackManager.Get().IsBlocked(this, newDist))
@@ -315,9 +308,43 @@ class Drezina_Handcar extends ItemBase
 
 		// дистанция: маленькое расхождение сглаживаем, большое — прыжок
 		m_PredDist = m_SyncDist;
-		if (Math.AbsFloat(m_SyncDist - m_Dist) > 1.5)
-			m_Dist = m_SyncDist;
-		m_Speed = m_SyncSpeed;
+		m_PredSpeed = m_SyncSpeed;
+		if (IsLocalDriver())
+		{
+			// своя дрезина считается локально; прыжок — только при большом расхождении
+			if (Math.AbsFloat(m_SyncDist - m_Dist) > 3.0)
+			{
+				m_Dist = m_SyncDist;
+				m_Speed = m_SyncSpeed;
+			}
+		}
+		else
+		{
+			if (Math.AbsFloat(m_SyncDist - m_Dist) > 1.5)
+				m_Dist = m_SyncDist;
+			m_Speed = m_SyncSpeed;
+		}
+	}
+
+	// ускорение от рычага/тормоза, трения и уклона — одинаково на сервере и у клиента водителя
+	float Accel(DrezinaTrack t, int throttle)
+	{
+		DrezinaSettings st = DrezinaSettings.Get();
+		vector pos, dir;
+		t.GetPosDir(m_Dist, pos, dir);
+		float accel = -st.RollingFriction;
+		if (throttle > 0)
+			accel += st.PumpAcceleration;
+		else if (throttle < 0)
+			accel -= st.BrakeDeceleration;
+		// уклон: dir[1] — вертикальная составляющая направления пути
+		accel -= st.SlopeFactor * dir[1] * m_Dir;
+		return accel;
+	}
+
+	bool IsLocalDriver()
+	{
+		return !GetGame().IsDedicatedServer() && m_Driver && m_Driver == GetGame().GetPlayer();
 	}
 
 	void ClientSimulate(float dt)
@@ -325,6 +352,26 @@ class Drezina_Handcar extends ItemBase
 		DrezinaTrack t = GetTrack();
 		if (!t)
 			return; // геометрии ещё нет — положение придёт от сервера
+
+		if (IsLocalDriver())
+		{
+			// своя дрезина: разгон считаем сами от нажатий, без задержки сети
+			m_Speed = Math.Clamp(m_Speed + Accel(t, m_LocalThrottle) * dt, 0, DrezinaSettings.Get().MaxSpeed);
+			float newDist = m_Dist + m_Speed * m_Dir * dt;
+			if (newDist <= 0 || newDist >= t.GetLength())
+			{
+				newDist = Math.Clamp(newDist, 0, t.GetLength());
+				m_Speed = 0;
+			}
+			m_Dist = newDist;
+			// с сервером сверяемся мягко: тянем, только если разошлись больше чем на 1 м
+			m_PredDist = Math.Clamp(m_PredDist + m_PredSpeed * m_Dir * dt, 0, t.GetLength());
+			float err = m_PredDist - m_Dist;
+			if (Math.AbsFloat(err) > 1.0)
+				m_Dist += err * Math.Clamp(dt * 2.0, 0, 1);
+			ApplyTransform();
+			return;
+		}
 
 		float step = m_Speed * m_Dir * dt;
 		m_PredDist = Math.Clamp(m_PredDist + step, 0, t.GetLength());

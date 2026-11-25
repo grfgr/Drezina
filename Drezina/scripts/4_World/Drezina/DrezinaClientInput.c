@@ -40,6 +40,7 @@ class DrezinaClientInput
 		{
 			Print("[Drezina] client throttle " + throttle);
 			s_LastThrottle = throttle;
+			hc.m_LocalThrottle = throttle;
 			GetGame().RPCSingleParam(hc, DrezinaRPC.HC_THROTTLE, new Param1<int>(throttle), true);
 		}
 
