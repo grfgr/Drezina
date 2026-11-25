@@ -50,6 +50,13 @@ modded class PlayerBase
 		}
 		else
 		{
+			if (rpc_type == DrezinaRPC.CHAT_MSG)
+			{
+				Param1<string> msg = new Param1<string>("");
+				if (ctx.Read(msg))
+					GetGame().Chat("[Дрезина] " + msg.param1, "colorImportant");
+				return;
+			}
 			if (!DrezinaTrackManager.Get().ClientOnRPC(rpc_type, ctx))
 				DrezinaTunnelManager.Get().ClientOnRPC(rpc_type, ctx);
 		}

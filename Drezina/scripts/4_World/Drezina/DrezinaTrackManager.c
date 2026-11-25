@@ -432,10 +432,16 @@ class DrezinaTrackManager
 
 	// ------------------------------------------------------------------ команды админа
 
+	// Сообщение игроку: всплывающее уведомление + строка в чате (уведомления бывают скрыты) + лог сервера.
 	static void Notify(PlayerIdentity identity, string text)
 	{
-		if (identity)
-			NotificationSystem.SendNotificationToPlayerIdentityExtended(identity, 6, "Дрезина", text);
+		Print("[Drezina] msg: " + text);
+		if (!identity)
+			return;
+		NotificationSystem.SendNotificationToPlayerIdentityExtended(identity, 6, "Дрезина", text);
+		Object target = identity.GetPlayer();
+		if (target)
+			GetGame().RPCSingleParam(target, DrezinaRPC.CHAT_MSG, new Param1<string>(text), true, identity);
 	}
 
 	void ServerOnAdminCommand(PlayerIdentity sender, string text)

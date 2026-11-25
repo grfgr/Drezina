@@ -13,6 +13,7 @@ class DrezinaRPC
 	static const int HC_LEAVE        = 8817022; // сойти с дрезины
 	// сервер -> клиент: метро (для карты КПК)
 	static const int TUNNELS_FULL    = 8817004;
+	static const int CHAT_MSG        = 8817005; // сообщение мода в чат игрока
 }
 
 class DrezinaConst
