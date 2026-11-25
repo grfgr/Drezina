@@ -511,8 +511,8 @@ class Drezina_Handcar extends ItemBase
 	// Где стоит водитель (мир) и куда смотрит (yaw в градусах).
 	void GetDriverTransform(out vector pos, out float yaw)
 	{
-		vector local = Vector(0, DECK_HEIGHT, -SEAT_BACK * m_Dir);
-		pos = ModelToWorld(local);
+		vector seatLocal = Vector(0, DECK_HEIGHT, -SEAT_BACK * m_Dir);
+		pos = ModelToWorld(seatLocal);
 		vector dir = GetDirection();
 		if (m_Dir < 0)
 			dir = dir * -1;
