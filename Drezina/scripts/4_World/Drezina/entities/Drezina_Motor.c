@@ -139,6 +139,32 @@ class Drezina_Motor extends CarScript
 		return true;
 	}
 
+	// колёса (ванильные колёса Нивы, невидимые: в модели свои колёса) — только для физики машины, снимать нельзя
+	static bool IsWheelSlot(string slot)
+	{
+		return slot.IndexOf("NivaWheel_") == 0;
+	}
+
+	override bool CanReleaseAttachment(EntityAI attachment)
+	{
+		if (attachment)
+		{
+			InventoryLocation il = new InventoryLocation;
+			attachment.GetInventory().GetCurrentInventoryLocation(il);
+			if (IsWheelSlot(InventorySlots.GetSlotName(il.GetSlot())))
+				return false;
+		}
+		return super.CanReleaseAttachment(attachment);
+	}
+
+	void ServerFitWheels()
+	{
+		GetInventory().CreateAttachment("HatchbackWheel");
+		GetInventory().CreateAttachment("HatchbackWheel");
+		GetInventory().CreateAttachment("HatchbackWheel");
+		GetInventory().CreateAttachment("HatchbackWheel");
+	}
+
 	// ------------------------------------------------------------------ путь
 
 	DrezinaTrack GetTrack()

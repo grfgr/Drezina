@@ -331,6 +331,7 @@ class DrezinaTrackManager extends Managed
 		vector pos, tdir;
 		t.GetPosDir(startDist, pos, tdir);
 		pos[1] = pos[1] + st.RailHeightOffset + 0.05;
+		Print("[Drezina] take: создаю Drezina_Motor на " + pos);
 		Drezina_Motor car = Drezina_Motor.Cast(GetGame().CreateObjectEx("Drezina_Motor", pos, ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN, RF_DEFAULT));
 		if (!car)
 		{
@@ -338,6 +339,8 @@ class DrezinaTrackManager extends Managed
 			Notify(player.GetIdentity(), "Не удалось создать мотодрезину (см. лог сервера).");
 			return;
 		}
+		Print("[Drezina] take: машина создана, ставлю колёса и детали");
+		car.ServerFitWheels();
 		car.ServerPlaceOnTrack(t.GetId(), startDist, face);
 		car.GetInventory().CreateAttachment("SparkPlug");
 		car.GetInventory().CreateAttachment("CarBattery");

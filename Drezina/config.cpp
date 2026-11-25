@@ -158,7 +158,7 @@ class CfgVehicles
 		displayName = "Мотодрезина";
 		descriptionShort = "Дрезина с мотоциклетным мотором. Заправь, вставь свечу и аккумулятор — и по рельсам.";
 		model = "\Drezina\data\motor_handcar.p3d";
-		attachments[] = {"CarBattery", "SparkPlug", "Reflector_1_1", "Reflector_2_1"};
+		attachments[] = {"CarBattery", "SparkPlug", "Reflector_1_1", "Reflector_2_1", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
 		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
 		hiddenSelectionsTextures[] = {"", "", "", "", "", "", "", "", ""};
 		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "", "", "", "", "", ""};
@@ -279,7 +279,7 @@ class CfgVehicles
 					{
 						class Left
 						{
-							inventorySlot = "";
+							inventorySlot = "NivaWheel_1_1";
 							animTurn = "turnfrontleft";
 							animRotation = "wheelfrontleft";
 							animDamper = "";
@@ -287,7 +287,7 @@ class CfgVehicles
 						};
 						class Right
 						{
-							inventorySlot = "";
+							inventorySlot = "NivaWheel_2_1";
 							animTurn = "turnfrontright";
 							animRotation = "wheelfrontright";
 							animDamper = "";
@@ -318,7 +318,7 @@ class CfgVehicles
 					{
 						class Left
 						{
-							inventorySlot = "";
+							inventorySlot = "NivaWheel_1_2";
 							animTurn = "turnbackleft";
 							animRotation = "wheelbackleft";
 							animDamper = "";
@@ -326,7 +326,7 @@ class CfgVehicles
 						};
 						class Right
 						{
-							inventorySlot = "";
+							inventorySlot = "NivaWheel_2_2";
 							animTurn = "turnbackright";
 							animRotation = "wheelbackright";
 							animDamper = "";

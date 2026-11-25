@@ -197,6 +197,14 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.5, BENCH_Y, BENCH_H), (-1, 0, 0))
     proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.5, BENCH_Y, BENCH_H), (1, 0, 0))
 
+    # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
+    # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.
+    W = "\\dz\\vehicles\\wheeled\\offroadhatchback\\proxy\\nivawheel"
+    proxy("proxy_wheel_1", W, "wheel_1_1_proxy", (-hz.HALF, hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
+    proxy("proxy_wheel_2", W, "wheel_1_2_proxy", (-hz.HALF, -hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
+    proxy("proxy_wheel_3", W, "wheel_2_1_proxy", (hz.HALF, hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
+    proxy("proxy_wheel_4", W, "wheel_2_2_proxy", (hz.HALF, -hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
+
     # ---- точки (Memory)
     mem_point("mem_pos_driver", (-1.45, DRIVER_Y, 0.05))
     mem_point("mem_pos_driver_dir", (-0.9, DRIVER_Y, 0.05))
