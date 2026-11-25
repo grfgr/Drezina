@@ -187,7 +187,8 @@ class Drezina_Motor extends CarScript
 	{
 		vector p, dir;
 		t.GetPosDir(d, p, dir);
-		vector fwd = dir * m_Face;
+		float faceSign = m_Face;
+		vector fwd = dir * faceSign;
 		vector right = (vector.Up * fwd).Normalized();
 		vector up = fwd * right;
 		p[1] = p[1] + DrezinaSettings.Get().RailHeightOffset;
@@ -238,7 +239,8 @@ class Drezina_Motor extends CarScript
 		float d = ProjectDist(t, GetPosition());
 		vector p, dir;
 		t.GetPosDir(d, p, dir);
-		vector fwd = dir * m_Face;
+		float faceSign = m_Face;
+		vector fwd = dir * faceSign;
 		float v = vector.Dot(GetVelocity(this), fwd);
 
 		// управление: газ работает только с заведённым мотором и включённой передачей
