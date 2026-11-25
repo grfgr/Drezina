@@ -27,19 +27,31 @@ modded class PlayerBase
 
 	override void CommandHandler(float pDt, int pCurrentCommandID, bool pCurrentCommandFinished)
 	{
-		// Встать на дрезину, как только сервер назначил нас водителем.
-		if (m_DrezinaHandcar && pCurrentCommandID == DayZPlayerConstants.COMMANDID_MOVE && !IsRidingDrezina())
-		{
-			StartCommand_Script(new DrezinaRideCommand(this, m_DrezinaHandcar));
-		}
-
-		// на дрезине обычное управление (ходьба, удары, оружие) выключено: ваниль иначе пытается
-		// обработать удар без команды ходьбы. Клавиши дрезины читаются отдельно (DrezinaClientInput).
 		bool riding = m_DrezinaHandcar != null;
+
+		// обычное управление (ходьба, удары, оружие) на время езды выключено;
+		// клавиши дрезины читаются отдельно (DrezinaClientInput)
 		if (riding != m_DrezinaInputOff && GetInputController())
 		{
 			GetInputController().SetDisabled(riding);
 			m_DrezinaInputOff = riding;
+		}
+
+		if (riding && IsAlive())
+		{
+			// встать на дрезину, как только сервер назначил нас водителем
+			if (!IsRidingDrezina())
+			{
+				if (pCurrentCommandID == DayZPlayerConstants.COMMANDID_MOVE)
+					StartCommand_Script(new DrezinaRideCommand(this, m_DrezinaHandcar));
+				else
+					super.CommandHandler(pDt, pCurrentCommandID, pCurrentCommandFinished);
+				return;
+			}
+			// пока стоим на дрезине, ванильная логика персонажа на паузе: иначе она считает,
+			// что под ногами нет земли, запускает падение и обрывает команду езды (рывки),
+			// а логика ударов падает без команды ходьбы
+			return;
 		}
 
 		super.CommandHandler(pDt, pCurrentCommandID, pCurrentCommandFinished);
