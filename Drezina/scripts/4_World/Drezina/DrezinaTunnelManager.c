@@ -1443,6 +1443,11 @@ class DrezinaTunnelManager
 				admin.SetPosition(Vector(x, GetGame().SurfaceY(x, z) + 0.2, z));
 			}
 		}
+		else if (cmd == "measure")
+		{
+			// /metro measure — замер ванильных подземных блоков Ливонии: размеры коробки модели в лог сервера
+			MeasureVanilla(sender, here);
+		}
 		else if (cmd == "rebuild")
 		{
 			RespawnAll();
@@ -1450,7 +1455,7 @@ class DrezinaTunnelManager
 		}
 		else
 		{
-			DrezinaTrackManager.Notify(sender, "/metro a | via | auto <м> | undo | b | info | build [under|zone] [глубина] | preset | del [id] | list | tp a|b|<id>|<x> <z> | rebuild");
+			DrezinaTrackManager.Notify(sender, "/metro a | via | auto <м> | undo | b | info | build [under|zone] [глубина] | preset | del [id] | list | tp a|b|<id>|<x> <z> | rebuild | measure");
 		}
 	}
 
@@ -1501,6 +1506,49 @@ class DrezinaTunnelManager
 		draft.HasB = true;
 		Build(sender, draft, "auto", DrezinaSettings.Get().MetroDefaultDepth);
 		m_Drafts.Remove(uid);
+	}
+
+	// Каждый блок на миг ставится в 60 м над игроком, меряется (ClippingInfo — коробка модели,
+	// GetCollisionBox — коробка геометрии) и удаляется. Результат: строки [Drezina] MEASURE в логе сервера.
+	void MeasureVanilla(PlayerIdentity sender, vector here)
+	{
+		array<string> types = {"Land_Underground_Tunnel_Single", "Land_Underground_Tunnel_Single_Left", "Land_Underground_Tunnel_Single_Right",
+			"Land_Underground_Corridor_Main_Both", "Land_Underground_Corridor_Main_Left", "Land_Underground_Corridor_Main_Right",
+			"Land_Underground_Corridor_Connector", "Land_Underground_Corridor_Connector_Inv",
+			"Land_Underground_Storage_Big", "Land_Underground_Storage_Big_Vent", "Land_Underground_Storage_Workshop", "Land_Underground_Storage_Barracks",
+			"Land_Underground_Storage_Ammo", "Land_Underground_Storage_Hospital", "Land_Underground_WaterReservoir", "Land_Underground_WaterMaintenance",
+			"Land_Underground_Floor_Comms", "Land_Underground_Floor_Crew",
+			"Land_Underground_Stairs_Start", "Land_Underground_Stairs_Block", "Land_Underground_Stairs_Block_Corridor",
+			"Land_Underground_Stairs_Block_Corridor_NoDoor", "Land_Underground_Stairs_Block_Terminator", "Land_Underground_Stairs_Exit",
+			"Land_Underground_Entrance"};
+		vector pos = here + Vector(0, 60, 0);
+		int ok = 0;
+		foreach (string type : types)
+		{
+			Object o = GetGame().CreateObjectEx(type, pos, ECE_SETUP | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD, RF_DEFAULT);
+			if (!o)
+			{
+				Print("[Drezina] MEASURE " + type + ": НЕ СОЗДАН");
+				continue;
+			}
+			o.SetPosition(pos);
+			o.SetOrientation("0 0 0");
+			vector clip[2];
+			float r = o.ClippingInfo(clip);
+			vector cb[2];
+			bool hasCb = o.GetCollisionBox(cb);
+			vector csize = clip[1] - clip[0];
+			string line = "[Drezina] MEASURE " + type + " clip min=" + clip[0].ToString() + " max=" + clip[1].ToString() + " size=" + csize.ToString() + " r=" + r;
+			if (hasCb)
+			{
+				vector gsize = cb[1] - cb[0];
+				line += " coll min=" + cb[0].ToString() + " max=" + cb[1].ToString() + " size=" + gsize.ToString();
+			}
+			Print(line);
+			GetGame().ObjectDelete(o);
+			ok++;
+		}
+		DrezinaTrackManager.Notify(sender, "Замер готов: " + ok + " из " + types.Count() + " блоков. Пришлите строки [Drezina] MEASURE из script_*.log сервера.");
 	}
 
 	int FindNearestTunnel(vector p, float maxDist)
