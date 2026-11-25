@@ -121,10 +121,28 @@ def tape_tex(size):
 
 
 def canvas_tex(size):
+    """Армейский брезент: плотное полотняное плетение, выгоревшие складки, пятна масла и грязи, штопка."""
     x = np.arange(size)
-    weave = (np.sin(x / 2.0)[None, :] * np.sin(x / 2.0)[:, None]) * 0.5 + 0.5
-    c = lerp(col(84, 88, 60), col(110, 112, 80), weave * 0.4 + noise(size, 40, 5) * 0.6)
-    c = lerp(c, col(50, 45, 35), noise(size, 70, 4) ** 2 * 0.7)
+    f = size / 512 * 2.2
+    warp = (np.sin(x / f)[None, :] * 0.5 + 0.5) * (np.sin(x / (f * 2.0))[:, None] * 0.25 + 0.75)
+    weft = (np.sin(x / f)[:, None] * 0.5 + 0.5) * (np.sin(x / (f * 2.0))[None, :] * 0.25 + 0.75)
+    checker = ((x[None, :] // max(1, int(f * 3.14)) + x[:, None] // max(1, int(f * 3.14))) % 2).astype(np.float32)
+    weave = warp * checker + weft * (1 - checker)
+    base = lerp(col(78, 82, 54), col(108, 110, 76), noise(size, 50, 5))
+    c = base * (0.82 + 0.22 * weave[..., None])
+    c = lerp(c, col(130, 128, 96), np.clip(noise(size, 160, 3) - 0.5, 0, 1) * 1.2)       # выгорело
+    c = lerp(c, col(42, 38, 30), np.clip(noise(size, 90, 5) - 0.62, 0, 1) * 2.5)         # масло
+    c = lerp(c, col(92, 76, 52), np.clip(noise(size, 30, 4) - 0.6, 0, 1) * 1.8)          # грязь
+    return c
+
+
+def leather_tex(size):
+    """Старая кожа ремней: зерно, трещины, вытертые края."""
+    grain = noise(size, 3, 3)
+    cracks = np.clip((noise(size, 18, 5) - 0.72) * 6, 0, 1)
+    c = lerp(col(60, 38, 22), col(98, 64, 36), noise(size, 40, 5) * 0.7 + grain * 0.3)
+    c = lerp(c, col(28, 18, 10), cracks * 0.8)
+    c = lerp(c, col(130, 96, 62), np.clip(noise(size, 120, 3) - 0.6, 0, 1) * 1.5)         # вытерто
     return c
 
 
@@ -345,6 +363,7 @@ RVMAT_PARAMS = {
     "drezina_steel": (0.3, 80, 0.8, 0.55, "0, 0, 0, 1"),
     "drezina_tape": (0.08, 30, 0.0, 0.3, "0, 0, 0, 1"),
     "drezina_canvas": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
+    "drezina_leather": (0.06, 20, 0.0, 0.2, "0, 0, 0, 1"),
     "drezina_plate": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
     "drezina_glass": (0.6, 120, 0.0, 0.9, "1, 0.7, 0.3, 1"),
     "metro_concrete": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
@@ -363,10 +382,48 @@ RVMAT_PARAMS = {
 }
 
 
+# материалы, для которых делаем карты нормалей и блеска (_nohq, _smdi): сила рельефа, блеск металла
+DETAIL_MAPS = {
+    "drezina_paint_green": (2.0, 0.55),
+    "drezina_paint_blue": (2.0, 0.55),
+    "drezina_rust": (4.0, 0.15),
+    "drezina_wood": (5.0, 0.1),
+    "drezina_steel": (2.5, 0.8),
+    "drezina_tape": (1.5, 0.3),
+    "drezina_canvas": (3.0, 0.05),
+    "drezina_leather": (3.0, 0.25),
+    "drezina_plate": (2.0, 0.5),
+}
+
+
+def detail_maps(out, name, strength, shine):
+    """Из цветовой текстуры: рельеф по яркости -> карта нормалей (_nohq), блеск (_smdi: G — блеск, B — глянец).
+    Тёмное (ржавчина, щели, грязь) — ниже и матовее, светлое — выше и блестит."""
+    co = np.asarray(Image.open(os.path.join(out, name + "_co.png")).convert("RGB"), dtype=np.float32) / 255.0
+    lum = co.mean(axis=2)
+    h = np.asarray(Image.fromarray((lum * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)), dtype=np.float32) / 255.0
+    dx = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) * strength
+    dy = (np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) * strength
+    n = np.stack([-dx, dy, np.ones_like(h)], axis=2)
+    n /= np.linalg.norm(n, axis=2, keepdims=True)
+    save(n * 0.5 + 0.5, os.path.join(out, name + "_nohq.png"))
+    # ржавые/грязные места (красноватые и тёмные) почти не блестят
+    rusty = np.clip((co[..., 0] - co[..., 2]) * 3.0, 0, 1)
+    spec = np.clip(shine * (0.35 + 0.9 * lum) * (1 - rusty * 0.8), 0, 1)
+    gloss = np.clip(spec * 0.9 + 0.05, 0, 1)
+    smdi = np.stack([np.ones_like(h), spec, gloss], axis=2)
+    save(smdi, os.path.join(out, name + "_smdi.png"))
+
+
 def write_rvmats(out):
     """Простые материалы Super: цвет из *_co.paa, нормаль/блеск — константы (можно заменить своими картами)."""
     for name, (spec, power, metal, gloss, emissive) in RVMAT_PARAMS.items():
         text = RVMAT % dict(spec=spec, power=power, metal=metal, gloss=gloss, emissive=emissive)
+        if name in DETAIL_MAPS:
+            tex = "Drezina\\data\\textures\\" + name
+            text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
+            text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
+            text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.9, 0.9, 0.9, 1};")
         with open(os.path.join(out, name + ".rvmat"), "w") as f:
             f.write(text)
 
@@ -374,14 +431,16 @@ def write_rvmats(out):
 def main():
     out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "Drezina/data/textures")
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 1024
+    big = size * 2          # основные материалы дрезины — 2048, чтобы вблизи не мылило
     os.makedirs(out, exist_ok=True)
-    save(paint_tex(size, (66, 86, 60)), os.path.join(out, "drezina_paint_green_co.png"))
-    save(paint_tex(size, (60, 82, 104)), os.path.join(out, "drezina_paint_blue_co.png"))
-    save(rust_tex(size), os.path.join(out, "drezina_rust_co.png"))
-    save(wood_tex(size), os.path.join(out, "drezina_wood_co.png"))
-    save(steel_tex(size), os.path.join(out, "drezina_steel_co.png"))
+    save(paint_tex(big, (66, 86, 60)), os.path.join(out, "drezina_paint_green_co.png"))
+    save(paint_tex(big, (60, 82, 104)), os.path.join(out, "drezina_paint_blue_co.png"))
+    save(rust_tex(big), os.path.join(out, "drezina_rust_co.png"))
+    save(wood_tex(big), os.path.join(out, "drezina_wood_co.png"))
+    save(steel_tex(big), os.path.join(out, "drezina_steel_co.png"))
     save(tape_tex(size // 2), os.path.join(out, "drezina_tape_co.png"))
-    save(canvas_tex(size // 2), os.path.join(out, "drezina_canvas_co.png"))
+    save(canvas_tex(size), os.path.join(out, "drezina_canvas_co.png"))
+    save(leather_tex(size // 2), os.path.join(out, "drezina_leather_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
     save(concrete_tex(size), os.path.join(out, "metro_concrete_co.png"))
@@ -397,6 +456,8 @@ def main():
     save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
     save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
     save(tile_tex(size), os.path.join(out, "metro_tile_co.png"))
+    for name, (strength, shine) in DETAIL_MAPS.items():
+        detail_maps(out, name, strength, shine)
     write_rvmats(out)
     print("[Drezina] textures written to", out)
 

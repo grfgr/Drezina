@@ -97,16 +97,46 @@ def driver_place(m, out):
     pan = sphere("seat_pan", 1, (0, DRIVER_Y, SEAT_H - 0.03), m["paint2"], (0.22, 0.2, 0.04), (24, 12))
     out.append(pan)
     out.append(box("seat_back", (0.36, 0.04, 0.22), (0, DRIVER_Y - 0.19, SEAT_H + 0.12), m["paint2"], (math.radians(-12), 0, 0)))
-    # колонка и руль-рычаг (как у мотоцикла)
-    cy = DRIVER_Y + 0.5
-    out.append(box("column", (0.05, 0.05, 0.78), (0, cy, DECK + 0.39), m["paint"]))
-    out.append(cyl("handlebar", 0.014, 0.6, (0, cy - 0.04, DECK + 0.8), m["steel"], ROT_X))
-    for sx in (-1, 1):
-        out.append(cyl(f"grip{sx}", 0.022, 0.12, (sx * 0.25, cy - 0.04, DECK + 0.8), m["tape"], ROT_X))
-        out.append(box(f"brake_lever{sx}", (0.12, 0.012, 0.012), (sx * 0.2, cy - 0.1, DECK + 0.79), m["steel"], (0, 0, sx * 0.3)))
-    out.append(cyl("throttle_cable", 0.004, 0.6, (0.22, cy + 0.05, DECK + 0.5), m["tape"], (math.radians(30), 0, 0), 6))
+    # два рычага управления (газ слева, тормоз справа) — рукоятки там, где руки водителя
+    # в анимации машины (руль Нивы): ~0.4 м перед сиденьем, ~0.4 м над подушкой, ±0.17 м от оси
+    for sx, name in ((-1, "lever_throttle"), (1, "lever_brake")):
+        grip = (sx * 0.17, DRIVER_Y + 0.40, SEAT_H + 0.40)
+        pivot = (sx * 0.17, DRIVER_Y + 0.66, DECK + 0.08)
+        rod(name, pivot, grip, 0.014, m["steel"], out)
+        # рукоятка: обмотана изолентой, с шариком на конце
+        top = (grip[0], grip[1] - 0.02, grip[2] + 0.05)
+        rod(name + "_grip", grip, top, 0.022, m["tape"], out)
+        out.append(sphere(name + "_knob", 0.026, top, m["steel"], (1, 1, 1), (16, 10)))
+        # кронштейн-шарнир на полу
+        out.append(box(name + "_pivot", (0.06, 0.08, 0.06), pivot, m["rust"]))
+        out.append(cyl(name + "_axle", 0.012, 0.12, pivot, m["steel"], ROT_X, 12))
+        # тяга к мотору
+        rod(name + "_link", (sx * 0.17, DRIVER_Y + 0.6, DECK + 0.2), (0.22 * (1 if sx > 0 else 0.6), 0.55, DECK + 0.12), 0.006, m["steel"], out)
+    # сектор-гребёнка рычага газа (фиксирует положение)
+    sector_c = (-0.24, DRIVER_Y + 0.6, DECK + 0.3)
+    out.append(box("throttle_sector", (0.008, 0.22, 0.07), sector_c, m["rust"], (math.radians(-35), 0, 0)))
+    for k in range(6):
+        out.append(box(f"sector_tooth{k}", (0.012, 0.01, 0.014), (-0.24, DRIVER_Y + 0.52 + k * 0.03, DECK + 0.26 + k * 0.02), m["steel"]))
     # педальная площадка под ноги
-    out.append(box("footrest", (0.5, 0.18, 0.02), (0, cy - 0.12, DECK + 0.05), m["steel"]))
+    out.append(box("footrest", (0.5, 0.2, 0.02), (0, DRIVER_Y + 0.42, DECK + 0.04), m["steel"], (math.radians(12), 0, 0)))
+    for k in range(5):
+        out.append(box(f"footrest_rib{k}", (0.46, 0.01, 0.008), (0, DRIVER_Y + 0.35 + k * 0.035, DECK + 0.045 + k * 0.007), m["steel"]))
+
+
+def rod(name, a, b, r, mat, out):
+    """Цилиндр между точками a и b."""
+    import mathutils
+    d = mathutils.Vector(b) - mathutils.Vector(a)
+    mid = [(a[k] + b[k]) / 2 for k in range(3)]
+    o = cyl(name, r, d.length, mid, mat, (0, 0, 0), 12)
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = mathutils.Vector((0, 0, 1)).rotation_difference(d.normalized())
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    out.append(o)
+    return o
 
 
 def passenger_benches(m, out):
@@ -132,17 +162,63 @@ def passenger_benches(m, out):
 
 
 def bag(m, out):
-    """Брезентовая сумка напротив водителя (слева впереди) — багажник."""
-    bx, by = -0.36, 0.72
-    b = sphere("bag", 1, (bx, by, DECK + 0.2), m["canvas"], (0.24, 0.34, 0.2), (24, 14))
-    for v in b.data.vertices:
-        if v.co.z < -0.12:
-            v.co.z = -0.12 - (-0.12 - v.co.z) * 0.2
-    out.append(b)
-    for dy in (-0.15, 0.15):
-        out.append(torus(f"bag_strap{dy}", 0.24, 0.008, (bx, by + dy, DECK + 0.2), m["tape"], ROT_Y, (24, 4)))
-    out.append(cyl("bag_handle", 0.012, 0.3, (bx, by, DECK + 0.42), m["tape"], ROT_Y, 8))
-    out.append(box("bag_flap", (0.3, 0.2, 0.02), (bx, by + 0.1, DECK + 0.38), m["canvas"], (math.radians(-10), 0, 0)))
+    """Армейский вещмешок-баул из брезента: тело-цилиндр с провисшими боками, клапан, кожаные ремни с
+    пряжками, ручка, боковой карман, шнуровка, заплатка. Лежит слева впереди (багажник)."""
+    import bmesh
+    bx, by, bz = -0.36, 0.72, DECK + 0.17
+    L, R = 0.62, 0.17
+    # тело: цилиндр вдоль Y, сплющен снизу, с вмятинами и складками
+    bpy.ops.mesh.primitive_cylinder_add(vertices=40, radius=R, depth=L, location=(bx, by, bz), rotation=(math.radians(90), 0, 0))
+    body = bpy.context.active_object
+    body.name = "bag_body"
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.subdivide(number_cuts=10)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for v in body.data.vertices:
+        x, y, z = v.co                     # локально: ось цилиндра — Z (после поворота ляжет вдоль Y)
+        # после поворота локальная Y смотрит вверх: низ мешка сплющен о пол, верх чуть осел
+        v.co.y = v.co.y * 0.85
+        if v.co.y < -0.11:
+            v.co.y = -0.11 + (v.co.y + 0.11) * 0.2
+        # торцы скруглить (как набитый мешок)
+        t = abs(z) / (L / 2)
+        k = 1.0 - 0.35 * t ** 6
+        v.co.x *= k
+        v.co.y *= k
+        # складки поперёк
+        v.co.x += math.sin(z * 37 + x * 9) * 0.006
+        v.co.y += math.sin(z * 29 + 1.3) * 0.004
+    body.data.materials.append(m["canvas"])
+    for f in body.data.polygons:
+        f.use_smooth = True
+    out.append(body)
+    # клапан сверху с кожаным кантом
+    flap = box("bag_flap", (0.26, 0.3, 0.012), (bx, by + 0.12, bz + R * 0.8), m["canvas"], (math.radians(-6), 0, 0))
+    out.append(flap)
+    out.append(box("bag_flap_edge", (0.27, 0.02, 0.016), (bx, by + 0.27, bz + R * 0.72), m["leather"]))
+    # два кожаных ремня обхватывают мешок, пряжки из латуни
+    for k, dy in enumerate((-0.17, 0.17)):
+        out.append(torus(f"bag_strap{k}", R * 0.93, 0.008, (bx, by + dy, bz - 0.005), m["leather"], ROT_Y, (32, 6)))
+        out.append(box(f"bag_strap_flat{k}", (0.03, 0.03, 0.004), (bx + R * 0.7, by + dy, bz + R * 0.55), m["leather"], (0, math.radians(45), 0)))
+        out.append(box(f"bag_buckle{k}", (0.04, 0.012, 0.035), (bx + R * 0.74, by + dy, bz + R * 0.5), m["steel"], (0, math.radians(45), 0)))
+        out.append(box(f"bag_buckle_pin{k}", (0.004, 0.014, 0.03), (bx + R * 0.76, by + dy, bz + R * 0.5), m["steel"], (0, math.radians(45), 0)))
+    # ручка для переноски
+    out.append(torus("bag_handle", 0.06, 0.01, (bx, by, bz + R * 0.95), m["leather"], (0, math.radians(90), 0), (24, 8)))
+    for dy in (-0.06, 0.06):
+        out.append(box(f"bag_handle_tab{dy}", (0.04, 0.03, 0.006), (bx, by + dy, bz + R * 0.86), m["leather"]))
+    # боковой карман с клапаном и кнопкой
+    out.append(box("bag_pocket", (0.03, 0.22, 0.14), (bx - R * 0.9, by - 0.04, bz - 0.01), m["canvas"]))
+    out.append(box("bag_pocket_flap", (0.034, 0.23, 0.06), (bx - R * 0.93, by - 0.04, bz + 0.06), m["canvas"], (math.radians(4), 0, 0)))
+    out.append(cyl("bag_pocket_button", 0.008, 0.008, (bx - R * 0.95, by - 0.04, bz + 0.04), m["steel"], ROT_X, 12))
+    # шнуровка на торце и заплатка
+    for k in range(5):
+        a = k * 2 * math.pi / 5
+        out.append(cyl(f"bag_eyelet{k}", 0.006, 0.006, (bx + math.cos(a) * 0.06, by + L / 2 - 0.02, bz + math.sin(a) * 0.06), m["steel"], ROT_Y, 10))
+    out.append(cyl("bag_drawcord", 0.004, 0.18, (bx + 0.03, by + L / 2 + 0.01, bz - 0.02), m["tape"], (0, math.radians(70), 0), 6))
+    out.append(box("bag_patch", (0.11, 0.09, 0.004), (bx + 0.05, by - 0.15, bz + R * 0.86), m["leather"], (math.radians(-12), math.radians(14), 0)))
+    # верёвка, которой баул привязан к раме
+    out.append(cyl("bag_rope", 0.006, 0.5, (bx, by, DECK + 0.01), m["canvas"], ROT_X, 6))
 
 
 def lamps(m, out, sel_parts):

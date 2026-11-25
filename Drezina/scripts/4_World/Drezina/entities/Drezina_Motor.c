@@ -14,7 +14,7 @@ class Drezina_Motor extends CarScript
 	static const float ROLL_DECEL = 0.25;    // накат без газа
 	static const float HANDBRAKE_DECEL = 7.0;
 	static const float HOVER = 0.05;
-	static const float MAX_SPEED = 8.4;      // 30 км/ч         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
+	static const float MAX_SPEED = 13.9;     // 50 км/ч         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
 
 	int m_TrackId = -1;
 	int m_Face = 1;              // +1 — нос машины смотрит в сторону роста дистанции пути
@@ -342,7 +342,7 @@ class Drezina_Motor extends CarScript
 
 		float maxV = 0;
 		float sign = 1;
-		// передачи: R — назад до 11 км/ч, N, D (единственная передача вперёд) — до 30 км/ч
+		// передачи: R — назад до 11 км/ч, N, D (единственная передача вперёд) — до 50 км/ч
 		if (gear == CarGear.REVERSE)
 		{
 			maxV = 3.0;
