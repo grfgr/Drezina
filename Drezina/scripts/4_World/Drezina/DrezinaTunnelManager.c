@@ -1443,6 +1443,18 @@ class DrezinaTunnelManager
 				admin.SetPosition(Vector(x, GetGame().SurfaceY(x, z) + 0.2, z));
 			}
 		}
+		else if (cmd == "test")
+		{
+			// /metro test tunnel | curve | stairs [шаг_вниз] [шаг_вперёд] [блоков] | entrance | hall | clear
+			string what = "tunnel";
+			if (args.Count() >= 3)
+				what = args[2];
+			what.ToLower();
+			array<string> nums = new array<string>;
+			for (int ai = 3; ai < args.Count(); ai++)
+				nums.Insert(args[ai]);
+			VanillaTest(sender, admin, what, nums);
+		}
 		else if (cmd == "measure")
 		{
 			// /metro measure — замер ванильных подземных блоков Ливонии: размеры коробки модели в лог сервера
@@ -1549,6 +1561,127 @@ class DrezinaTunnelManager
 			ok++;
 		}
 		DrezinaTrackManager.Notify(sender, "Замер готов: " + ok + " из " + types.Count() + " блоков. Пришлите строки [Drezina] MEASURE из script_*.log сервера.");
+	}
+
+	// ================================================================== ванильные блоки: тестовые сборки
+	//
+	// Размеры по замеру (/metro measure): Tunnel_Single — 10 м, центр модели в середине; Tunnel_Single_Left /
+	// _Right — начало модели у входного торца, поворот на 30° (ось R ~18.5 м: вперёд 9.24, вбок 2.48);
+	// Storage_Big — зал 15.5 x 20.9 м (торцы по оси Z: -10.45 / +10.42).
+
+	static const float V_STRAIGHT = 10.0;
+	static const float V_CURVE_ANG = 30.0;
+	static const float V_CURVE_R = 18.47;
+	static const float V_HALL_BACK = 10.45;
+	static const float V_HALL_FRONT = 10.42;
+
+	ref array<Object> m_TestObjects = new array<Object>;
+
+	Object TestSpawn(string type, vector pos, vector dir)
+	{
+		Object o = DrezinaTrackManager.SpawnStatic(type, pos, dir);
+		if (o)
+			m_TestObjects.Insert(o);
+		else
+			Print("[Drezina] test: не создан " + type);
+		return o;
+	}
+
+	// кусок тоннеля: 'S' прямой, 'L' / 'R' поворот на 30°; cur и h — начало куска и направление, сдвигаются на конец
+	void PlaceVanillaPiece(string kind, inout vector cur, inout vector h, array<Object> outObjs)
+	{
+		vector side = Side(h);       // вправо
+		if (kind == "S")
+		{
+			Object s1 = DrezinaTrackManager.SpawnStatic("Land_Underground_Tunnel_Single", cur + h * (V_STRAIGHT * 0.5), h);
+			if (s1)
+				outObjs.Insert(s1);
+			cur = cur + h * V_STRAIGHT;
+			return;
+		}
+		float a = V_CURVE_ANG * Math.DEG2RAD;
+		float sg = 1;
+		string type = "Land_Underground_Tunnel_Single_Right";
+		if (kind == "L")
+		{
+			sg = -1;
+			type = "Land_Underground_Tunnel_Single_Left";
+		}
+		Object c1 = DrezinaTrackManager.SpawnStatic(type, cur, h);
+		if (c1)
+			outObjs.Insert(c1);
+		cur = cur + h * (V_CURVE_R * Math.Sin(a)) + side * (sg * V_CURVE_R * (1 - Math.Cos(a)));
+		h = (h * Math.Cos(a) + side * (sg * Math.Sin(a))).Normalized();
+	}
+
+	void VanillaTest(PlayerIdentity sender, PlayerBase admin, string what, array<string> nums)
+	{
+		if (what == "clear")
+		{
+			foreach (Object o : m_TestObjects)
+			{
+				if (o)
+					GetGame().ObjectDelete(o);
+			}
+			m_TestObjects.Clear();
+			DrezinaTrackManager.Notify(sender, "Тестовые блоки убраны.");
+			return;
+		}
+		vector here = admin.GetPosition();
+		vector h = Flat(admin.GetDirection());
+		// в воздухе на 25 м над землёй перед игроком — удобно облететь и посмотреть стыки
+		vector base = here + h * 20.0;
+		base[1] = GetGame().SurfaceY(base[0], base[2]) + 25.0;
+		int before = m_TestObjects.Count();
+
+		if (what == "tunnel" || what == "curve")
+		{
+			// зал — 2 прямых — поворот влево — 2 прямых — поворот вправо — 2 прямых — зал
+			vector cur = base;
+			if (what == "tunnel")
+				TestSpawn("Land_Underground_Storage_Big", cur - h * V_HALL_FRONT, h);
+			string seq = "SSLSSRSS";
+			if (what == "curve")
+				seq = "SLLLS";
+			for (int i = 0; i < seq.Length(); i++)
+				PlaceVanillaPiece(seq.Get(i), cur, h, m_TestObjects);
+			if (what == "tunnel")
+				TestSpawn("Land_Underground_Storage_Big", cur + h * V_HALL_BACK, h);
+		}
+		else if (what == "stairs")
+		{
+			// лестница: Start, N блоков со сдвигом (вниз, вперёд), внизу Block_Corridor
+			float dy = 3.3;
+			float dz = 0.0;
+			int n = 3;
+			if (nums.Count() > 0)
+				dy = nums[0].ToFloat();
+			if (nums.Count() > 1)
+				dz = nums[1].ToFloat();
+			if (nums.Count() > 2)
+				n = nums[2].ToInt();
+			TestSpawn("Land_Underground_Stairs_Start", base, h);
+			vector sp = base;
+			for (int k = 1; k <= n; k++)
+			{
+				sp = base - Vector(0, dy * k, 0) + h * (dz * k);
+				TestSpawn("Land_Underground_Stairs_Block", sp, h);
+			}
+			TestSpawn("Land_Underground_Stairs_Block_Corridor", sp - Vector(0, dy, 0) + h * dz, h);
+		}
+		else if (what == "entrance")
+		{
+			vector ep = here + h * 25.0;
+			ep[1] = GetGame().SurfaceY(ep[0], ep[2]);
+			TestSpawn("Land_Underground_Entrance", ep, h);
+		}
+		else if (what == "hall")
+		{
+			TestSpawn("Land_Underground_Storage_Big", base, h);
+			TestSpawn("Land_Underground_Corridor_Connector", base + h * (V_HALL_FRONT + 6.65), h);
+			TestSpawn("Land_Underground_Corridor_Main_Both", base + h * (V_HALL_FRONT + 13.3 + 11.55), h);
+		}
+		DrezinaTrackManager.Notify(sender, "Тест «" + what + "»: поставлено " + (m_TestObjects.Count() - before) + " блоков (в 25 м над землёй впереди). Убрать: /metro test clear");
 	}
 
 	int FindNearestTunnel(vector p, float maxDist)
