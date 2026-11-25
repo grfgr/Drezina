@@ -19,7 +19,7 @@ import os
 import bpy
 
 import handcar_zone as hz
-from handcar_zone import box, cyl, sphere, torus, dent, join, set_origin, uv_cube, smooth, selection, mem_point, ROT_X, ROT_Y
+from handcar_zone import box, cyl, cone, sphere, torus, dent, join, set_origin, uv_cube, smooth, selection, mem_point, ROT_X, ROT_Y
 
 DECK = hz.DECK_TOP
 SEAT_H = DECK + 0.46          # верх подушки сиденья водителя
@@ -420,6 +420,72 @@ def brakes_and_guards(m, out):
     rod("sand_pipe", (-0.5, 1.02, DECK), (-hz.HALF, hz.AXLE_Y + R + 0.03, 0.06), 0.012, m["rust"], out)
 
 
+def details(m, out):
+    """Мелочи жизни: канистра на спинке дивана, ящик с инструментом под диваном, керосиновый фонарь на
+    штанге, провода к фарам, лопата и лом в держателях, моток верёвки, аптечка-жестянка, тряпка на рычаге."""
+    # канистра 20 л (как вермахтовская/советская): штамповка крестом, три ручки, крышка с рычагом
+    cx, cy, cz = -0.38, BENCH_Y - 0.3, BENCH_H + 0.1
+    can = box("jerrycan", (0.16, 0.34, 0.46), (cx, cy, cz), m["paint"])
+    hz.dent(can, 0.003, cuts=2, seed=5)
+    out.append(can)
+    for sx in (-1, 1):
+        out.append(box(f"jc_x1{sx}", (0.006, 0.3, 0.02), (cx + sx * 0.082, cy, cz), m["paint"], (math.radians(52), 0, 0)))
+        out.append(box(f"jc_x2{sx}", (0.006, 0.3, 0.02), (cx + sx * 0.082, cy, cz), m["paint"], (math.radians(-52), 0, 0)))
+        out.append(box(f"jc_rim{sx}", (0.012, 0.35, 0.47), (cx + sx * 0.07, cy, cz), m["paint"]))
+    for k, dy in enumerate((-0.08, 0.0, 0.08)):
+        out.append(box(f"jc_handle{k}", (0.02, 0.02, 0.05), (cx, cy + dy, cz + 0.255), m["steel"]))
+    out.append(cyl("jc_spout", 0.025, 0.03, (cx, cy + 0.13, cz + 0.24), m["steel"], (0, 0, 0), 16))
+    out.append(box("jc_lever", (0.02, 0.06, 0.012), (cx, cy + 0.1, cz + 0.265), m["steel"]))
+    out.append(box("jc_strap", (0.17, 0.02, 0.004), (cx, cy + 0.17, cz), m["leather"]))
+    out.append(box("jc_strap2", (0.17, 0.02, 0.004), (cx, cy - 0.17, cz), m["leather"]))
+    # ящик с инструментом под диваном
+    tx, ty, tz = 0.3, BENCH_Y + 0.02, DECK + 0.1
+    out.append(box("toolbox_m", (0.4, 0.2, 0.18), (tx, ty, tz), m["paint2"]))
+    out.append(box("toolbox_m_lid", (0.41, 0.21, 0.02), (tx, ty, tz + 0.1), m["rust"]))
+    out.append(box("toolbox_m_latch", (0.04, 0.012, 0.05), (tx, ty + 0.106, tz + 0.06), m["steel"]))
+    out.append(cyl("toolbox_m_handle", 0.008, 0.16, (tx, ty, tz + 0.13), m["steel"], ROT_X, 8))
+    # гаечный ключ и молоток, брошенные на полу
+    out.append(box("wrench", (0.02, 0.26, 0.008), (0.15, 0.25, DECK + 0.006), m["steel"], (0, 0, math.radians(30))))
+    out.append(cyl("wrench_head", 0.03, 0.01, (0.08, 0.36, DECK + 0.006), m["steel"], (0, 0, 0), 6))
+    out.append(cyl("hammer_handle", 0.012, 0.3, (-0.2, -0.45, DECK + 0.014), m["wood"], (0, math.radians(90), math.radians(20)), 10))
+    out.append(box("hammer_head", (0.03, 0.11, 0.03), (-0.06, -0.4, DECK + 0.02), m["steel"], (0, 0, math.radians(20))))
+    # керосиновый фонарь «летучая мышь» на штанге у правого переднего угла
+    lx, ly = hz.SILL_X + 0.04, 1.08
+    rod("lantern_pole", (lx, ly, DECK - 0.1), (lx, ly, DECK + 1.1), 0.014, m["rust"], out)
+    rod("lantern_arm", (lx, ly, DECK + 1.1), (lx, ly + 0.18, DECK + 1.1), 0.01, m["rust"], out)
+    lz = DECK + 0.92
+    lyy = ly + 0.18
+    out.append(cyl("lantern_tank", 0.07, 0.05, (lx, lyy, lz - 0.1), m["paint"], (0, 0, 0), 24))
+    out.append(cyl("lantern_glass", 0.05, 0.13, (lx, lyy, lz), m["glass"], (0, 0, 0), 20))
+    out.append(cyl("lantern_top", 0.06, 0.04, (lx, lyy, lz + 0.09), m["paint"], (0, 0, 0), 20))
+    out.append(cone("lantern_hood", 0.06, 0.02, 0.05, (lx, lyy, lz + 0.135), m["paint"]))
+    for k in range(2):
+        rod(f"lantern_tube{k}", (lx + (0.06 if k else -0.06), lyy, lz - 0.08), (lx + (0.06 if k else -0.06), lyy, lz + 0.09), 0.006, m["paint"], out)
+    out.append(torus("lantern_bail", 0.07, 0.004, (lx, lyy, lz + 0.14), m["steel"], ROT_X, (20, 4)))
+    # провода от фар вдоль рамы к щитку у рычагов, на изоленте
+    for sx in (-1, 1):
+        pts = [(sx * 0.45, 1.22, DECK - 0.02), (sx * (hz.SILL_X - 0.02), 1.1, DECK - 0.06), (sx * (hz.SILL_X - 0.02), 0.2, DECK - 0.06), (sx * 0.2, 0.2, DECK + 0.03)]
+        for i in range(len(pts) - 1):
+            rod(f"lampwire{sx}{i}", pts[i], pts[i + 1], 0.005, m["tape"], out)
+            out.append(cyl(f"lampwire_tape{sx}{i}", 0.011, 0.025, pts[i + 1], m["tape"], (0, 0, 0), 8))
+    # щиток с тумблером фар между рычагами
+    out.append(box("switch_box", (0.12, 0.06, 0.08), (0, -0.12 + 0.6, DECK + 0.12), m["paint2"]))
+    out.append(cyl("switch_toggle", 0.005, 0.04, (0, -0.12 + 0.57, DECK + 0.15), m["steel"], (math.radians(-30), 0, 0), 6))
+    # лопата и лом в держателях по левому борту
+    sx = -(hz.SILL_X + 0.05)
+    rod("shovel_handle", (sx, -0.7, DECK + 0.02), (sx, 0.35, DECK + 0.02), 0.016, m["wood"], out)
+    out.append(box("shovel_blade", (0.012, 0.26, 0.22), (sx, -0.85, DECK + 0.02), m["rust"]))
+    rod("crowbar_m", (sx - 0.03, -0.9, DECK - 0.04), (sx - 0.03, 0.5, DECK - 0.04), 0.012, m["rust"], out)
+    for y in (-0.5, 0.2):
+        out.append(box(f"tool_clip{y}", (0.05, 0.03, 0.06), (sx + 0.005, y, DECK), m["steel"]))
+    # моток верёвки на крыле и аптечка-жестянка на спинке водителя
+    out.append(torus("rope_coil", 0.1, 0.014, (-hz.HALF, -hz.AXLE_Y, hz.WHEEL_R + 0.44), m["canvas"], (0, math.radians(80), 0), (24, 8)))
+    out.append(torus("rope_coil2", 0.085, 0.012, (-hz.HALF + 0.005, -hz.AXLE_Y, hz.WHEEL_R + 0.45), m["canvas"], (0, math.radians(80), 0.3), (24, 8)))
+    out.append(box("medkit", (0.16, 0.05, 0.11), (0, -0.12 - 0.22, SEAT_H + 0.1), m["plate"], (math.radians(-12), 0, 0)))
+    # тряпка на рукоятке тормоза
+    out.append(box("rag", (0.05, 0.012, 0.14), (0.2, -0.12 + 0.38, SEAT_H + 0.33), m["canvas"], (math.radians(10), 0, math.radians(15))))
+
+
 def lamps(m, out, sel_parts):
     """Две фары спереди (лампочки H7 в слотах Reflector_1_1 / Reflector_2_1) и красный фонарь сзади."""
     for sx, sel in ((-1, "light_left"), (1, "light_right")):
@@ -450,6 +516,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     hz.layer2_couplers(m, body)
     hz.layer3_wear(m, body)
     brakes_and_guards(m, body)
+    details(m, props)
     engine(m, props)
     driver_place(m, props)
     passenger_benches(m, props)
