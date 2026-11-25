@@ -2,3 +2,4 @@ build_models/
 *.pbo
 *.blend1
 __pycache__/
+tools/*.log
