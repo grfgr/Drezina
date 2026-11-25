@@ -754,7 +754,7 @@ def build_station(outdir, save_fn, reset_fn):
     px0, px1 = -ST_W / 2, -1.9
     geo("geometry_platform", (px1 - px0, ST_LEN - 0.4, PLATFORM_H), ((px0 + px1) / 2, -0.2, PLATFORM_H / 2))
     for y in (-6.0, 0.0, 6.0):
-        geo(f"geometry_col{y}", (0.45, 0.45, ST_WALL_H + 0.6), (px1 - 0.6, y, (ST_WALL_H + 0.6) / 2))
+        geo(f"geometry_col{y}", (0.45, 0.45, vault_z(px1 - 0.825) + 0.1), (px1 - 0.6, y, (vault_z(px1 - 0.825) + 0.1) / 2))
     bx, by = -4.6, -9.6
     geo("geometry_booth_back", (2.4, 0.1, 2.4), (bx, by - 0.9, PLATFORM_H + 1.2))
     d0, d1 = by - 0.75, by + 0.05
@@ -806,7 +806,12 @@ def station_details(m):
     p.append(box("door_step", (1.6, 0.6, PLATFORM_H / 2), (DOOR_X, -ST_LEN / 2 + 0.3, PLATFORM_H / 4), m["concrete"]))
     # колонны по краю платформы
     for y in (-6.0, 0.0, 6.0):
-        p.append(box(f"col{y}", (0.45, 0.45, ST_WALL_H + 0.6), (px1 - 0.6, y, (ST_WALL_H + 0.6) / 2), m["wall"]))
+        # колонна до самого свода (по внутренней кромке, с запасом в бетон), с капителью и базой
+        cxp = px1 - 0.6
+        ch = vault_z(cxp - 0.225) + 0.1
+        p.append(box(f"col{y}", (0.45, 0.45, ch), (cxp, y, ch / 2), m["wall"]))
+        p.append(box(f"col_cap{y}", (0.62, 0.62, 0.18), (cxp, y, vault_z(cxp + 0.31) - 0.12), m["concrete"]))
+        p.append(box(f"col_base{y}", (0.55, 0.55, 0.15), (cxp, y, 0.075), m["concrete"]))
     # скамейки
     p += bench("bench_a", -4.8, -3.0, m)
     p += bench("bench_b", -4.8, 3.0, m)
