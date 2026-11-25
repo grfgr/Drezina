@@ -311,7 +311,7 @@ def door_frame(prefix, w, h, y_front, m, z0=0.0):
 
 # ============================================================================ голова бункера на поверхности
 
-def earth_mound(name, center, scale, cut_y, mat):
+def earth_mound(name, center, scale, cut_y, mat, bottom=-0.05):
     """Земляной купол, обрезанный вертикальной плоскостью спереди (y > cut_y) и снизу (z < 0)."""
     bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=20, radius=1, location=(0, 0, 0))
     o = bpy.context.active_object
@@ -328,7 +328,7 @@ def earth_mound(name, center, scale, cut_y, mat):
         v.co += v.normal * n * 0.18
     bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, cut_y, 0), plane_no=(0, 1, 0), clear_outer=True)
     bmesh.ops.holes_fill(bm, edges=bm.edges[:], sides=0)          # закрыть срез спереди
-    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, -0.05), plane_no=(0, 0, -1), clear_outer=True)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, bottom), plane_no=(0, 0, -1), clear_outer=True)
     bmesh.ops.holes_fill(bm, edges=bm.edges[:], sides=0)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.to_mesh(me)
@@ -357,7 +357,7 @@ def build_entrance(outdir, save_fn, reset_fn):
     p = []
     BW, BD, BH = 4.6, 4.0, 3.2
     # бетонная коробка, почти полностью в насыпи
-    p.append(box("block", (BW, BD, BH), (0, -BD / 2, BH / 2), m["concrete"]))
+    p.append(box("block", (BW, BD, BH + 3.0), (0, -BD / 2, (BH - 3.0) / 2), m["concrete"]))      # фундамент на 3 м в землю
     # портал: толстая рамка вокруг ниши
     # (внутренние края портала вплотную к коробке двери: 1.6/2 + 0.18 = 0.98)
     p.append(box("portal_l", (0.9, 0.6, 3.5), (-1.43, 0.2, 1.75), m["concrete"]))
@@ -365,9 +365,14 @@ def build_entrance(outdir, save_fn, reset_fn):
     p.append(box("portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04), m["concrete"]))   # строго между боковинами
     p.append(box("visor", (4.4, 1.1, 0.22), (0, 0.55, 3.55), m["concrete"], (math.radians(-5), 0, 0)))
     p.append(box("niche_floor", (2.2, 1.0, 0.1), (0, 0.0, 0.05), m["concrete"]))
+    # бетонная отмостка перед входом, уходит в землю (на склоне не видно щели под порогом)
+    p.append(box("apron", (4.2, 2.6, 2.0), (0, 1.3, -0.97), m["concrete"]))
+    for sx in (-1, 1):
+        p.append(box(f"portal_foot{sx}", (0.9, 0.6, 2.0), (sx * 1.43, 0.2, -1.0), m["concrete"]))
     # откосные стенки, держат насыпь
     for sx in (-1, 1):
         p.append(box(f"wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), m["concrete"], (math.radians(-32), 0, 0)))
+        p.append(box(f"wing_foot{sx}", (0.4, 3.0, 2.2), (sx * 2.3, 1.1, -0.9), m["concrete"]))
         p.append(box(f"wing_cap{sx}", (0.5, 3.4, 0.15), (sx * 2.3, 1.4, 2.45), m["concrete"], (math.radians(-32), 0, 0)))
     # дверь (крупнее, как у армейских бункеров) в жёлто-чёрной коробке
     dw, dh = 1.6, 2.4
@@ -390,21 +395,22 @@ def build_entrance(outdir, save_fn, reset_fn):
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 3.0)
     # срез насыпи — за фасадом блока (y = -0.35): заглушка не закрывает дверь, по бокам её прячут откосы
-    mound = earth_mound("mound", (0, -2.9, 0), (6.0, 6.2, 4.4), -0.35, m["dirt"])
+    mound = earth_mound("mound", (0, -2.9, 0), (6.0, 6.2, 4.4), -0.35, m["dirt"], bottom=-3.0)
     uv_box(mound, 4.0)
     o = join([concrete, mound], "bunker_entrance")
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
     # геометрия
     # коллизия блока заканчивается на фасаде (y = 0), портал и дверь — отдельными боксами, ниша свободна
-    geo("geometry_block", (BW, BD, 3.6), (0, -BD / 2, 1.8))
+    geo("geometry_block", (BW, BD, 6.6), (0, -BD / 2, 0.3))
+    geo("geometry_apron", (4.2, 2.6, 2.0), (0, 1.3, -0.97))
     for sx in (-1, 1):
         geo(f"geometry_portal{sx}", (0.9, 0.6, 3.5), (sx * 1.43, 0.2, 1.75))
     geo("geometry_portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04))
     geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))     # закрытая дверь: к ней можно подойти вплотную
     for sx in (-1, 1):
         geo(f"geometry_wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), (math.radians(-32), 0, 0))
-    geo("geometry_mound", (11, 8, 3.5), (0, -4.5, 1.75))
+    geo("geometry_mound", (11, 8, 6.5), (0, -4.5, 0.25))
     save_fn(outdir, "bunker_entrance")
 
 
@@ -483,7 +489,13 @@ def build_stairs(outdir, save_fn, reset_fn):
             zk = z_top - LEVEL / 2 - down_dir * yk * LEVEL / run
             p.append(cyl(f"post{f}{k}", 0.016, 0.9, (rx, yk, zk + 0.45), m["rust"]))
     # разделительная стена между маршами
-    p.append(box("divider", (0.15, run, STAIR_TOP + 1.0), (0, 0, (STAIR_TOP + 1.0) / 2), m["concrete"], round_edges=False))
+    # разделительная стена между маршами — до уровня верхней площадки (не торчит перед дверью выхода),
+    # над ней на верху — перила, чтобы не шагнуть в пролёт
+    p.append(box("divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2), m["concrete"], round_edges=False))
+    p.append(cyl("top_rail", 0.022, run, (0.08, 0, STAIR_TOP + 1.0), m["rust"], (math.radians(90), 0, 0)))
+    p.append(cyl("top_rail_mid", 0.016, run, (0.08, 0, STAIR_TOP + 0.5), m["rust"], (math.radians(90), 0, 0)))
+    for k in range(4):
+        p.append(cyl(f"top_rail_post{k}", 0.018, 1.0, (0.08, -run / 2 + k * run / 3, STAIR_TOP + 0.5), m["rust"]))
     # трубы и кабели в шахте, номера уровней
     p += pipes_along("vpipe", SH_X - 0.1, [SH_H - 0.4], 2 * SH_Y, 0, m, [0.06])
     p.append(cyl("riser", 0.08, SH_H, (SH_X - 0.15, -SH_Y + 0.15, SH_H / 2), m["rust"]))
@@ -505,7 +517,8 @@ def build_stairs(outdir, save_fn, reset_fn):
     for sx in (-1, 1):
         geo(f"geometry_front_side{sx}", (0.8, 0.4, 2.4), (sx * 1.2, SH_Y + 0.2, 1.2))
     geo("geometry_floor", (2 * SH_X, 2 * SH_Y, 0.3), (0, 0, -0.15))
-    geo("geometry_divider", (0.15, run, STAIR_TOP + 1.0), (0, 0, (STAIR_TOP + 1.0) / 2))
+    geo("geometry_divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2))
+    geo("geometry_top_rail", (0.12, run, 1.1), (0.08, 0, STAIR_TOP + 0.55))
     for z, yy in ((STAIR_TOP, SH_Y - 0.5), (LEVEL * 2, SH_Y - 0.5), (LEVEL * 3, -SH_Y + 0.5), (LEVEL, -SH_Y + 0.5)):
         geo(f"geometry_landing{z}", (2 * SH_X, 1.0, 0.2), (0, yy, z - 0.1))
     for f in range(FLIGHTS):

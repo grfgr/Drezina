@@ -387,6 +387,7 @@ class DrezinaTunnelManager
 		SpawnEntrance(t, 0, objs);
 		SpawnEntrance(t, 1, objs);
 		SpawnLighting(t, objs);
+		SpawnDarkness(t, objs);
 		m_Objects.Set(t.Id, objs);
 
 		// путь внутри: те же узлы, что и ось тоннеля, + высота рельса
@@ -400,6 +401,39 @@ class DrezinaTunnelManager
 			t.TrackId = DrezinaTrackManager.Get().CreateTrack(nodes, "Метро " + t.Id);
 			Save();
 		}
+	}
+
+	// ------------------------------------------------------------------ темнота и звук подземелья
+
+	// Зоны темноты: лестничные шахты, коридоры, станции и тоннель кусками по 40 м вдоль оси.
+	void SpawnDarkness(DrezinaTunnelData t, array<Object> objs)
+	{
+		int before = objs.Count();
+		for (int end = 0; end <= 1; end++)
+		{
+			vector sIn, cIn;
+			vector st = GetStairsPos(t, end, sIn);
+			AddObj(objs, DrezinaUnderground.AddZone(st + Vector(0, 6.4, 0), Vector(5.0, 13.6, 8.4), sIn, "drezina stairs " + t.Id));
+			vector cor = GetCorridorPos(t, end, cIn);
+			AddObj(objs, DrezinaUnderground.AddZone(cor + Vector(0, 1.5, 0), Vector(4.0, 3.6, DrezinaConst.CORRIDOR_LEN + 1.0), cIn, "drezina corridor " + t.Id));
+			vector e, dirT, inward;
+			GetEnd(t, end, e, dirT, inward);
+			vector stc = e + inward * (DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK);
+			AddObj(objs, DrezinaUnderground.AddZone(stc + Vector(0, 2.8, 0), Vector(14.0, 6.6, DrezinaConst.STATION_LEN + 1.0), inward, "drezina station " + t.Id));
+		}
+		DrezinaTrack s = GetSpline(t);
+		float len = s.GetLength();
+		float step = 40.0;
+		for (float d = 0; d < len; d += step)
+		{
+			float c = Math.Min(d + step * 0.5, len);
+			vector pos, dir;
+			s.GetPosDir(c, pos, dir);
+			dir[1] = 0;
+			AddObj(objs, DrezinaUnderground.AddZone(pos + Vector(0, 2.6, 0), Vector(8.0, 6.4, step + 4.0), dir.Normalized(), "drezina tunnel " + t.Id));
+		}
+		DrezinaUnderground.SyncAll();
+		Print("[Drezina] метро #" + t.Id + ": зон темноты " + (objs.Count() - before));
 	}
 
 	// ------------------------------------------------------------------ свет и генераторы
@@ -566,7 +600,20 @@ class DrezinaTunnelManager
 		vector surf = t.Route[0];
 		if (end == 1)
 			surf = t.Route[t.Route.Count() - 1];
-		surf[1] = GetGame().SurfaceY(surf[0], surf[2]);
+		// на склоне ставим по самой низкой точке под входом: фундамент и отмостка уходят в землю на 3 м,
+		// поэтому со стороны склона вход утоплен, а снизу нигде не видно щели
+		vector fwd = inward;
+		vector side = Side(inward);
+		float minY = GetGame().SurfaceY(surf[0], surf[2]);
+		for (int ix = -1; ix <= 1; ix++)
+		{
+			for (int iz = -1; iz <= 1; iz++)
+			{
+				vector q = surf + side * (ix * 2.3) + fwd * (iz * 1.3 + 1.0);
+				minY = Math.Min(minY, GetGame().SurfaceY(q[0], q[2]));
+			}
+		}
+		surf[1] = minY - 0.05;
 		Drezina_MetroHatch hatch = Drezina_MetroHatch.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroHatch", surf, inward));
 		if (hatch)
 		{
