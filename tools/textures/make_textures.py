@@ -428,11 +428,16 @@ def detail_maps(out, name, strength, shine):
     save(smdi, os.path.join(out, name + "_smdi.png"))
 
 
+# Карты _nohq/_smdi в материалах выключены: с ними поверхности не освещались фонариком в игре
+# (свет от фонаря не ложился на текстуры). Материалы снова с нейтральной нормалью и постоянным блеском.
+USE_DETAIL_MAPS = False
+
+
 def write_rvmats(out):
     """Простые материалы Super: цвет из *_co.paa, нормаль/блеск — константы (можно заменить своими картами)."""
     for name, (spec, power, metal, gloss, emissive) in RVMAT_PARAMS.items():
         text = RVMAT % dict(spec=spec, power=power, metal=metal, gloss=gloss, emissive=emissive)
-        if name in DETAIL_MAPS:
+        if name in DETAIL_MAPS and USE_DETAIL_MAPS:
             tex = "Drezina\\data\\textures\\" + name
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
@@ -469,8 +474,9 @@ def main():
     save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
     save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
     save(vanilla_grade(tile_tex(size), 0.6), os.path.join(out, "metro_tile_co.png"))
-    for name, (strength, shine) in DETAIL_MAPS.items():
-        detail_maps(out, name, strength, shine)
+    if USE_DETAIL_MAPS:
+        for name, (strength, shine) in DETAIL_MAPS.items():
+            detail_maps(out, name, strength, shine)
     write_rvmats(out)
     print("[Drezina] textures written to", out)
 
