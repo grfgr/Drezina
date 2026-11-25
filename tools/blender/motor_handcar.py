@@ -26,9 +26,11 @@ SEAT_H = DECK + 0.46          # верх подушки сиденья води�
 BENCH_H = DECK + 0.42         # верх лавок пассажиров
 BENCH_Y = -0.98               # лавки у заднего торца (за задними колёсами ноги не цепляют)
 DRIVER_Y = -0.12
+# анимации мотоцикла: начало прокси — у земли под седлом, седло примерно на 0.8 м выше
+RIDER_DROP = 0.8
 
 
-def proxy(name, path, sel, loc, forward, visual=False):
+def proxy(name, path, sel, loc, forward, visual=False, swap=False):
     """Пустышка-прокси: экспортёр рисует из неё треугольник прокси (вершина в loc, длинный катет вперёд,
     короткий вверх) и кладёт его в выделения 'proxy:<path>.NNN' и sel."""
     e = bpy.data.objects.new(name, None)
@@ -38,6 +40,7 @@ def proxy(name, path, sel, loc, forward, visual=False):
     e["proxy_sel"] = sel
     e["proxy_fwd"] = forward
     e["proxy_visual"] = 1 if visual else 0
+    e["proxy_swap"] = 1 if swap else 0
     bpy.context.scene.collection.objects.link(e)
     return e
 
@@ -193,9 +196,9 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
-    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
-    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.42, BENCH_Y, BENCH_H), (0, 1, 0))
-    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.42, BENCH_Y, BENCH_H), (0, 1, 0))
+    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H - RIDER_DROP), (0, 1, 0))
+    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.42, BENCH_Y, BENCH_H - RIDER_DROP), (0, 1, 0), swap=True)
+    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.42, BENCH_Y, BENCH_H - RIDER_DROP), (0, 1, 0))
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.

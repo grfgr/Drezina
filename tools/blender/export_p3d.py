@@ -123,6 +123,10 @@ def proxy_triangles(proxies):
         p0 = (loc.x, loc.y, loc.z)
         p1 = (loc.x + fx, loc.y + fy, loc.z + fz)
         p2 = (loc.x, loc.y, loc.z + 0.5)
+        if e.get("proxy_swap", 0):
+            # другой вариант треугольника (длинный катет вверх, короткий вперёд) — для проверки в игре
+            p1 = (loc.x, loc.y, loc.z + 1.0)
+            p2 = (loc.x + fx * 0.5, loc.y + fy * 0.5, loc.z + fz * 0.5)
         name = "proxy:%s.%03d" % (path, counters[path])
         out.append((name, e["proxy_sel"], tuple(to_p3d(p) for p in (p0, p1, p2)), bool(e.get("proxy_visual", 0))))
     return out
