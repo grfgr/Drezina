@@ -599,9 +599,30 @@ def build_station(outdir, save_fn, reset_fn):
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.5, ST_LEN, total_h), (sx * (ST_W / 2 + 0.25), 0, total_h / 2))
         geo(f"geometry_front{sx}", ((ST_W - TUN_W) / 2, 0.5, total_h), (sx * (TUN_W / 2 + (ST_W - TUN_W) / 4), ST_LEN / 2 + 0.25, total_h / 2))
-    geo("geometry_back_l", (ST_W / 2 + DOOR_X - 0.8 + 0.5, 0.5, total_h), ((-ST_W / 2 + DOOR_X - 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
+    # левая часть заднего торца — строго до проёма (раньше заходила в проход на 25 см)
+    geo("geometry_back_l", (ST_W / 2 + DOOR_X - 0.8 + 0.5, 0.5, total_h), ((-ST_W / 2 - 0.5 + DOOR_X - 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
     geo("geometry_back_r", (ST_W / 2 - DOOR_X - 0.8, 0.5, total_h), ((ST_W / 2 + DOOR_X + 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
     geo("geometry_roof", (ST_W + 1, ST_LEN, 0.5), (0, 0, total_h))
+    # коллизия обстановки: по платформе ходят, в колонны, будку, лавки и ящики упираются
+    px0, px1 = -ST_W / 2, -1.9
+    geo("geometry_platform", (px1 - px0, ST_LEN - 0.4, PLATFORM_H), ((px0 + px1) / 2, -0.2, PLATFORM_H / 2))
+    for y in (-6.0, 0.0, 6.0):
+        geo(f"geometry_col{y}", (0.45, 0.45, ST_WALL_H + 0.6), (px1 - 0.6, y, (ST_WALL_H + 0.6) / 2))
+    bx, by = -4.6, -9.6
+    geo("geometry_booth_back", (2.4, 0.1, 2.4), (bx, by - 0.9, PLATFORM_H + 1.2))
+    geo("geometry_booth_side", (0.1, 1.8, 2.4), (bx + 1.2, by, PLATFORM_H + 1.2))
+    geo("geometry_booth_front", (2.4, 0.1, 1.0), (bx, by + 0.9, PLATFORM_H + 0.5))
+    geo("geometry_booth_roof", (2.6, 2.0, 0.1), (bx, by, PLATFORM_H + 2.44))
+    for yb in (-3.0, 3.0):
+        geo(f"geometry_bench{yb}", (1.6, 0.5, 0.5), (-4.8, yb, PLATFORM_H + 0.25))
+    geo("geometry_crates", (0.9, 1.6, 1.0), (4.85, -10.0, 0.5))
+    geo("geometry_barrel", (0.6, 0.6, 0.9), (-5.2, -6.5, 0.45))
+    ey = E_LOCAL_Y - 1.0
+    geo("geometry_stop", (2.6, 1.0, 0.9), (0, ey - 0.3, 0.45))
+    gy = E_LOCAL_Y - 2.0
+    geo("geometry_shelf", (0.5, 1.6, 1.6), (ST_W / 2 - 0.3, gy + 2.5, 0.8))
+    geo("geometry_oil", (0.6, 1.3, 0.9), (ST_W / 2 - 0.5, gy + 5.7, 0.45))
+    geo("geometry_mattress", (0.9, 1.9, 0.14), (-5.3, 9.2, PLATFORM_H + 0.07))
     save_fn(outdir, "metro_station")
 
 
@@ -783,9 +804,22 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m"):
     pipe_len = 2.0 if short else L
     p += pipes_along("lp", -TUN_W / 2 + 0.12, [1.5, 1.75], pipe_len, 0, m, [0.08, 0.05], brackets=2.5 if not short else 2.0)
     p += cables_along("rc", TUN_W / 2 - 0.07, 1.9, pipe_len, 0, m, 4)
+    # служебный проход вдоль левой стены: бетонный бортик с жёлто-чёрной кромкой и поручнем на стене
+    walk_w, walk_h = 0.75, 0.35
+    wx = -TUN_W / 2 + walk_w / 2
+    p.append(box("walkway", (walk_w, floor_len, walk_h), (wx, 0, walk_h / 2), m["concrete"], round_edges=False))
+    p.append(box("walkway_edge", (0.12, floor_len, 0.02), (wx + walk_w / 2 - 0.06, 0, walk_h + 0.01), m["hazard"], round_edges=False))
+    p.append(cyl("wall_handrail", 0.022, pipe_len, (-TUN_W / 2 + 0.08, 0, walk_h + 0.95), m["rust"], (math.radians(90), 0, 0)))
+    # водоотводной лоток вдоль правой стены
+    p.append(box("drain", (0.25, floor_len, 0.03), (TUN_W / 2 - 0.3, 0, 0.015), m["steel"], round_edges=False))
     if not short:
         p += debris("deb", (2.2, rnd.uniform(-3, 3)), 3, 0.5, m)
+        # кронштейны поручня и отметка пикета на стене
+        for y in (-4.0, 0.0, 4.0):
+            p.append(box(f"handrail_bracket{y}", (0.1, 0.03, 0.03), (-TUN_W / 2 + 0.04, y, walk_h + 0.95), m["rust"]))
+        p.append(box("picket", (0.02, 0.3, 0.2), (-TUN_W / 2 + 0.01, 2.5, walk_h + 1.5), m["sign_in"]))
     finish(p, name)
+    geo("geometry_walkway", (walk_w, floor_len, walk_h), (wx, 0, walk_h / 2))
     geo("geometry_floor", (TUN_W + 1, floor_len, 0.4), (0, 0, -0.2))
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.5, wall_len, TUN_WALL_H + TUN_RISE), (sx * (TUN_W / 2 + 0.25), 0, (TUN_WALL_H + TUN_RISE) / 2))

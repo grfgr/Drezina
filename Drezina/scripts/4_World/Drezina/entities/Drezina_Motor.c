@@ -14,6 +14,7 @@ class Drezina_Motor extends CarScript
 	static const float ROLL_DECEL = 0.25;    // накат без газа
 	static const float HANDBRAKE_DECEL = 7.0;
 	static const float HOVER = 0.05;
+	static const float END_GAP = 1.6;
 	static const float MAX_SPEED = 13.9;     // 50 км/ч         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
 
 	int m_TrackId = -1;
@@ -384,9 +385,12 @@ class Drezina_Motor extends CarScript
 			v = 0;
 
 		float nd = d + v * m_Face * dt;
-		if (nd <= 0 || nd >= t.GetLength())
+		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции)
+		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
+		float hi = Math.Max(t.GetLength() - END_GAP, lo);
+		if (nd <= lo || nd >= hi)
 		{
-			nd = Math.Clamp(nd, 0, t.GetLength());
+			nd = Math.Clamp(nd, lo, hi);
 			v = 0;
 		}
 		m_DistHint = nd;
