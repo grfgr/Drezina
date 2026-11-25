@@ -18,7 +18,10 @@ modded class MissionServer
 		foreach (Man m : players)
 		{
 			if (m && m.GetIdentity())
+			{
 				DrezinaTrackManager.Get().SendAllTo(m.GetIdentity());
+				DrezinaTunnelManager.Get().SendAllTo(m.GetIdentity());
+			}
 		}
 	}
 
@@ -26,5 +29,6 @@ modded class MissionServer
 	{
 		super.InvokeOnConnect(player, identity);
 		DrezinaTrackManager.Get().SendAllTo(identity);
+		DrezinaTunnelManager.Get().SendAllTo(identity);
 	}
 }

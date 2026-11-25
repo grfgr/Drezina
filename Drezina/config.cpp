@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor"};
+		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects"};
@@ -17,6 +17,8 @@ class CfgMods
 		name = "Drezina - rails & hand car";
 		author = "grfgr";
 		type = "mod";
+		// другие моды (например, КПК) могут проверять наличие метро через #ifdef DREZINA
+		defines[] = {"DREZINA"};
 		dependencies[] = {"Game", "World", "Mission"};
 
 		class defs
@@ -253,5 +255,16 @@ class CfgVehicles
 		scope = 1;
 		displayName = "Коридор";
 		model = "\Drezina\data\bunker_corridor.p3d";
+	};
+
+	// Светильник метро (горит от генератора станции). Item, чтобы синхронизировать вкл/выкл.
+	class Drezina_TunnelLamp: Inventory_Base
+	{
+		scope = 2;
+		displayName = "Светильник";
+		model = "\Drezina\data\tunnel_lamp.p3d";
+		weight = 2000;
+		itemSize[] = {2, 2};
+		carveNavmesh = 0;
 	};
 };

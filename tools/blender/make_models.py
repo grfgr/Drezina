@@ -492,9 +492,10 @@ def main():
     import handcar_zone
     tex_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Drezina", "data", "textures")
     handcar_zone.build(outdir, os.path.abspath(tex_dir), save, reset_scene)
-    build_rail(outdir)
-    build_dispenser(outdir)
-    build_rail10(outdir)
+    # реалистичный путь: рельс Р65, ЖБ шпалы с креплениями КБ, щебёночная призма
+    import track
+    track.build_rail(outdir, save, reset_scene, os.path.abspath(tex_dir), 10.0, "rail_10m")
+    track.build_rail(outdir, save, reset_scene, os.path.abspath(tex_dir), 2.0, "rail_2m")
     # метро в стиле бункера: вход, дверь изнутри, лестница, коридор, станция, тоннели
     import metro_bunker
     metro_bunker.build_all(outdir, os.path.abspath(tex_dir), save, reset_scene)

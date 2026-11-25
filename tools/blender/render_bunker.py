@@ -1,6 +1,6 @@
 import bpy, math, sys, mathutils
 from mathutils import Vector, Matrix
-out=sys.argv[1]; scene=sys.argv[2]; MOODY=len(sys.argv)>3
+out=sys.argv[1]; scene=sys.argv[2]; MOODY=len(sys.argv)>3 and sys.argv[3]=='moody'; LIT=len(sys.argv)>3 and sys.argv[3]=='lit'
 bpy.ops.wm.read_factory_settings(use_empty=True); sc=bpy.context.scene
 def load(name, loc=(0,0,0), rot=0, skip=("geometry","mem_")):
     with bpy.data.libraries.load(f"{out}/{name}.blend") as (src,dst):
@@ -42,16 +42,22 @@ elif scene=="stairs":
 elif scene=="station":
     load("metro_station"); load("bunker_corridor",(-3,-16,0)); load("bunker_stairs",(-3,-23.35,0))
     for i in range(1,4): load("tunnel_10m",(0,12+0.0+5+(i-1)*10,0))
-    for i in range(-2,5): load("rail_10m",(0,-7.5+5+i*10,0.27))
-    load("handcar",(0,-4.0,0.27)); load("dispenser",(2.2,-7.0,0),math.pi)
+    for i in range(0,6): load("rail_10m",(0,-7.5+5+i*10,0.39))
+    load("handcar",(0,-4.0,0.39)); load("dispenser",(2.2,-7.0,0),math.pi/2)
+    if LIT:
+        for ly in (-8,-2,4,10):
+            for lx in (-3,3):
+                load("tunnel_lamp",(lx,ly,5.2)); light('POINT',(lx,ly,4.75),350,(1,0.82,0.55),size=0.08)
+        for ty in (17,47):
+            load("tunnel_lamp",(0,ty,4.85)); light('POINT',(0,ty,4.4),300,(1,0.82,0.55),size=0.08)
     # фары дрезины (как в игре: тёплые споты по ходу)
     light('SPOT',(0.45,-4+1.34,0.27+0.6),400,(1,0.8,0.5),(0.45,20,0.5),0.04,75)
     light('SPOT',(-0.45,-4-1.34,0.27+0.6),200,(1,0.8,0.5),(-0.45,-20,0.5),0.04,75)
     light('POINT',(0,-4,0.27+1.37),12,(1,0.72,0.42),size=0.03)
-    cam((-4.8,-11.0,1.7),(0.5,0,1.4),20)
-    light('SPOT',(-4.6,-10.8,1.6),90 if MOODY else 500,(1,0.95,0.85),(0.5,-2,1.0),0.05,50 if MOODY else 80)
-    if not MOODY: light('POINT',(0,0,4),900,(0.65,0.7,0.75),size=4); light('POINT',(0,15,3),500,(0.65,0.7,0.75),size=3)
+    cam((3.2,-11.3,2.1),(-1.2,1.5,1.0),18)
+    light("SPOT",(3.0,-11.1,2.0),90 if (MOODY or LIT) else 500,(1,0.95,0.85),(-1,-2,1.0),0.05,50 if MOODY else 80)
+    if not MOODY and not LIT: light('POINT',(0,0,4),900,(0.65,0.7,0.75),size=4); light('POINT',(0,15,3),500,(0.65,0.7,0.75),size=3)
     world((0.02,0.02,0.025),0.25)
 sc.render.engine='CYCLES'; sc.cycles.device='CPU'; sc.cycles.samples=40
-sc.render.resolution_x=1300; sc.render.resolution_y=820; sc.render.filepath=f"{out}/bunker_{scene}{'_moody' if MOODY else ''}.png"
+sc.render.resolution_x=1300; sc.render.resolution_y=820; sc.render.filepath=f"{out}/bunker_{scene}{'_moody' if MOODY else ''}{'_lit' if LIT else ''}.png"
 bpy.ops.render.render(write_still=True)

@@ -241,6 +241,56 @@ def sign_tex(size, lines, bg=(150, 30, 25), fg=(225, 220, 205)):
     return lerp(a, rust, wear * 0.85)
 
 
+def ballast_tex(size):
+    """Щебень: угловатые камни разного серого, тени между ними, мазутные пятна."""
+    rng_l = np.random.default_rng(65)
+    n_pts = int(size * size / 120)
+    pts = rng_l.random((n_pts, 2)) * size
+    shade = rng_l.uniform(0.55, 1.0, n_pts)
+    yy, xx = np.mgrid[0:size, 0:size].astype(np.float32)
+    best = np.full((size, size), 1e9, dtype=np.float32)
+    second = np.full((size, size), 1e9, dtype=np.float32)
+    idx = np.zeros((size, size), dtype=np.int32)
+    for k in range(n_pts):
+        px, py = pts[k]
+        dx = np.abs(xx - px)
+        dy = np.abs(yy - py)
+        dx = np.minimum(dx, size - dx)                 # бесшовно
+        dy = np.minimum(dy, size - dy)
+        d = np.maximum(dx * 0.8 + dy * 0.45, dy * 0.8 + dx * 0.45)   # угловатые камни
+        closer = d < best
+        second = np.where(closer, best, np.minimum(second, d))
+        idx = np.where(closer, k, idx)
+        best = np.where(closer, d, best)
+    edge = np.clip((second - best) / 3.0, 0, 1) ** 0.6  # мягкая тень на стыке камней
+    tone = shade[idx]
+    base = lerp(col(78, 76, 72), col(146, 142, 134), tone)
+    base = lerp(base, col(120, 92, 70), (rng_l.random(n_pts)[idx] > 0.85).astype(np.float32) * 0.45)  # ржавые камни
+    facet = noise(size, 3, 2)                               # шероховатость граней
+    c = base * (0.55 + 0.45 * edge[..., None]) * (0.85 + 0.3 * facet[..., None])
+    c = lerp(c, col(25, 22, 18), noise(size, 90, 4) ** 3 * 0.7)            # мазут
+    return c
+
+
+def railtop_tex(size):
+    """Поверхность катания: накатанная до блеска сталь с продольными полосами."""
+    n = noise(size, 4, 3, stretch=(40, 1))
+    c = lerp(col(120, 122, 126), col(185, 188, 192), n)
+    return lerp(c, col(90, 70, 55), noise(size, 50, 4) ** 4 * 0.5)
+
+
+def tile_tex(size):
+    """Кафель платформы 4x4 плитки на тайл: грязные швы, сколы, трещины."""
+    c = lerp(col(150, 146, 132), col(120, 118, 106), noise(size, 40, 5))
+    x = np.arange(size)
+    seam = ((x % (size // 4)) < 4).astype(np.float32)
+    grid = np.maximum(seam[None, :], seam[:, None])
+    c = lerp(c, col(55, 52, 45), grid)
+    chips = np.clip((noise(size, 18, 5) - 0.72) * 8, 0, 1)
+    c = lerp(c, concrete_tex(size) * 0.8, chips)
+    return lerp(c, col(40, 38, 32), noise(size, 80, 4) ** 3 * 0.7)
+
+
 RVMAT = """ambient[] = {1, 1, 1, 1};
 diffuse[] = {1, 1, 1, 1};
 forcedDiffuse[] = {0, 0, 0, 0};
@@ -298,6 +348,8 @@ RVMAT_PARAMS = {
     "drezina_plate": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
     "drezina_glass": (0.6, 120, 0.0, 0.9, "1, 0.7, 0.3, 1"),
     "metro_concrete": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
+    "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
+    "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
     "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
     "metro_hazard": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
     "metro_door": (0.15, 40, 0.4, 0.35, "0, 0, 0, 1"),
@@ -305,6 +357,9 @@ RVMAT_PARAMS = {
     "metro_dirt": (0.02, 5, 0.0, 0.05, "0, 0, 0, 1"),
     "metro_sign_entrance": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
     "metro_sign_exit": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_sign_station": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_sign_depot": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_tile": (0.15, 40, 0.0, 0.4, "0, 0, 0, 1"),
 }
 
 
@@ -330,6 +385,8 @@ def main():
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
     save(concrete_tex(size), os.path.join(out, "metro_concrete_co.png"))
+    save(ballast_tex(size // 2), os.path.join(out, "drezina_ballast_co.png"))
+    save(railtop_tex(size // 4), os.path.join(out, "drezina_railtop_co.png"))
     save(wall_two_tone_tex(size), os.path.join(out, "metro_wall_co.png"))
     save(hazard_tex(size // 2), os.path.join(out, "metro_hazard_co.png"))
     save(door_tex(size), os.path.join(out, "metro_door_co.png"))
@@ -337,6 +394,9 @@ def main():
     save(dirt_tex(size // 2), os.path.join(out, "metro_dirt_co.png"))
     save(sign_tex(size // 2, ["ОБЪЕКТ 17", "ВХОД ВОСПРЕЩЁН"]), os.path.join(out, "metro_sign_entrance_co.png"))
     save(sign_tex(size // 2, ["ВЫХОД"], bg=(40, 110, 50)), os.path.join(out, "metro_sign_exit_co.png"))
+    save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
+    save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
+    save(tile_tex(size), os.path.join(out, "metro_tile_co.png"))
     write_rvmats(out)
     print("[Drezina] textures written to", out)
 

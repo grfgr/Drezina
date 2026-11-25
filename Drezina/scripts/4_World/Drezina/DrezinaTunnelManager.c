@@ -48,6 +48,15 @@ class DrezinaTunnelManager
 	ref map<int, ref array<Object>> m_Objects = new map<int, ref array<Object>>;
 	ref map<string, ref DrezinaMetroDraft> m_Drafts = new map<string, ref DrezinaMetroDraft>;
 
+	// свет: светильники каждого конца тоннеля (ключ = id * 2 + конец) и генераторы на станциях
+	ref map<int, ref array<Drezina_TunnelLamp>> m_Lamps = new map<int, ref array<Drezina_TunnelLamp>>;
+	ref map<int, EntityAI> m_Generators = new map<int, EntityAI>;
+	ref map<int, bool> m_Powered = new map<int, bool>;
+	float m_PowerTimer;
+
+	// клиент: маршруты метро на поверхности (для карты КПК)
+	ref array<ref DrezinaTunnelData> m_ClientTunnels = new array<ref DrezinaTunnelData>;
+
 	static DrezinaTunnelManager Get()
 	{
 		if (!s_Instance)
@@ -71,6 +80,69 @@ class DrezinaTunnelManager
 		}
 		Print("[Drezina] loaded tunnels: " + m_Tunnels.Count());
 		GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(Tick, 250, true);
+	}
+
+	// ------------------------------------------------------------------ данные метро клиентам (карта КПК)
+
+	void WriteTunnels(ScriptRPC rpc)
+	{
+		int c = m_Tunnels.Count();
+		rpc.Write(c);
+		foreach (int id, DrezinaTunnelData t : m_Tunnels)
+		{
+			rpc.Write(t.Id);
+			rpc.Write(t.Zone);
+			int n = t.Route.Count();
+			rpc.Write(n);
+			for (int i = 0; i < n; i++)
+				rpc.Write(t.Route[i]);
+		}
+	}
+
+	void SendAllTo(PlayerIdentity identity)
+	{
+		if (!identity || !identity.GetPlayer())
+			return;
+		ScriptRPC rpc = new ScriptRPC();
+		WriteTunnels(rpc);
+		rpc.Send(identity.GetPlayer(), DrezinaRPC.TUNNELS_FULL, true, identity);
+	}
+
+	void BroadcastAll()
+	{
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+		foreach (Man m : players)
+		{
+			if (m && m.GetIdentity())
+				SendAllTo(m.GetIdentity());
+		}
+	}
+
+	bool ClientOnRPC(int rpc_type, ParamsReadContext ctx)
+	{
+		if (rpc_type != DrezinaRPC.TUNNELS_FULL)
+			return false;
+		m_ClientTunnels.Clear();
+		int c;
+		if (!ctx.Read(c))
+			return true;
+		for (int i = 0; i < c; i++)
+		{
+			DrezinaTunnelData t = new DrezinaTunnelData();
+			int n;
+			if (!ctx.Read(t.Id) || !ctx.Read(t.Zone) || !ctx.Read(n))
+				return true;
+			for (int k = 0; k < n; k++)
+			{
+				vector v;
+				if (!ctx.Read(v))
+					return true;
+				t.Route.Insert(v);
+			}
+			m_ClientTunnels.Insert(t);
+		}
+		return true;
 	}
 
 	void Save()
@@ -97,6 +169,8 @@ class DrezinaTunnelManager
 	// авто-точки поворотов, пока админ идёт
 	void Tick()
 	{
+		UpdatePower(0.25);
+
 		foreach (string uid, DrezinaMetroDraft d : m_Drafts)
 		{
 			if (!d || d.AutoStep <= 0 || !d.Admin || !d.HasA())
@@ -312,17 +386,175 @@ class DrezinaTunnelManager
 
 		SpawnEntrance(t, 0, objs);
 		SpawnEntrance(t, 1, objs);
+		SpawnLighting(t, objs);
 		m_Objects.Set(t.Id, objs);
 
 		// путь внутри: те же узлы, что и ось тоннеля, + высота рельса
 		if (t.TrackId == 0 || !DrezinaTrackManager.Get().GetTrack(t.TrackId))
 		{
 			array<vector> nodes = new array<vector>;
-			vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR, 0);
+			// RailHeightOffset добавится при спавне рельсов и дрезины — здесь его вычитаем
+			vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset, 0);
 			foreach (vector rp : t.Route)
 				nodes.Insert(ToUnder(t, rp) + railUp);
 			t.TrackId = DrezinaTrackManager.Get().CreateTrack(nodes, "Метро " + t.Id);
 			Save();
+		}
+	}
+
+	// ------------------------------------------------------------------ свет и генераторы
+
+	static int Key(int tunnelId, int end)
+	{
+		return tunnelId * 2 + end;
+	}
+
+	Drezina_TunnelLamp SpawnLamp(int key, vector pos, vector dir, array<Object> objs)
+	{
+		int flags = ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
+		Drezina_TunnelLamp lamp = Drezina_TunnelLamp.Cast(GetGame().CreateObjectEx("Drezina_TunnelLamp", pos, flags, RF_DEFAULT));
+		if (!lamp)
+			return null;
+		lamp.SetPosition(pos);
+		lamp.SetDirection(dir);
+		lamp.Update();
+		objs.Insert(lamp);
+		array<Drezina_TunnelLamp> group = m_Lamps.Get(key);
+		if (!group)
+		{
+			group = new array<Drezina_TunnelLamp>;
+			m_Lamps.Set(key, group);
+		}
+		group.Insert(lamp);
+		return lamp;
+	}
+
+	// Генератор стоит на бетонной площадке у глухой стены станции (справа от пути).
+	vector GetGeneratorPos(DrezinaTunnelData t, int end, out vector inward)
+	{
+		vector e, side;
+		GetBunkerFrame(t, end, e, inward, side);
+		return e - inward * 2.0 + side * 4.5 + Vector(0, 0.2, 0);
+	}
+
+	EntityAI SpawnGenerator(DrezinaTunnelData t, int end)
+	{
+		vector inward;
+		vector pos = GetGeneratorPos(t, end, inward);
+		int flags = ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
+		EntityAI gen = EntityAI.Cast(GetGame().CreateObjectEx(DrezinaSettings.Get().MetroGeneratorType, pos, flags, RF_DEFAULT));
+		if (!gen)
+		{
+			Print("[Drezina] !!! генератор не создан: " + DrezinaSettings.Get().MetroGeneratorType);
+			return null;
+		}
+		gen.SetPosition(pos);
+		gen.SetDirection(Side(inward) * -1);
+		m_Generators.Set(Key(t.Id, end), gen);
+		return gen;
+	}
+
+	void SpawnLighting(DrezinaTunnelData t, array<Object> objs)
+	{
+		DrezinaTrack s = GetSpline(t);
+		float len = s.GetLength();
+		vector up = Vector(0, 1, 0);
+
+		for (int end = 0; end <= 1; end++)
+		{
+			int key = Key(t.Id, end);
+			m_Lamps.Remove(key);
+			m_Powered.Set(key, false);
+
+			vector e, inward, side;
+			GetBunkerFrame(t, end, e, inward, side);
+
+			// станция: 2 ряда по 4 светильника под сводом
+			vector center = e + inward * (DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK);
+			for (int ly = 0; ly < 4; ly++)
+			{
+				float yy = -8.0 + ly * 6.0;
+				SpawnLamp(key, center + side * -3.0 + inward * yy + up * 5.2, inward, objs);
+				SpawnLamp(key, center + side * 3.0 + inward * yy + up * 5.2, inward, objs);
+			}
+			// коридор
+			vector cIn;
+			vector cor = GetCorridorPos(t, end, cIn);
+			SpawnLamp(key, cor + cIn * -2.0 + up * 2.78, cIn, objs);
+			SpawnLamp(key, cor + cIn * 2.0 + up * 2.78, cIn, objs);
+			// лестница: над каждой площадкой, на боковой стене
+			vector sIn;
+			vector st = GetStairsPos(t, end, sIn);
+			vector sSide = Side(sIn);
+			float landY[5] = {2.5, -2.5, 2.5, -2.5, 2.5};
+			float landZ[5] = {9.6, 7.2, 4.8, 2.4, 0.0};
+			for (int li = 0; li < 5; li++)
+				SpawnLamp(key, st + sSide * -1.45 + sIn * landY[li] + up * (landZ[li] + 2.3), sIn, objs);
+
+			// генератор
+			EntityAI gen = SpawnGenerator(t, end);
+			if (gen)
+				objs.Insert(gen);
+		}
+
+		// тоннель: каждые LAMP_STEP метров, ближняя половина — к своей станции
+		float tStart = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
+		float d = tStart + 5.0;
+		while (d < len - tStart)
+		{
+			vector lp, ld;
+			s.GetPosDir(d, lp, ld);
+			ld[1] = 0;
+			int tkey = Key(t.Id, 0);
+			if (d > len * 0.5)
+				tkey = Key(t.Id, 1);
+			SpawnLamp(tkey, lp + up * 4.85, ld.Normalized(), objs);
+			d += DrezinaConst.LAMP_STEP;
+		}
+	}
+
+	// Сервер: генератор работает (заправлен, свеча стоит, включён) — свет в его половине горит.
+	void UpdatePower(float dt)
+	{
+		m_PowerTimer += dt;
+		if (m_PowerTimer < DrezinaSettings.Get().MetroPowerCheck)
+			return;
+		m_PowerTimer = 0;
+
+		foreach (int id, DrezinaTunnelData t : m_Tunnels)
+		{
+			for (int end = 0; end <= 1; end++)
+			{
+				int key = Key(id, end);
+				EntityAI gen = m_Generators.Get(key);
+				if (!gen)
+				{
+					// генератор уничтожили или он пропал — ставим новый (пустой: без топлива и свечи)
+					gen = SpawnGenerator(t, end);
+					array<Object> objs = m_Objects.Get(id);
+					if (gen && objs)
+						objs.Insert(gen);
+				}
+
+				vector inward;
+				vector spot = GetGeneratorPos(t, end, inward);
+				bool on = false;
+				if (gen && vector.Distance(gen.GetPosition(), spot) < 6.0 && gen.GetCompEM())
+					on = gen.GetCompEM().IsWorking();
+
+				if (m_Powered.Get(key) == on)
+					continue;
+				m_Powered.Set(key, on);
+				array<Drezina_TunnelLamp> group = m_Lamps.Get(key);
+				if (group)
+				{
+					foreach (Drezina_TunnelLamp lamp : group)
+					{
+						if (lamp)
+							lamp.ServerSetOn(on);
+					}
+				}
+			}
 		}
 	}
 
@@ -448,6 +680,7 @@ class DrezinaTunnelManager
 		m_Tunnels.Set(t.Id, t);
 		SpawnTunnel(t);
 		Save();
+		BroadcastAll();
 
 		string where = "под землёй, пол на высоте " + Math.Round(t.FloorY) + " м";
 		if (t.Zone)
@@ -594,7 +827,12 @@ class DrezinaTunnelManager
 			DrezinaTrackManager.Get().DeleteTrack(dt.TrackId);
 			m_Tunnels.Remove(delId);
 			m_Splines.Remove(delId);
+			m_Generators.Remove(Key(delId, 0));
+			m_Generators.Remove(Key(delId, 1));
+			m_Lamps.Remove(Key(delId, 0));
+			m_Lamps.Remove(Key(delId, 1));
 			Save();
+			BroadcastAll();
 			DrezinaTrackManager.Notify(sender, "Метро #" + delId + " удалено.");
 		}
 		else if (cmd == "list")

@@ -50,7 +50,8 @@ modded class PlayerBase
 		}
 		else
 		{
-			DrezinaTrackManager.Get().ClientOnRPC(rpc_type, ctx);
+			if (!DrezinaTrackManager.Get().ClientOnRPC(rpc_type, ctx))
+				DrezinaTunnelManager.Get().ClientOnRPC(rpc_type, ctx);
 		}
 	}
 

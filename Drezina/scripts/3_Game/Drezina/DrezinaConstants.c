@@ -11,6 +11,8 @@ class DrezinaRPC
 	static const int HC_THROTTLE     = 8817020; // -1 тормоз, 0 отпустил, 1 качаю
 	static const int HC_REVERSE      = 8817021; // сменить направление
 	static const int HC_LEAVE        = 8817022; // сойти с дрезины
+	// сервер -> клиент: метро (для карты КПК)
+	static const int TUNNELS_FULL    = 8817004;
 }
 
 class DrezinaConst
@@ -28,7 +30,7 @@ class DrezinaConst
 	static const float  TUNNEL_PIECE_LEN  = 10.0; // Drezina_Tunnel10
 	static const float  STATION_LEN       = 24.0; // Drezina_MetroStation (по ходу)
 	static const float  STATION_BACK      = 4.0;  // сколько станции «за» точкой входа
-	static const float  RAIL_TOP_ABOVE_FLOOR = 0.27; // головка рельса над полом
+	static const float  RAIL_TOP_ABOVE_FLOOR = 0.39; // головка рельса над полом: Р65 0.18 + подкладка 0.02 + шпала 0.19
 	// бункер: коридор от станции к лестнице и лестничная шахта (см. tools/blender/metro_bunker.py)
 	static const float  CORRIDOR_LEN      = 8.0;
 	static const float  STAIR_HALF_Y      = 3.0;  // полудлина шахты изнутри
@@ -60,7 +62,7 @@ class DrezinaSettings
 	float HandcarClearance    = 4.5;   // минимальная дистанция между дрезинами на одном пути
 	float AbandonSeconds      = 300;   // брошенная дрезина без водителя удаляется через N сек
 	int   MaxHandcarsPerTrack = 4;
-	float RailHeightOffset    = 0.0;   // подъём рельсов над точкой, где стоял админ
+	float RailHeightOffset    = 0.39;  // подъём головки рельса над точкой, где стоял админ (шпалы ложатся на землю)
 	float AutoNodeMinStep     = 2.0;   // минимальный шаг для режима "/rail auto"
 	float MetroDefaultDepth   = 20.0;  // пол тоннеля ниже самой низкой точки рельефа над трассой
 	float MetroMinFloorY      = 3.0;   // пол не ниже уровня моря + 3 м (иначе игрок «поплывёт»)
@@ -70,6 +72,8 @@ class DrezinaSettings
 	float MetroZoneZ          = 500;
 	float MetroZoneY          = 600;
 	float MetroZoneGap        = 150;   // зазор между тоннелями в локации
+	string MetroGeneratorType = "PowerGenerator"; // генератор на станции: заправить, вставить свечу, включить
+	float MetroPowerCheck     = 2.0;   // как часто проверять генераторы, сек
 
 	static ref DrezinaSettings s_Instance;
 

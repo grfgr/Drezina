@@ -50,6 +50,9 @@ def mats():
         "dirt": hz.tex_material("metro_dirt", "metro_dirt", 1.0),
         "sign_in": hz.tex_material("metro_sign_entrance", "metro_sign_entrance", 0.8),
         "sign_out": hz.tex_material("metro_sign_exit", "metro_sign_exit", 0.8),
+        "sign_station": hz.tex_material("metro_sign_station", "metro_sign_station", 0.8),
+        "sign_depot": hz.tex_material("metro_sign_depot", "metro_sign_depot", 0.8),
+        "tile": hz.tex_material("metro_tile", "metro_tile", 0.6),
     })
     return m
 
@@ -64,7 +67,8 @@ ROT_X, ROT_Y = hz.ROT_X, hz.ROT_Y
 # размер тайла по материалу (м): мелкий рисунок — мельче тайл
 TILE_BY_MATERIAL = {"metro_hazard": 0.7, "metro_door": 1.2, "drezina_steel": 1.0, "drezina_rust": 1.0,
                     "drezina_paint_green": 1.0, "drezina_paint_blue": 1.0, "drezina_wood": 1.2,
-                    "drezina_canvas": 0.8, "drezina_tape": 0.5, "metro_tubing": 1.5}
+                    "drezina_canvas": 0.8, "drezina_tape": 0.5, "metro_tubing": 1.5,
+                    "drezina_ballast": 0.9, "drezina_railtop": 1.0, "metro_tile": 1.2}
 
 
 def uv_box(obj, tile=3.0):
@@ -571,6 +575,7 @@ def build_station(outdir, save_fn, reset_fn):
     p.append(cyl("barrel", 0.3, 0.9, (-5.2, -6.5, 0.45), m["rust"]))
     for z in (0.15, 0.75):
         p.append(torus(f"barrel_hoop{z}", 0.305, 0.012, (-5.2, -6.5, z), m["rust"], (0, 0, 0), (32, 6)))
+    p += station_details(m)
     o = finish(p, "metro_station")
     geo("geometry_floor", (ST_W + 1, ST_LEN, 0.4), (0, 0, -0.2))
     for sx in (-1, 1):
@@ -580,6 +585,168 @@ def build_station(outdir, save_fn, reset_fn):
     geo("geometry_back_r", (ST_W / 2 - DOOR_X - 0.8, 0.5, total_h), ((ST_W / 2 + DOOR_X + 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
     geo("geometry_roof", (ST_W + 1, ST_LEN, 0.5), (0, 0, total_h))
     save_fn(outdir, "metro_station")
+
+
+# ============================================================================ обстановка станции
+
+PLATFORM_H = 0.3
+E_LOCAL_Y = -(ST_LEN / 2 - 4.0)          # где на станции начало пути (точка конца тоннеля), y = -8
+
+
+def bench(prefix, x, y, m, rot=0.0):
+    p = []
+    for k in range(3):
+        p.append(box(f"{prefix}_slat{k}", (1.6, 0.09, 0.03), (x, y - 0.12 + k * 0.12, PLATFORM_H + 0.45), m["wood"], (0, 0, rot)))
+    p.append(box(f"{prefix}_back", (1.6, 0.03, 0.25), (x, y + 0.2, PLATFORM_H + 0.68), m["wood"], (math.radians(-10), 0, rot)))
+    for sx in (-0.7, 0.7):
+        p.append(box(f"{prefix}_leg{sx}", (0.05, 0.45, 0.45), (x + sx, y, PLATFORM_H + 0.225), m["rust"], (0, 0, rot)))
+    return p
+
+
+def station_details(m):
+    p = []
+    # --- платформа слева (от стены до 1.9 м от оси пути), кромка с жёлтой полосой
+    px0, px1 = -ST_W / 2, -1.9
+    pw = px1 - px0
+    p.append(box("platform", (pw, ST_LEN - 0.4, PLATFORM_H), ((px0 + px1) / 2, -0.2, PLATFORM_H / 2), m["concrete"]))
+    p.append(box("platform_tile", (pw - 0.4, ST_LEN - 0.6, 0.02), ((px0 + px1) / 2 - 0.2, -0.2, PLATFORM_H + 0.01), m["tile"], round_edges=False))
+    p.append(box("platform_edge", (0.35, ST_LEN - 0.4, 0.025), (px1 - 0.175, -0.2, PLATFORM_H + 0.012), m["hazard"], round_edges=False))
+    # ступень к проходу в коридор
+    p.append(box("door_step", (1.6, 0.6, PLATFORM_H / 2), (DOOR_X, -ST_LEN / 2 + 0.3, PLATFORM_H / 4), m["concrete"]))
+    # колонны по краю платформы
+    for y in (-6.0, 0.0, 6.0):
+        p.append(box(f"col{y}", (0.45, 0.45, ST_WALL_H + 0.6), (px1 - 0.6, y, (ST_WALL_H + 0.6) / 2), m["wall"]))
+    # скамейки
+    p += bench("bench_a", -4.8, -3.0, m)
+    p += bench("bench_b", -4.8, 3.0, m)
+    # будка дежурного: стенки, разбитое окно, крыша, дверь
+    bx, by = -4.6, -9.6
+    p.append(box("booth_w1", (2.4, 0.08, 2.4), (bx, by - 0.9, PLATFORM_H + 1.2), m["paint"]))
+    p.append(box("booth_w2", (0.08, 1.8, 2.4), (bx + 1.2, by, PLATFORM_H + 1.2), m["paint"]))
+    p.append(box("booth_front_low", (2.4, 0.08, 1.0), (bx, by + 0.9, PLATFORM_H + 0.5), m["paint"]))
+    p.append(box("booth_front_top", (2.4, 0.08, 0.3), (bx, by + 0.9, PLATFORM_H + 2.25), m["paint"]))
+    for k in (-0.6, 0.6):
+        p.append(box(f"booth_mullion{k}", (0.05, 0.06, 1.1), (bx + k, by + 0.9, PLATFORM_H + 1.55), m["steel"]))
+    p.append(box("booth_glass_shard", (0.4, 0.01, 0.35), (bx - 0.85, by + 0.9, PLATFORM_H + 1.25), m["glass"], (0, 0, math.radians(8))))
+    p.append(box("booth_roof", (2.6, 2.0, 0.08), (bx, by, PLATFORM_H + 2.44), m["rust"]))
+    p.append(box("booth_desk", (1.6, 0.5, 0.05), (bx, by + 0.55, PLATFORM_H + 0.9), m["wood"]))
+    p.append(box("booth_phone", (0.18, 0.14, 0.1), (bx + 0.4, by + 0.55, PLATFORM_H + 0.97), m["tape"]))
+    # название станции, часы, табло
+    p.append(sign_plate("station_sign", (2.6, 0.03, 0.65), (-ST_W / 2 + 0.2, 0.0, 2.3), m["sign_station"]))
+    # повернуть табличку лицом в зал (+X): строим её как плоскость вдоль Y
+    p[-1].rotation_euler = (0, 0, math.radians(-90))
+    p[-1].location = (-ST_W / 2 + 0.03, 0, 2.3)
+    bpy.context.view_layer.objects.active = p[-1]
+    bpy.ops.object.select_all(action="DESELECT")
+    p[-1].select_set(True)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    p.append(cyl("clock", 0.3, 0.06, (-ST_W / 2 + 0.06, 6.0, 2.6), m["paint"], ROT_X))
+    p.append(cyl("clock_face", 0.26, 0.065, (-ST_W / 2 + 0.065, 6.0, 2.6), m["tile"], ROT_X))
+    p.append(box("clock_hand1", (0.01, 0.015, 0.2), (-ST_W / 2 + 0.1, 6.0, 2.66), m["tape"], (math.radians(35), 0, 0)))
+    p.append(box("clock_hand2", (0.01, 0.015, 0.14), (-ST_W / 2 + 0.1, 6.04, 2.58), m["tape"], (math.radians(110), 0, 0)))
+    # пожарный шкаф и телефон на стене
+    p.append(box("fire_cab", (0.25, 0.7, 0.9), (-ST_W / 2 + 0.12, -6.5, PLATFORM_H + 1.3), m["hazard"]))
+    p.append(cyl("fire_hose", 0.2, 0.08, (-ST_W / 2 + 0.28, -6.5, PLATFORM_H + 1.3), m["paint"], ROT_X))
+    p.append(box("wall_phone", (0.15, 0.25, 0.35), (-ST_W / 2 + 0.08, 8.5, PLATFORM_H + 1.4), m["paint"]))
+    p.append(torus("wall_phone_cord", 0.05, 0.006, (-ST_W / 2 + 0.17, 8.5, PLATFORM_H + 1.15), m["tape"], ROT_Y, (12, 6)))
+    # стоянка сталкеров: кострище из камней, матрас, банки
+    cx, cy = -4.3, 7.8
+    for k in range(9):
+        a = k * 2 * math.pi / 9
+        p.append(box(f"fire_stone{k}", (0.16, 0.13, 0.1), (cx + math.cos(a) * 0.38, cy + math.sin(a) * 0.38, PLATFORM_H + 0.05), m["concrete"], (0, 0, a)))
+    p.append(cyl("ashes", 0.3, 0.02, (cx, cy, PLATFORM_H + 0.01), m["tape"]))
+    for k in range(3):
+        p.append(cyl(f"log{k}", 0.04, 0.5, (cx, cy, PLATFORM_H + 0.05), m["wood"], (math.radians(90), 0, k * 1.05), 10))
+    p.append(box("mattress", (0.9, 1.9, 0.14), (-5.3, 9.2, PLATFORM_H + 0.07), m["canvas"]))
+    for k in range(3):
+        p.append(cyl(f"can{k}", 0.035, 0.11, (cx + 0.7 + k * 0.1, cy - 0.5 + k * 0.07, PLATFORM_H + 0.055), m["steel"]))
+    # --- справа: зона выдачи дрезин
+    # тупиковый упор за началом пути: шпальная клетка + щит с красно-белой полосой
+    ey = E_LOCAL_Y - 1.0
+    for k in range(3):
+        p.append(box(f"stop_sleeper{k}", (2.6, 0.3, 0.2), (0, ey - 0.15 - k * 0.32, 0.1 + k * 0.2), m["wood"]))
+    p.append(box("stop_beam", (2.2, 0.25, 0.3), (0, ey + 0.05, 0.75), m["hazard"]))
+    for sx in (-0.8, 0.8):
+        p.append(box(f"stop_post{sx}", (0.15, 0.15, 0.9), (sx, ey - 0.1, 0.45), m["rust"]))
+    # бетонная площадка под генератор, распределительный щит и кабель к нему
+    gx, gy = 4.5, E_LOCAL_Y - 2.0
+    p.append(box("gen_pad", (1.6, 1.2, 0.12), (gx, gy, 0.06), m["concrete"]))
+    p.append(box("gen_panel", (0.15, 0.7, 1.0), (ST_W / 2 - 0.1, gy, 1.5), m["paint"]))
+    p.append(box("gen_panel_door", (0.03, 0.6, 0.9), (ST_W / 2 - 0.19, gy, 1.5), m["paint"]))
+    p.append(box("gen_switch", (0.08, 0.06, 0.18), (ST_W / 2 - 0.22, gy + 0.18, 1.6), m["steel"], (0, math.radians(20), 0)))
+    p.append(cyl("gen_cable", 0.02, ST_W / 2 - gx - 0.5, (gx + (ST_W / 2 - gx) / 2, gy + 0.3, 0.03), m["tape"], (0, math.radians(90), 0), 8))
+    p.append(cyl("gen_cable_up", 0.02, 1.0, (ST_W / 2 - 0.12, gy + 0.3, 0.5), m["tape"], (0, 0, 0), 8))
+    p.append(sign_plate("gen_sign", (0.5, 0.02, 0.18), (ST_W / 2 - 0.2, gy, 2.15), m["sign_in"]))
+    # стеллаж с запчастями и запасное колесо у стены
+    for k in range(3):
+        p.append(box(f"shelf{k}", (0.5, 1.6, 0.04), (ST_W / 2 - 0.3, gy + 2.5, 0.4 + k * 0.6), m["rust"]))
+    for sy in (-0.75, 0.75):
+        p.append(box(f"shelf_post{sy}", (0.04, 0.04, 1.6), (ST_W / 2 - 0.3, gy + 2.5 + sy, 0.8), m["rust"]))
+    p.append(torus("spare_wheel", 0.33, 0.04, (ST_W / 2 - 0.25, gy + 4.4, 0.4), m["steel"], ROT_X, (24, 8)))
+    for k in range(2):
+        p.append(cyl(f"oil_barrel{k}", 0.3, 0.9, (ST_W / 2 - 0.5, gy + 5.4 + k * 0.65, 0.45), m["paint2"]))
+    return p
+
+
+# ============================================================================ будка выдачи дрезин
+
+def build_dispenser(outdir, save_fn, reset_fn, tex_dir):
+    """Будка выдачи: железный шкаф-будка с окошком, рычаг выдачи, табличка, ящик с инструментом.
+    Origin — земля по центру, лицо (+Y) к пути."""
+    global TEX_DIR
+    TEX_DIR = tex_dir
+    reset_fn()
+    m = mats()
+    p = []
+    p.append(box("pad", (1.8, 1.4, 0.1), (0, -0.2, 0.05), m["concrete"]))
+    p.append(box("body", (1.2, 0.9, 2.1), (0, -0.4, 1.15), m["paint"]))
+    p.append(box("roof", (1.4, 1.1, 0.08), (0, -0.4, 2.24), m["rust"], (math.radians(-6), 0, 0)))
+    p.append(box("window", (0.6, 0.02, 0.4), (0, 0.06, 1.5), m["glass"], round_edges=False))
+    p.append(box("window_frame", (0.66, 0.03, 0.04), (0, 0.07, 1.72), m["steel"]))
+    p.append(box("window_sill", (0.7, 0.12, 0.04), (0, 0.11, 1.28), m["steel"]))
+    p.append(sign_plate("sign", (1.1, 0.02, 0.4), (0, 0.06, 1.95), m["sign_depot"]))
+    # рычаг выдачи на тумбе
+    p.append(box("lever_base", (0.3, 0.3, 0.9), (0.85, 0.15, 0.45), m["paint2"]))
+    p.append(box("lever_slot", (0.05, 0.22, 0.02), (0.85, 0.15, 0.91), m["tape"]))
+    p.append(cyl("lever_rod", 0.02, 0.6, (0.85, 0.22, 1.2), m["steel"], (math.radians(-25), 0, 0)))
+    p.append(sphere("lever_knob", 0.05, (0.85, 0.35, 1.47), m["sign_in"]))
+    # мёртвая лампа-клетка и кабель
+    p.append(cyl("lamp", 0.07, 0.12, (0, 0.12, 2.12), m["rust"], ROT_Y))
+    p.append(cyl("cable", 0.015, 2.1, (-0.55, 0.05, 1.05), m["tape"], (0, 0, 0), 8))
+    # ящик с инструментом и ключи на стенке
+    p.append(box("toolbox", (0.5, 0.25, 0.25), (-0.85, 0.1, 0.22), m["rust"]))
+    for k in range(3):
+        p.append(box(f"wrench{k}", (0.03, 0.01, 0.28), (-0.35 + k * 0.08, 0.07, 1.05), m["steel"], (0, math.radians(8 * (k - 1)), 0)))
+    o = join(p, "dispenser")
+    uv_box(o, 3.0)
+    smooth(o)
+    hz.selection(o, "dispenser")
+    geo("geometry_body", (1.2, 0.9, 2.1), (0, -0.4, 1.15))
+    geo("geometry_lever", (0.3, 0.3, 0.9), (0.85, 0.15, 0.45))
+    save_fn(outdir, "dispenser")
+
+
+# ============================================================================ светильник
+
+def build_lamp(outdir, save_fn, reset_fn, tex_dir):
+    """Шахтный светильник в решётке на кронштейне. Origin — точка крепления к своду, лампа ниже."""
+    global TEX_DIR
+    TEX_DIR = tex_dir
+    reset_fn()
+    m = mats()
+    p = [box("mount", (0.2, 0.2, 0.04), (0, 0, -0.02), m["rust"]),
+         cyl("stem", 0.015, 0.25, (0, 0, -0.15), m["steel"]),
+         cyl("housing", 0.09, 0.08, (0, 0, -0.3), m["paint"]),
+         sphere("glass", 0.075, (0, 0, -0.38), m["glass"], (1, 1, 1.2), (16, 10))]
+    for k in range(4):
+        a = k * math.pi / 2
+        p.append(box(f"cage{k}", (0.008, 0.008, 0.17), (math.cos(a) * 0.085, math.sin(a) * 0.085, -0.41), m["steel"]))
+    p.append(torus("cage_ring", 0.085, 0.005, (0, 0, -0.49), m["steel"], (0, 0, 0), (16, 6)))
+    o = join(p, "tunnel_lamp")
+    uv_box(o, 1.0)
+    smooth(o)
+    hz.selection(o, "tunnel_lamp")
+    save_fn(outdir, "tunnel_lamp")
 
 
 # ============================================================================ тоннель
@@ -618,3 +785,5 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_station(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
+    build_dispenser(outdir, save_fn, reset_fn, tex_dir)
+    build_lamp(outdir, save_fn, reset_fn, tex_dir)

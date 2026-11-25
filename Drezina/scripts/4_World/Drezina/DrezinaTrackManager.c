@@ -156,7 +156,11 @@ class DrezinaTrackManager
 
 		vector pos, dir;
 		t.GetPosDir(d, pos, dir);
+		// всегда справа, если стоять у торца лицом в путь (на станции метро — со стороны,
+		// противоположной платформе)
 		vector side = Vector(dir[2], 0, -dir[0]).Normalized();
+		if (!atStart)
+			side = side * -1;
 		vector dPos = pos + side * st.DispenserSideOffset;
 
 		// Станция смотрит на путь.
