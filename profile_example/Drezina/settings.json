@@ -1,0 +1,15 @@
+{
+    "MaxSpeed": 9.0,
+    "PumpAcceleration": 1.3,
+    "BrakeDeceleration": 4.0,
+    "RollingFriction": 0.25,
+    "SlopeFactor": 4.0,
+    "ReverseMaxSpeed": 0.4,
+    "DispenserSideOffset": 2.2,
+    "DispenserBackOffset": 1.0,
+    "HandcarClearance": 4.5,
+    "AbandonSeconds": 300,
+    "MaxHandcarsPerTrack": 4,
+    "RailHeightOffset": 0.0,
+    "AutoNodeMinStep": 2.0
+}

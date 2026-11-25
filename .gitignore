@@ -1,0 +1,4 @@
+build_models/
+*.pbo
+*.blend1
+__pycache__/

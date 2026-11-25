@@ -1,0 +1,104 @@
+// Общие константы мода Drezina.
+
+class DrezinaRPC
+{
+	// сервер -> клиент
+	static const int TRACKS_FULL     = 8817001; // полный список трасс (при входе)
+	static const int TRACK_ADD       = 8817002; // добавлена/обновлена трасса
+	static const int TRACK_REMOVE    = 8817003; // удалена трасса
+	// клиент -> сервер
+	static const int ADMIN_COMMAND   = 8817010; // текст команды "/rail ..."
+	static const int HC_THROTTLE     = 8817020; // -1 тормоз, 0 отпустил, 1 качаю
+	static const int HC_REVERSE      = 8817021; // сменить направление
+	static const int HC_LEAVE        = 8817022; // сойти с дрезины
+}
+
+class DrezinaConst
+{
+	static const string PROFILE_DIR    = "$profile:Drezina";
+	static const string TRACKS_FILE    = "$profile:Drezina/tracks.json";
+	static const string SETTINGS_FILE  = "$profile:Drezina/settings.json";
+	static const string ADMINS_FILE    = "$profile:Drezina/admins.json";
+
+	static const string CHAT_PREFIX    = "/rail";
+
+	static const float  RAIL_PIECE_LEN = 2.0;   // длина модели Drezina_Rail
+	static const float  SPLINE_STEP    = 1.0;   // шаг сглаженной линии пути, м
+
+	// Если игрок сразу «слетает» с дрезины после посадки — поменяйте на false.
+	// (значение, которое HumanCommandScript.PostPhysUpdate должен вернуть, чтобы команда продолжалась)
+	static const bool   POSTPHYS_CONTINUE = true;
+}
+
+// Настройки сервера ($profile:Drezina/settings.json). Создаются с дефолтами при первом запуске.
+class DrezinaSettings
+{
+	float MaxSpeed            = 9.0;   // м/с (~32 км/ч)
+	float PumpAcceleration    = 1.3;   // м/с^2 пока игрок качает (W)
+	float BrakeDeceleration   = 4.0;   // м/с^2 при торможении (S)
+	float RollingFriction     = 0.25;  // м/с^2 накатом
+	float SlopeFactor         = 4.0;   // насколько уклон разгоняет/тормозит
+	float ReverseMaxSpeed     = 0.4;   // реверс разрешён только почти на месте
+	float DispenserSideOffset = 2.2;   // насколько в сторону от пути стоит станция выдачи
+	float DispenserBackOffset = 1.0;   // насколько станция отодвинута от торца пути внутрь
+	float HandcarClearance    = 4.5;   // минимальная дистанция между дрезинами на одном пути
+	float AbandonSeconds      = 300;   // брошенная дрезина без водителя удаляется через N сек
+	int   MaxHandcarsPerTrack = 4;
+	float RailHeightOffset    = 0.0;   // подъём рельсов над точкой, где стоял админ
+	float AutoNodeMinStep     = 2.0;   // минимальный шаг для режима "/rail auto"
+
+	static ref DrezinaSettings s_Instance;
+
+	static DrezinaSettings Get()
+	{
+		if (!s_Instance)
+			s_Instance = new DrezinaSettings();
+		return s_Instance;
+	}
+
+	static void Load()
+	{
+		s_Instance = new DrezinaSettings();
+		if (!FileExist(DrezinaConst.PROFILE_DIR))
+			MakeDirectory(DrezinaConst.PROFILE_DIR);
+
+		if (FileExist(DrezinaConst.SETTINGS_FILE))
+			JsonFileLoader<DrezinaSettings>.JsonLoadFile(DrezinaConst.SETTINGS_FILE, s_Instance);
+		else
+			JsonFileLoader<DrezinaSettings>.JsonSaveFile(DrezinaConst.SETTINGS_FILE, s_Instance);
+	}
+}
+
+// Список админов ($profile:Drezina/admins.json): Steam64 ID.
+class DrezinaAdmins
+{
+	ref array<string> Admins = new array<string>;
+
+	static ref DrezinaAdmins s_Instance;
+
+	static void Load()
+	{
+		s_Instance = new DrezinaAdmins();
+		if (!FileExist(DrezinaConst.PROFILE_DIR))
+			MakeDirectory(DrezinaConst.PROFILE_DIR);
+
+		if (FileExist(DrezinaConst.ADMINS_FILE))
+		{
+			JsonFileLoader<DrezinaAdmins>.JsonLoadFile(DrezinaConst.ADMINS_FILE, s_Instance);
+		}
+		else
+		{
+			s_Instance.Admins.Insert("76561190000000000");
+			JsonFileLoader<DrezinaAdmins>.JsonSaveFile(DrezinaConst.ADMINS_FILE, s_Instance);
+		}
+	}
+
+	static bool IsAdmin(PlayerIdentity identity)
+	{
+		if (!identity)
+			return false;
+		if (!s_Instance)
+			Load();
+		return s_Instance.Admins.Find(identity.GetPlainId()) != -1;
+	}
+}
