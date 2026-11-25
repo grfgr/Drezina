@@ -898,9 +898,17 @@ class DrezinaTunnelManager
 	// (под землёй, если позволяет рельеф, иначе в локации за картой)
 	void ServerStartEnd(PlayerIdentity sender, bool isStart)
 	{
+		Print("[Drezina] ServerStartEnd start=" + isStart);
+		if (!sender)
+			return;
 		PlayerBase admin = PlayerBase.Cast(sender.GetPlayer());
 		if (!admin)
+		{
+			Print("[Drezina] ServerStartEnd: no player");
 			return;
+		}
+		if (!m_Drafts)
+			m_Drafts = new map<string, ref DrezinaMetroDraft>;
 		string uid = sender.GetPlainId();
 		DrezinaMetroDraft draft = m_Drafts.Get(uid);
 		if (!draft)
@@ -908,6 +916,9 @@ class DrezinaTunnelManager
 			draft = new DrezinaMetroDraft();
 			m_Drafts.Set(uid, draft);
 		}
+		if (!draft.Points)
+			draft.Points = new array<vector>;
+		Print("[Drezina] ServerStartEnd: draft ok, points=" + draft.Points.Count());
 		draft.Admin = admin;
 		vector here = admin.GetPosition();
 

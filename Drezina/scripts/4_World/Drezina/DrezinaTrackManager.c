@@ -475,7 +475,17 @@ class DrezinaTrackManager
 		// метро двумя точками: /rail start — вход здесь, телепорт, /rail end — выход и постройка
 		if (cmd == "start" || cmd == "старт" || cmd == "end" || cmd == "энд" || cmd == "конец")
 		{
-			DrezinaTunnelManager.Get().ServerStartEnd(sender, cmd == "start" || cmd == "старт");
+			bool isStart = false;
+			if (cmd == "start" || cmd == "старт")
+				isStart = true;
+			Print("[Drezina] cmd " + cmd + " isStart=" + isStart);
+			DrezinaTunnelManager tm = DrezinaTunnelManager.Get();
+			if (!tm)
+			{
+				Print("[Drezina] !!! DrezinaTunnelManager is null");
+				return;
+			}
+			tm.ServerStartEnd(sender, isStart);
 			return;
 		}
 		// проверка выдачи без будки: дрезина у ближайшего конца ближайшего пути
