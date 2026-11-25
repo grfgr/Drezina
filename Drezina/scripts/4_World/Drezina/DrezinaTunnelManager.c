@@ -355,13 +355,17 @@ class DrezinaTunnelManager
 		float tStart = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
 		float tEnd = len - tStart;
 		float d = tStart;
+		int piece10 = 0;
+		// чередование вариантов прямого звена: чаще обычное, между ними — обвал, вагонетка, протечка
+		array<string> variants = {"Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10", "Drezina_Tunnel10C", "Drezina_Tunnel10", "Drezina_Tunnel10D"};
 		while (d < tEnd - 0.01)
 		{
 			string type = "Drezina_Tunnel2";
 			float piece = DrezinaConst.TUNNEL_SHORT_STEP;
 			if (d + DrezinaConst.TUNNEL_PIECE_LEN <= tEnd && DrezinaTrackManager.IsStraight(s, d, d + DrezinaConst.TUNNEL_PIECE_LEN))
 			{
-				type = "Drezina_Tunnel10";
+				type = variants[(piece10 * 5 + t.Id) % variants.Count()];
+				piece10++;
 				piece = DrezinaConst.TUNNEL_PIECE_LEN;
 			}
 			float c = d + piece * 0.5;

@@ -525,6 +525,8 @@ RVMAT_PARAMS = {
     "metro_sign_board1": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_sign_board2": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_sign_board3": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board4": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board5": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
     "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
@@ -632,6 +634,8 @@ def main():
     save(vanilla_grade(painted_board_tex(size, ["НЕ ХОДИ", "В ТОННЕЛЬ!"], seed=1), 0.4), os.path.join(out, "metro_sign_board1_co.png"))
     save(vanilla_grade(painted_board_tex(size, ["ЖИВЫЕ ЕСТЬ?", "СТУЧИ 3 РАЗА"], (25, 25, 22), seed=2), 0.4), os.path.join(out, "metro_sign_board2_co.png"))
     save(vanilla_grade(painted_board_tex(size, ["ВЫХОД", "НАВЕРХ ->"], (210, 205, 190), seed=3), 0.4), os.path.join(out, "metro_sign_board3_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["ОНИ ТАМ.", "НЕ ГАСИ СВЕТ"], (150, 25, 20), seed=4), 0.4), os.path.join(out, "metro_sign_board4_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["<- К СТАНЦИИ", "300 ШАГОВ"], (210, 205, 190), seed=5), 0.4), os.path.join(out, "metro_sign_board5_co.png"))
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
             detail_maps(out, name, strength, shine)

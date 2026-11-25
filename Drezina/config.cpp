@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Motor", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Motor", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
@@ -539,6 +539,20 @@ class CfgVehicles
 		scope = 1;
 		displayName = "Тоннель";
 		model = "\Drezina\data\tunnel_10m.p3d";
+	};
+
+	// Варианты звена 10 м с антуражем: обвал и разбитая лампа (B), вагонетка и бочки (C), протечка и заначка (D).
+	class Drezina_Tunnel10B: Drezina_Tunnel10
+	{
+		model = "\Drezina\data\tunnel_10m_b.p3d";
+	};
+	class Drezina_Tunnel10C: Drezina_Tunnel10
+	{
+		model = "\Drezina\data\tunnel_10m_c.p3d";
+	};
+	class Drezina_Tunnel10D: Drezina_Tunnel10
+	{
+		model = "\Drezina\data\tunnel_10m_d.p3d";
 	};
 
 	// Короткое звено тоннеля для поворотов: 2.4 м, ставится через 2 м (с нахлёстом, чтобы не было щелей).

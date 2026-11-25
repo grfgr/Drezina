@@ -58,6 +58,8 @@ def mats():
         "board1": hz.tex_material("metro_sign_board1", "metro_sign_board1", 0.9),
         "board2": hz.tex_material("metro_sign_board2", "metro_sign_board2", 0.9),
         "board3": hz.tex_material("metro_sign_board3", "metro_sign_board3", 0.9),
+        "board4": hz.tex_material("metro_sign_board4", "metro_sign_board4", 0.9),
+        "board5": hz.tex_material("metro_sign_board5", "metro_sign_board5", 0.9),
     })
     return m
 
@@ -1065,7 +1067,131 @@ def build_lamp(outdir, save_fn, reset_fn, tex_dir):
 
 # ============================================================================ тоннель
 
-def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m"):
+# ============================================================================ антураж тоннеля (этап 2)
+# Колея свободна: всё, что выше пола, стоит при |x| > 1.15 (дрезина ~1.6 м шириной). На пути — только плоское.
+
+def tun_vault_z(x):
+    return vault_z(x, TUN_W, TUN_WALL_H, TUN_RISE)
+
+
+def mine_cart(prefix, x, y, rot, m, tilt=0.0):
+    """Ржавая опрокидная вагонетка, сошедшая с рельсов."""
+    p = []
+    import mathutils
+    M = mathutils.Matrix.Translation((x, y, 0)) @ mathutils.Matrix.Rotation(rot, 4, "Z") @ mathutils.Matrix.Rotation(tilt, 4, "Y")
+    def put(o):
+        o.matrix_world = M @ o.matrix_world
+        p.append(o)
+    put(box(f"{prefix}_bottom", (0.8, 1.3, 0.04), (0, 0, 0.45), m["rust"]))
+    for sx in (-1, 1):
+        put(box(f"{prefix}_side{sx}", (0.04, 1.3, 0.55), (sx * 0.5, 0, 0.72), m["rust"], (0, sx * math.radians(-14), 0)))
+    for sy in (-1, 1):
+        put(box(f"{prefix}_end{sy}", (1.0, 0.04, 0.55), (0, sy * 0.65, 0.72), m["rust"]))
+    put(box(f"{prefix}_rim_l", (0.06, 1.34, 0.06), (-0.57, 0, 1.0), m["rust"]))
+    put(box(f"{prefix}_rim_r", (0.06, 1.34, 0.06), (0.57, 0, 1.0), m["rust"]))
+    put(box(f"{prefix}_frame", (0.6, 1.5, 0.1), (0, 0, 0.36), m["steel"]))
+    for sx in (-0.38, 0.38):
+        for sy in (-0.45, 0.45):
+            put(cyl(f"{prefix}_wheel{sx}{sy}", 0.16, 0.06, (sx, sy, 0.16), m["rust"], ROT_Y, 16))
+    for sy in (-0.45, 0.45):
+        put(cyl(f"{prefix}_axle{sy}", 0.025, 0.82, (0, sy, 0.16), m["steel"], ROT_Y, 8))
+    put(box(f"{prefix}_coupler", (0.08, 0.25, 0.06), (0, 0.85, 0.36), m["steel"]))
+    # внутри — мусор и куски бетона
+    for k in range(4):
+        put(box(f"{prefix}_junk{k}", (0.25, 0.2, 0.15), (-0.2 + k * 0.13, -0.3 + k * 0.2, 0.55), m["concrete"], (k, k * 0.7, k * 1.3)))
+    return p
+
+
+def broken_lamp(prefix, x, y, m, hang=0.6):
+    """Разбитый светильник: висит на проводе, без стекла, патрон и решётка погнуты."""
+    p = []
+    zt = tun_vault_z(x) - 0.05
+    p.append(box(f"{prefix}_mount", (0.18, 0.18, 0.04), (x, y, zt), m["rust"]))
+    p.append(cyl(f"{prefix}_wire", 0.006, hang, (x + 0.05, y, zt - hang / 2), m["tape"], (0, math.radians(6), 0), 6))
+    zl = zt - hang
+    p.append(cyl(f"{prefix}_housing", 0.09, 0.08, (x + 0.1, y, zl), m["paint"], (math.radians(25), 0, 0), 14))
+    for k in range(3):
+        a = k * 2.1
+        p.append(box(f"{prefix}_cage{k}", (0.008, 0.008, 0.16), (x + 0.1 + math.cos(a) * 0.08, y + math.sin(a) * 0.08, zl - 0.1), m["steel"],
+                     (0.4 * math.sin(a), 0.5 * math.cos(a), 0)))
+    for k in range(5):     # осколки стекла на полу
+        p.append(box(f"{prefix}_shard{k}", (0.05, 0.04, 0.004), (x + rnd.uniform(-0.4, 0.4), y + rnd.uniform(-0.4, 0.4), 0.003), m["glass"],
+                     (0, 0, rnd.uniform(0, 3))))
+    return p
+
+
+def puddle_blob(prefix, x, y, sx, sy, m):
+    p = []
+    for j in range(4):
+        a = rnd.uniform(0, 6.28)
+        off = 0.0 if j == 0 else rnd.uniform(0.25, 0.55)
+        sc = 1.0 if j == 0 else rnd.uniform(0.35, 0.6)
+        p.append(sphere(f"{prefix}_{j}", 1, (x + math.cos(a) * off * sx, y + math.sin(a) * off * sy, 0.003 + j * 0.0005), m["puddle"],
+                        (sx * sc * rnd.uniform(0.6, 0.9), sy * sc * rnd.uniform(0.6, 0.9), 0.004), (16, 4), (0, 0, rnd.uniform(0, 3))))
+    return p
+
+
+def tunnel_props(variant, m, walk_h):
+    """Наполнение звена 10 м по варианту: a — базовое, b/c/d — с «событиями». Возвращает (детали, коллизии)."""
+    global rnd
+    rnd = random.Random(100 + ord(variant))
+    p, g = [], []
+    # общее для всех: бумаги, банки, пара мелких луж
+    for k in range(5):
+        p.append(box(f"paper{k}", (rnd.uniform(0.1, 0.2), rnd.uniform(0.08, 0.16), 0.003), (rnd.uniform(1.3, 2.5), rnd.uniform(-4.5, 4.5), 0.003),
+                     m["canvas"] if k % 2 else m["tile"], (0, 0, rnd.uniform(0, 3))))
+    p += puddle_blob("pud_a", rnd.uniform(-0.5, 0.5), rnd.uniform(-3, 3), 0.5, 1.1, m)
+    if variant == "a":
+        p += debris("deb", (2.2, rnd.uniform(-3, 3)), 4, 0.5, m)
+        p.append(cyl("can", 0.035, 0.11, (-2.6, 1.0, walk_h + 0.035), m["steel"], (math.radians(90), 0, 0.7), 10))
+    elif variant == "b":
+        # обвал тюбинга: кусок свода упал справа, куча бетона, торчит арматура; разбитая лампа, провисший кабель
+        p.append(box("fallen_segment", (0.25, 1.4, 1.1), (2.35, 1.2, 0.5), m["tubing"], (math.radians(10), math.radians(-24), math.radians(8))))
+        for k in range(12):
+            sz = rnd.uniform(0.15, 0.45)
+            p.append(box(f"rubble{k}", (sz, sz * rnd.uniform(0.6, 1.1), sz * 0.55),
+                         (rnd.uniform(1.5, 2.8), 1.2 + rnd.uniform(-1.2, 1.2), sz * 0.25), m["concrete"],
+                         (rnd.uniform(-0.5, 0.5), rnd.uniform(-0.5, 0.5), rnd.uniform(0, 3))))
+        for k in range(4):
+            p.append(cyl(f"rebar{k}", 0.008, rnd.uniform(0.6, 1.0), (2.3 + rnd.uniform(-0.3, 0.3), 1.2 + rnd.uniform(-0.5, 0.5), 0.6), m["rust"],
+                         (rnd.uniform(-0.9, 0.9), rnd.uniform(-0.9, 0.9), 0), 6))
+        p.append(box("scar", (0.8, 1.4, 0.05), (2.55, 1.2, tun_vault_z(2.55) - 0.1), m["dirt"], (0, math.radians(-55), 0), round_edges=False))
+        g.append(("geometry_rubble", (1.5, 2.6, 0.7), (2.25, 1.2, 0.35)))
+        p += broken_lamp("blamp", -0.4, -2.5, m, 0.7)
+        p += sag_cable("sag", (2.5, -4.8, tun_vault_z(2.5) - 0.1), (2.2, -0.6, tun_vault_z(2.2) - 0.1), 0.8, m)
+        p += puddle_blob("pud_b", 1.8, -3.2, 0.8, 0.7, m)
+    elif variant == "c":
+        # брошенная вагонетка сбоку от пути, раскатившиеся бочки, сложенные шпалы, надпись
+        p += mine_cart("cart", 1.95, -1.5, math.radians(4), m, math.radians(-6))
+        g.append(("geometry_cart", (1.1, 1.7, 1.05), (1.95, -1.5, 0.52)))
+        p.append(cyl("barrel_lying", 0.3, 0.88, (2.2, 2.4, 0.3), m["paint2"], (math.radians(90), 0, math.radians(70)), 18))
+        p.append(cyl("barrel_up", 0.3, 0.88, (2.55, 3.4, 0.44), m["rust"], (0, 0, 0), 18))
+        g.append(("geometry_barrels", (1.2, 1.8, 0.88), (2.35, 2.9, 0.44)))
+        for k in range(4):
+            p.append(box(f"sleeper{k}", (0.24, 2.4, 0.15), (-2.62 + (k % 2) * 0.05, -2.8, walk_h + 0.075 + k * 0.15), m["wood"],
+                         (0, 0, math.radians(rnd.uniform(-4, 4)))))
+        g.append(("geometry_sleepers", (0.5, 2.5, 0.6), (-2.6, -2.8, walk_h + 0.3)))
+        p.append(painted_board("board4", 1.1, 0.55, (TUN_W / 2 - 0.03, 0.8, 1.55), m["board4"], face="-x"))
+        p += puddle_blob("pud_c", -0.2, 3.0, 0.6, 1.3, m)
+    elif variant == "d":
+        # протечка: вода по своду, большая лужа через путь; заначка сталкера на проходе; указатель к станции
+        p += puddle_blob("pud_d1", 0.3, 0.5, 1.6, 1.8, m)
+        p += puddle_blob("pud_d2", -1.4, 2.0, 0.7, 0.9, m)
+        for k in range(6):          # подтёки на своде и стене
+            x = rnd.uniform(-1.5, 1.5)
+            p.append(box(f"leak{k}", (0.12, 0.25, 0.01), (x, 0.5 + rnd.uniform(-1, 1), tun_vault_z(x) - 0.02), m["dirt"], round_edges=False))
+        p.append(box("stash_crate", (0.6, 0.45, 0.4), (-2.62, 1.6, walk_h + 0.2), m["wood"], (0, 0, math.radians(6))))
+        p.append(cyl("stash_bedroll", 0.13, 0.7, (-2.62, 0.7, walk_h + 0.13), m["paint"], (math.radians(90), 0, 0), 14))
+        p.append(box("stash_tarp", (0.7, 0.6, 0.02), (-2.62, 2.4, walk_h + 0.01), m["canvas"], (0, 0, math.radians(-10))))
+        p.append(cyl("stash_canteen", 0.06, 0.18, (-2.45, 1.95, walk_h + 0.09), m["paint2"], (0, 0, 0), 12))
+        p.append(sphere("stash_helmet", 0.13, (-2.75, 1.6, walk_h + 0.45), m["paint"], (1, 1.1, 0.7), (12, 6)))
+        g.append(("geometry_stash", (0.65, 0.5, 0.42), (-2.62, 1.6, walk_h + 0.21)))
+        p.append(painted_board("board5", 1.0, 0.5, (-TUN_W / 2 + 0.03, -2.0, walk_h + 1.6), m["board5"], face="+x"))
+        p += broken_lamp("blamp", 0.6, 3.6, m, 0.4)
+    return p, g
+
+
+def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="a"):
     reset_fn()
     m = mats()
     short = L < 5
@@ -1089,11 +1215,15 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m"):
     p.append(box("drain", (0.25, floor_len, 0.03), (TUN_W / 2 - 0.3, 0, 0.015), m["steel"], round_edges=False))
     for y in ((0.0,) if short else (-4.0, 0.0, 4.0)):      # кронштейны поручня (и на коротких кусках)
         p.append(box(f"handrail_bracket{y}", (0.1, 0.03, 0.03), (-TUN_W / 2 + 0.04, y, walk_h + 0.95), m["rust"]))
+    amb_geo = []
     if not short:
-        p += debris("deb", (2.2, rnd.uniform(-3, 3)), 3, 0.5, m)
         # отметка пикета на стене
         p.append(box("picket", (0.02, 0.3, 0.2), (-TUN_W / 2 + 0.01, 2.5, walk_h + 1.5), m["sign_in"]))
+        amb, amb_geo = tunnel_props(variant, m, walk_h)
+        p += amb
     finish(p, name)
+    for gname, gsize, gloc in amb_geo:
+        geo(gname, gsize, gloc)
     geo("geometry_walkway", (walk_w, floor_len, walk_h), (wx, 0, walk_h / 2))
     geo("geometry_floor", (TUN_W + 1, floor_len, 0.4), (0, 0, -0.2))
     for sx in (-1, 1):
@@ -1111,6 +1241,8 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_corridor(outdir, save_fn, reset_fn)
     build_station(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn)
+    for v in "bcd":                                  # варианты звена с антуражем
+        build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_" + v, v)
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)
     build_lamp(outdir, save_fn, reset_fn, tex_dir)
