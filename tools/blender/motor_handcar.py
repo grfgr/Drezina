@@ -196,9 +196,9 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
-    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H - RIDER_DROP), (0, 1, 0))
-    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.42, BENCH_Y, BENCH_H - RIDER_DROP), (0, 1, 0), swap=True)
-    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.42, BENCH_Y, BENCH_H - RIDER_DROP), (0, 1, 0))
+    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
+    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.42, BENCH_Y, BENCH_H), (0, 1, 0))
+    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.42, BENCH_Y, BENCH_H), (0, 1, 0))
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.
