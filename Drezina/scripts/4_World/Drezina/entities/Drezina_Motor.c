@@ -26,11 +26,13 @@ class Drezina_Motor extends CarScript
 	bool m_GravityOff;
 	bool m_Sleeping;
 	float m_StillTime;
+	bool m_OffRail;              // снята с рельсов (стоит рядом с путём, чтобы разъехаться со встречной)
 
 	void Drezina_Motor()
 	{
 		RegisterNetSyncVariableInt("m_TrackId");
 		RegisterNetSyncVariableInt("m_Face", -1, 1);
+		RegisterNetSyncVariableBool("m_OffRail");
 
 		m_EngineStartOK = "Motorbike_01_engine_start_SoundSet";
 		m_EngineStartBattery = "";
@@ -64,6 +66,7 @@ class Drezina_Motor extends CarScript
 		super.OnStoreSave(ctx);
 		ctx.Write(m_TrackId);
 		ctx.Write(m_Face);
+		ctx.Write(m_OffRail);
 	}
 
 	override bool OnStoreLoad(ParamsReadContext ctx, int version)
@@ -74,6 +77,8 @@ class Drezina_Motor extends CarScript
 			m_TrackId = -1;
 		if (!ctx.Read(m_Face))
 			m_Face = 1;
+		if (!ctx.Read(m_OffRail))
+			m_OffRail = false;
 		return true;
 	}
 
@@ -108,7 +113,7 @@ class Drezina_Motor extends CarScript
 
 	override bool CrewCanGetThrough(int posIdx)
 	{
-		return true;   // дверей нет
+		return !m_OffRail;   // дверей нет; снятую с рельсов сначала ставят обратно
 	}
 
 	override bool CanReachSeatFromSeat(int currentSeat, int nextSeat)
@@ -206,6 +211,9 @@ class Drezina_Motor extends CarScript
 	override void SetActions()
 	{
 		AddAction(ActionGetInTransport);
+		AddAction(ActionDrezinaTurnAround);
+		AddAction(ActionDrezinaOffRail);
+		AddAction(ActionDrezinaOnRail);
 		AddAction(ActionSwitchLights);
 		AddAction(ActionVehicleHornShort);
 		AddAction(ActionVehicleHornLong);
@@ -306,12 +314,14 @@ class Drezina_Motor extends CarScript
 		bool server = GetGame().IsServer();
 		if (!server && !IsOwner())
 			return;
+		if (m_OffRail)
+			return;          // снята с рельсов: стоит, где поставили (физика спит)
 
 		if (m_TrackId < 0 && server)
 		{
 			// после перезапуска или выставленная вручную — ищем путь рядом
 			int found = DrezinaTrackManager.Get().FindNearestTrack(GetPosition(), 4.0);
-			if (found >= 0)
+			if (found > 0)
 			{
 				m_TrackId = found;
 				SetSynchDirty();
@@ -435,8 +445,8 @@ class Drezina_Motor extends CarScript
 		float clearance = DrezinaSettings.Get().HandcarClearance;
 		foreach (Drezina_Motor o : s_All)
 		{
-			if (!o || o == this || o.m_TrackId != m_TrackId)
-				continue;
+			if (!o || o == this || o.m_TrackId != m_TrackId || o.m_OffRail)
+				continue;          // снятая с рельсов не мешает: так и разъезжаются
 			float od = ProjectDistOf(t, o.GetPosition());
 			float ahead = (od - d) * m_Face * Math.Sign(v);
 			if (ahead > 0 && ahead < clearance)
@@ -471,6 +481,119 @@ class Drezina_Motor extends CarScript
 	}
 
 	// ------------------------------------------------------------------ сдача на станции
+
+	// ------------------------------------------------------------------ разворот, снять / поставить на рельсы
+
+	// стоит, пустая, на пути
+	bool CanManhandle()
+	{
+		return CanBeReturned() && !EngineIsOn();
+	}
+
+	bool CanTurnAround()
+	{
+		return CanManhandle() && !m_OffRail && GetTrack() != null;
+	}
+
+	bool CanTakeOffRail()
+	{
+		return CanManhandle() && !m_OffRail && GetTrack() != null;
+	}
+
+	bool CanPutOnRail()
+	{
+		return CanManhandle() && m_OffRail;
+	}
+
+	void ServerTurnAround()
+	{
+		DrezinaTrack t = GetTrack();
+		if (!t)
+			return;
+		float d = ProjectDist(t, GetPosition());
+		m_Face = -m_Face;
+		m_DistHint = d;
+		vector mat[4];
+		TrackTransform(t, d, mat);
+		SetTransform(mat);
+		SetVelocity(this, vector.Zero);
+		SetSynchDirty();
+		Print("[Drezina] motor: развёрнута, нос " + m_Face);
+	}
+
+	// сдвинуть вбок от пути на свободную сторону (куда луч не упирается в стену) и поставить на землю
+	bool ServerTakeOffRail()
+	{
+		DrezinaTrack t = GetTrack();
+		if (!t)
+			return false;
+		float d = ProjectDist(t, GetPosition());
+		vector mat[4];
+		TrackTransform(t, d, mat);
+		vector center = mat[3] + Vector(0, 0.8, 0);
+		vector hitPos, hitDir;
+		int hitComp;
+		float off = 2.1;
+		vector place = vector.Zero;
+		for (int k = 0; k < 2; k++)
+		{
+			float sgn = 1;
+			if (k == 1)
+				sgn = -1;
+			vector side = mat[0] * sgn;
+			// луч до дальнего борта дрезины в стоящем положении (+0.9 м)
+			if (!DayZPhysics.RaycastRV(center, center + side * (off + 0.9), hitPos, hitDir, hitComp, null, null, this))
+			{
+				place = mat[3] + side * off;
+				break;
+			}
+		}
+		if (place == vector.Zero)
+			return false;
+		// земля под новым местом
+		vector top = place + Vector(0, 1.5, 0);
+		if (DayZPhysics.RaycastRV(top, place - Vector(0, 3.0, 0), hitPos, hitDir, hitComp, null, null, this))
+			place[1] = hitPos[1] + 0.05;
+		mat[3] = place;
+		m_OffRail = true;
+		SetTransform(mat);
+		SetVelocity(this, vector.Zero);
+		m_Sleeping = true;
+		dBodyActive(this, ActiveState.INACTIVE);
+		SetSynchDirty();
+		Print("[Drezina] motor: снята с рельсов");
+		return true;
+	}
+
+	bool ServerPutOnRail()
+	{
+		int found = DrezinaTrackManager.Get().FindNearestTrack(GetPosition(), 4.0);
+		if (found <= 0)
+			return false;
+		m_TrackId = found;
+		DrezinaTrack t = GetTrack();
+		if (!t)
+			return false;
+		float off;
+		float d = t.ClosestDistance(GetPosition(), off);
+		d = Math.Clamp(d, END_GAP, Math.Max(t.GetLength() - END_GAP, END_GAP));
+		// нос туда, куда он смотрел
+		vector p, dir;
+		t.GetPosDir(d, p, dir);
+		if (vector.Dot(GetDirection(), dir) >= 0)
+			m_Face = 1;
+		else
+			m_Face = -1;
+		m_OffRail = false;
+		m_DistHint = d;
+		vector mat[4];
+		TrackTransform(t, d, mat);
+		SetTransform(mat);
+		SetVelocity(this, vector.Zero);
+		SetSynchDirty();
+		Print("[Drezina] motor: поставлена на путь #" + found);
+		return true;
+	}
 
 	bool CanBeReturned()
 	{

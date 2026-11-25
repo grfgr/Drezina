@@ -12,5 +12,8 @@ modded class ActionConstructor
 		actions.Insert(ActionMetroUp);
 		actions.Insert(ActionDrezinaReturn);
 		actions.Insert(ActionDrezinaRefuel);
+		actions.Insert(ActionDrezinaTurnAround);
+		actions.Insert(ActionDrezinaOffRail);
+		actions.Insert(ActionDrezinaOnRail);
 	}
 }
