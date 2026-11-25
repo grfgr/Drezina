@@ -25,6 +25,32 @@ tools/blender/make_models.py  генератор моделей (дрезина,
 profile_example/Drezina/      пример admins.json и settings.json
 ```
 
+## Сборка на Windows (без Object Builder)
+
+В папке `tools` лежат готовые `.bat`. Запускайте их **из папки репозитория** двойным кликом,
+а не с диска P:.
+
+| Файл | Что делает |
+|---|---|
+| `build_all.bat` | всё подряд: три файла ниже |
+| `build_models.bat` | модели из Blender-скриптов, затем запись `.p3d` в `Drezina\data` (нужен Blender 4.1+) |
+| `convert_textures.bat` | `Drezina\data\textures\*.png` → `.paa` через ImageToPAA из DayZ Tools |
+| `copy_to_p.bat` | копирует папку `Drezina` на `P:\Drezina` для Addon Builder |
+
+**Готовые `.p3d` уже лежат в `Drezina\data`.** Пока модели не менялись, Blender не нужен: достаточно
+`convert_textures.bat` и `copy_to_p.bat`.
+
+`.p3d` пишет `tools/blender/export_p3d.py` в том же формате, что сохраняет Object Builder (MLOD),
+и упаковывает в каждую модель:
+- уровни детализации (LOD);
+- named selections;
+- геометрию с массой и `autocenter = 0`;
+- view- и fire-геометрию, Roadway;
+- точки памяти;
+- тень (у дрезины).
+
+Addon Builder бинаризует их при упаковке.
+
 ## Установка на сервер
 
 1. Соберите модели (см. ниже) и упакуйте папку `Drezina` в `@Drezina/Addons/Drezina.pbo`
