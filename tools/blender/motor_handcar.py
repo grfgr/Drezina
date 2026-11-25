@@ -248,7 +248,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     geo("geometry_seat_cargo2", (0.4, 0.36, 0.42), (0.42, BENCH_Y, DECK + 0.21), "seat_cargo2", m)
     for name, x, y in (("1_1", -hz.HALF, hz.AXLE_Y), ("2_1", hz.HALF, hz.AXLE_Y),
                        ("1_2", -hz.HALF, -hz.AXLE_Y), ("2_2", hz.HALF, -hz.AXLE_Y)):
-        geo(f"geometry_hub_{name}", (0.1, 0.5, 0.5), (x, y, hz.WHEEL_R + 0.02), f"dmgZone_wheel_{name}", m)
+        geo(f"geometry_hub_{name}", (0.1, 0.5, 0.5), (x, y, hz.WHEEL_R + 0.02), f"dmgZone_wheel_{name},wheel_{name}_damper_land", m)
 
     meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry")]
     print(f"[Drezina] motor_handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
