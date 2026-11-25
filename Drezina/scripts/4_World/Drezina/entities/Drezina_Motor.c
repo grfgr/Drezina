@@ -315,8 +315,7 @@ class Drezina_Motor extends CarScript
 		vector mat[4];
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
-		dBodySetLinearVelocity(this, mat[2] * v);
-		dBodySetAngularVelocity(this, vector.Zero);
+		SetVelocity(this, mat[2] * v);
 
 		m_LogTimer -= dt;
 		if (m_LogTimer <= 0 && CrewDriver())
