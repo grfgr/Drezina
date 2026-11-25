@@ -5,7 +5,7 @@
 
 class Drezina_Handcar extends ItemBase
 {
-	static const float DECK_HEIGHT   = 0.62;  // высота пола платформы от головки рельса
+	static const float DECK_HEIGHT   = 0.67;  // где стоит водитель: пол платформы 0.62 + 5 см (не цеплять коллизию платформы)
 	static const float SEAT_BACK     = 0.80;  // насколько водитель стоит за рычагом (по ходу)
 	static const float WHEEL_RADIUS  = 0.36;
 
@@ -18,6 +18,10 @@ class Drezina_Handcar extends ItemBase
 	bool  m_Braking;
 	int   m_DriverLow;
 	int   m_DriverHigh;
+
+	// пока на дрезине едет местный водитель, её двигает его команда езды (в одной фазе кадра
+	// с персонажем, иначе камера дрожит); общий цикл обновления такую дрезину пропускает
+	bool m_TickedByRide;
 
 	// --- локальное состояние (сервер и клиент)
 	float m_Dist;

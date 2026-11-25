@@ -222,7 +222,7 @@ class DrezinaTrackManager extends Managed
 		for (int i = m_Handcars.Count() - 1; i >= 0; i--)
 		{
 			Drezina_Handcar hc = m_Handcars[i];
-			if (hc)
+			if (hc && !hc.m_TickedByRide)
 				hc.Tick(timeslice);
 		}
 	}

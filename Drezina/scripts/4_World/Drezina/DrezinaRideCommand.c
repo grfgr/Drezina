@@ -21,6 +21,8 @@ class DrezinaRideCommand extends HumanCommandScript
 		Print("[Drezina] ride command activated, server=" + GetGame().IsServer());
 		if (m_Player)
 			m_Player.PhysicsEnableGravity(false);
+		if (m_Handcar)
+			m_Handcar.m_TickedByRide = true;
 	}
 
 	override void OnDeactivate()
@@ -28,6 +30,8 @@ class DrezinaRideCommand extends HumanCommandScript
 		Print("[Drezina] ride command deactivated");
 		if (m_Player)
 			m_Player.PhysicsEnableGravity(true);
+		if (m_Handcar)
+			m_Handcar.m_TickedByRide = false;
 	}
 
 	override void PreAnimUpdate(float pDt)
@@ -47,6 +51,8 @@ class DrezinaRideCommand extends HumanCommandScript
 			PrePhys_SetTranslation(vector.Zero);
 			return;
 		}
+		// сначала сдвинуть дрезину на этот кадр, потом вести за ней персонажа — в одной фазе
+		m_Handcar.Tick(pDt);
 		vector seat;
 		float yaw;
 		m_Handcar.GetDriverTransform(seat, yaw);
