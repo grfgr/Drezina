@@ -19,7 +19,7 @@ import os
 import bpy
 
 import handcar_zone as hz
-from handcar_zone import box, cyl, sphere, torus, join, set_origin, uv_cube, smooth, selection, mem_point, ROT_X, ROT_Y
+from handcar_zone import box, cyl, sphere, torus, dent, join, set_origin, uv_cube, smooth, selection, mem_point, ROT_X, ROT_Y
 
 DECK = hz.DECK_TOP
 SEAT_H = DECK + 0.46          # верх подушки сиденья водителя
@@ -53,41 +53,136 @@ def geo(name, size, loc, sel, m):
 
 
 def engine(m, out):
-    """Одноцилиндровый мотор от мотоцикла на подрамнике, справа впереди."""
+    """Одноцилиндровый мотор от старого мотоцикла (М-72/ИЖ) на самодельном подрамнике, справа впереди.
+    Картер с крышками и болтами, оребрённый цилиндр и головка, свеча с высоковольтным проводом к
+    магнето, карбюратор с поплавковой камерой и банкой фильтра, коллектор выхлопа с хомутами и
+    глушителем, кикстартер, маховик, цепь со звеньями на переднюю ось, бак с краником и бензошлангом."""
+    import mathutils
     ex, ey, ez = 0.22, 0.72, DECK + 0.20
-    out.append(box("eng_frame_l", (0.04, 0.5, 0.04), (ex - 0.17, ey, DECK + 0.02), m["rust"]))
-    out.append(box("eng_frame_r", (0.04, 0.5, 0.04), (ex + 0.17, ey, DECK + 0.02), m["rust"]))
-    out.append(box("crankcase", (0.26, 0.32, 0.2), (ex, ey, ez - 0.04), m["paint2"]))
-    out.append(cyl("crank_cover", 0.11, 0.03, (ex + 0.14, ey, ez - 0.04), m["steel"], ROT_X))
-    out.append(cyl("crank_cover_l", 0.09, 0.03, (ex - 0.14, ey + 0.03, ez - 0.05), m["steel"], ROT_X))
-    # цилиндр с рёбрами охлаждения, слегка наклонён вперёд
-    tilt = (math.radians(-18), 0, 0)
-    for k in range(9):
-        z = ez + 0.1 + k * 0.026
-        out.append(box(f"fin{k}", (0.2 - k * 0.004, 0.17 - k * 0.003, 0.008), (ex, ey + 0.03 + k * 0.008, z), m["rust"], tilt))
-    out.append(cyl("cylinder", 0.06, 0.26, (ex, ey + 0.05, ez + 0.2), m["steel"], tilt))
-    out.append(box("head", (0.16, 0.14, 0.06), (ex, ey + 0.1, ez + 0.36), m["paint2"], tilt))
-    out.append(cyl("plug", 0.012, 0.05, (ex, ey + 0.14, ez + 0.41), m["steel"], tilt, 6))
-    out.append(cyl("plug_cap", 0.016, 0.03, (ex, ey + 0.15, ez + 0.44), m["tape"], tilt, 8))
-    # карбюратор и воздушный фильтр (жестянка)
-    out.append(cyl("carb", 0.03, 0.08, (ex - 0.11, ey + 0.02, ez + 0.2), m["steel"], ROT_X))
-    out.append(cyl("airfilter", 0.06, 0.07, (ex - 0.19, ey + 0.02, ez + 0.2), m["rust"], ROT_X))
-    # выхлопная труба назад по правому борту, глушитель у заднего торца
-    out.append(cyl("exh_down", 0.022, 0.24, (ex + 0.06, ey + 0.16, ez + 0.12), m["rust"], (math.radians(30), 0, 0)))
-    out.append(cyl("exh_pipe", 0.022, 1.45, (0.5, 0.02, DECK + 0.06), m["rust"], ROT_Y))
-    out.append(cyl("muffler", 0.05, 0.4, (0.5, -0.82, DECK + 0.08), m["rust"], ROT_Y))
-    out.append(cyl("muffler_tip", 0.025, 0.08, (0.5, -1.06, DECK + 0.08), m["steel"], ROT_Y))
-    # цепь на переднюю ось: звёздочки и кожух
-    out.append(cyl("sprocket_eng", 0.05, 0.012, (ex + 0.17, ey, ez - 0.06), m["steel"], ROT_X, 16))
-    out.append(cyl("sprocket_axle", 0.11, 0.012, (ex + 0.17, hz.AXLE_Y, hz.WHEEL_R), m["steel"], ROT_X, 24))
-    out.append(box("chain_guard", (0.02, 0.3, 0.2), (ex + 0.19, (ey + hz.AXLE_Y) / 2, (ez - 0.06 + hz.WHEEL_R) / 2), m["paint"]))
-    # бак над мотором на двух стойках
-    out.append(box("tank_post_f", (0.03, 0.03, 0.42), (ex, ey + 0.2, DECK + 0.32), m["rust"]))
-    out.append(box("tank_post_b", (0.03, 0.03, 0.42), (ex, ey - 0.2, DECK + 0.32), m["rust"]))
-    tank = sphere("tank", 1, (ex, ey, DECK + 0.6), m["paint"], (0.13, 0.26, 0.1), (24, 14))
+    tilt = math.radians(-15)                                   # цилиндр наклонён вперёд
+    up = mathutils.Vector((0, -math.sin(tilt), math.cos(tilt)))  # ось цилиндра
+    base = mathutils.Vector((ex, ey + 0.02, ez + 0.06))
+
+    def at(t):
+        p = base + up * t
+        return (p.x, p.y, p.z)
+
+    # подрамник из уголка с косынками, мотор на резиновых подушках
+    for sx in (-1, 1):
+        out.append(box(f"eng_rail{sx}", (0.05, 0.56, 0.04), (ex + sx * 0.17, ey, DECK + 0.02), m["rust"]))
+        for sy in (-1, 1):
+            out.append(cyl(f"eng_mount{sx}{sy}", 0.028, 0.03, (ex + sx * 0.12, ey + sy * 0.12, DECK + 0.055), m["tape"]))
+            out.append(cyl(f"eng_mount_bolt{sx}{sy}", 0.01, 0.06, (ex + sx * 0.12, ey + sy * 0.12, DECK + 0.07), m["steel"], (0, 0, 0), 6))
+    # картер: два полукартера (цилиндры поперёк) + разъём с болтами
+    out.append(cyl("crank_l", 0.12, 0.13, (ex - 0.065, ey, ez - 0.03), m["paint2"], ROT_X, 32))
+    out.append(cyl("crank_r", 0.12, 0.13, (ex + 0.065, ey, ez - 0.03), m["paint2"], ROT_X, 32))
+    out.append(cyl("crank_seam", 0.125, 0.012, (ex, ey, ez - 0.03), m["steel"], ROT_X, 32))
+    for k in range(10):
+        a = k * 2 * math.pi / 10
+        out.append(cyl(f"crank_bolt{k}", 0.008, 0.03, (ex, ey + math.cos(a) * 0.112, ez - 0.03 + math.sin(a) * 0.112), m["steel"], ROT_X, 6))
+    # крышка маховика справа и крышка магнето слева
+    out.append(cyl("flywheel_cover", 0.1, 0.035, (ex + 0.15, ey, ez - 0.03), m["steel"], ROT_X, 32))
+    out.append(torus("flywheel_rim", 0.095, 0.008, (ex + 0.17, ey, ez - 0.03), m["steel"], ROT_X, (32, 6)))
+    for k in range(6):
+        a = k * 2 * math.pi / 6
+        out.append(cyl(f"flycov_bolt{k}", 0.007, 0.02, (ex + 0.17, ey + math.cos(a) * 0.075, ez - 0.03 + math.sin(a) * 0.075), m["steel"], ROT_X, 6))
+    out.append(cyl("magneto", 0.045, 0.07, (ex - 0.16, ey + 0.06, ez + 0.03), m["paint"], ROT_X, 24))
+    out.append(cyl("magneto_cap", 0.03, 0.02, (ex - 0.2, ey + 0.06, ez + 0.03), m["tape"], ROT_X, 16))
+    # поддон и сливная пробка, подтёк масла
+    out.append(box("sump", (0.2, 0.22, 0.04), (ex, ey, ez - 0.15), m["paint2"]))
+    out.append(cyl("drain_plug", 0.012, 0.02, (ex, ey + 0.05, ez - 0.175), m["steel"], (0, 0, 0), 6))
+    # цилиндр: гильза + 10 круглых рёбер охлаждения, к голове рёбра шире
+    rod("cyl_barrel", at(0.02), at(0.24), 0.055, m["steel"], out)
+    for k in range(10):
+        t = 0.04 + k * 0.02
+        fin = rod(f"cyl_fin{k}", at(t - 0.003), at(t + 0.003), 0.085 + k * 0.002, m["rust"], out)
+    # головка: оребрённая, с болтами крышки клапанов
+    rod("head_base", at(0.245), at(0.265), 0.095, m["paint2"], out)
+    for k in range(5):
+        t = 0.27 + k * 0.016
+        rod(f"head_fin{k}", at(t - 0.003), at(t + 0.003), 0.1 - k * 0.006, m["rust"], out)
+    rod("head_top", at(0.35), at(0.37), 0.06, m["paint2"], out)
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4
+        p = mathutils.Vector(at(0.37)) + mathutils.Vector((math.cos(a) * 0.045, math.sin(a) * 0.045 * math.cos(tilt), 0))
+        out.append(cyl(f"head_nut{k}", 0.009, 0.015, (p.x, p.y, p.z + 0.005), m["steel"], (tilt, 0, 0), 6))
+    # свеча сбоку головки и высоковольтный провод к магнето
+    plug_base = mathutils.Vector(at(0.3)) + mathutils.Vector((-0.1, 0, 0))
+    plug_tip = plug_base + mathutils.Vector((-0.05, 0, 0.01))
+    rod("plug_body", tuple(plug_base), tuple(plug_tip), 0.011, m["steel"], out)
+    rod("plug_cap", tuple(plug_tip), tuple(plug_tip + mathutils.Vector((-0.04, 0, 0.01))), 0.016, m["tape"], out)
+    lead = [tuple(plug_tip + mathutils.Vector((-0.04, 0, 0.01))), (ex - 0.24, ey + 0.1, ez + 0.2), (ex - 0.24, ey + 0.08, ez + 0.08), (ex - 0.21, ey + 0.06, ez + 0.03)]
+    for i in range(len(lead) - 1):
+        rod(f"ht_lead{i}", lead[i], lead[i + 1], 0.006, m["tape"], out)
+    # карбюратор сзади цилиндра: корпус, поплавковая камера, трос газа, банка воздушного фильтра
+    carb = mathutils.Vector((ex, ey - 0.13, ez + 0.17))
+    rod("intake", at(0.18), tuple(carb), 0.022, m["steel"], out)
+    out.append(cyl("carb_body", 0.03, 0.08, tuple(carb), m["steel"], ROT_Y, 20))
+    out.append(cyl("float_bowl", 0.032, 0.06, (carb.x - 0.05, carb.y, carb.z - 0.04), m["steel"], (0, 0, 0), 20))
+    out.append(cyl("tickler", 0.006, 0.03, (carb.x - 0.05, carb.y, carb.z + 0.005), m["steel"], (0, 0, 0), 8))
+    rod("air_hose", tuple(carb), (carb.x, carb.y - 0.12, carb.z + 0.03), 0.028, m["tape"], out)
+    out.append(cyl("air_filter", 0.065, 0.09, (carb.x, carb.y - 0.17, carb.z + 0.04), m["rust"], ROT_X, 28))
+    out.append(cyl("air_filter_lid", 0.068, 0.012, (carb.x, carb.y - 0.22, carb.z + 0.04), m["paint"], ROT_X, 28))
+    out.append(cyl("air_filter_wing", 0.008, 0.04, (carb.x, carb.y - 0.232, carb.z + 0.04), m["steel"], ROT_X, 6))
+    for k in range(3):
+        out.append(torus(f"hose_clamp{k}", 0.03, 0.004, (carb.x, carb.y - 0.03 - k * 0.04, carb.z + 0.005 + k * 0.01), m["steel"], ROT_X, (16, 4)))
+    # выхлоп: колено из головки вниз и назад, хомуты, обмотка асбестом, глушитель с теплозащитой
+    path = [at(0.3), (ex + 0.12, ey + 0.12, ez + 0.2), (ex + 0.22, ey + 0.05, ez + 0.02), (0.5, ey - 0.15, DECK + 0.07), (0.5, -0.6, DECK + 0.07)]
+    for i in range(len(path) - 1):
+        rod(f"exh{i}", path[i], path[i + 1], 0.021, m["rust"], out)
+        out.append(sphere(f"exh_joint{i}", 0.022, path[i + 1], m["rust"], (1, 1, 1), (12, 8)))
+    for k in range(4):
+        out.append(torus(f"exh_wrap{k}", 0.024, 0.005, (0.5, ey - 0.25 - k * 0.05, DECK + 0.07), m["canvas"], ROT_X, (16, 4)))
+    for y in (-0.2, -0.55):
+        out.append(torus(f"exh_clamp{y}", 0.025, 0.005, (0.5, y, DECK + 0.07), m["steel"], ROT_X, (16, 4)))
+        out.append(box(f"exh_hanger{y}", (0.012, 0.02, 0.06), (0.5, y, DECK + 0.035), m["rust"]))
+    out.append(cyl("muffler", 0.055, 0.42, (0.5, -0.82, DECK + 0.08), m["rust"], ROT_X, 28))
+    out.append(cyl("muffler_cone", 0.04, 0.05, (0.5, -1.05, DECK + 0.08), m["rust"], ROT_X, 20))
+    out.append(cyl("muffler_tip", 0.022, 0.07, (0.5, -1.1, DECK + 0.08), m["steel"], ROT_X, 16))
+    out.append(box("muffler_shield", (0.004, 0.36, 0.09), (0.44, -0.82, DECK + 0.1), m["steel"]))
+    for k in range(6):
+        out.append(cyl(f"shield_hole{k}", 0.008, 0.006, (0.437, -0.97 + k * 0.06, DECK + 0.1), m["tape"], ROT_Y, 10))
+    # кикстартер на правой стороне
+    rod("kick_shaft", (ex + 0.17, ey - 0.06, ez - 0.08), (ex + 0.21, ey - 0.06, ez - 0.08), 0.012, m["steel"], out)
+    rod("kick_lever", (ex + 0.21, ey - 0.06, ez - 0.08), (ex + 0.22, ey - 0.25, ez + 0.0), 0.011, m["steel"], out)
+    rod("kick_pedal", (ex + 0.22, ey - 0.25, ez), (ex + 0.29, ey - 0.25, ez), 0.013, m["rust"], out)
+    # цепной привод на переднюю ось: звёздочки с зубьями, цепь звеньями, кожух
+    cx = ex + 0.2
+    e_c = mathutils.Vector((cx, ey, ez - 0.06))
+    a_c = mathutils.Vector((cx, hz.AXLE_Y, hz.WHEEL_R))
+    for name, c, r, teeth in (("spr_eng", e_c, 0.045, 14), ("spr_axle", a_c, 0.1, 30)):
+        out.append(cyl(name, r - 0.006, 0.01, tuple(c), m["steel"], ROT_X, 32))
+        for k in range(teeth):
+            a = k * 2 * math.pi / teeth
+            out.append(box(f"{name}_t{k}", (0.008, 0.008, 0.012), (c.x, c.y + math.cos(a) * r, c.z + math.sin(a) * r), m["steel"], (a, 0, 0), round_edges=False))
+    # две прямые ветви цепи (касательные снаружи)
+    d = (a_c - e_c)
+    n = mathutils.Vector((0, -d.z, d.y)).normalized()
+    for side, (r1, r2) in ((1, (0.05, 0.105)), (-1, (0.05, 0.105))):
+        p1 = e_c + n * r1 * side
+        p2 = a_c + n * r2 * side
+        seg = p2 - p1
+        links = max(4, int(seg.length / 0.016))
+        for k in range(links):
+            q = p1 + seg * (k + 0.5) / links
+            out.append(box(f"chain{side}_{k}", (0.012, 0.014, 0.008), tuple(q), m["steel"], (math.atan2(seg.z, seg.y), 0, 0), round_edges=False))
+    out.append(box("chain_guard", (0.012, 0.36, 0.06), (cx + 0.02, (ey + hz.AXLE_Y) / 2 + 0.04, max(ez - 0.06, hz.WHEEL_R) + 0.1), m["paint"], (math.radians(-20), 0, 0)))
+    # бак на стойках: окраска с вмятиной, крышка-барашек, краник, бензошланг к карбюратору, хомуты-ленты
+    for sy in (-1, 1):
+        out.append(box(f"tank_post{sy}", (0.03, 0.03, 0.42), (ex, ey + sy * 0.2, DECK + 0.32), m["rust"]))
+        band = torus(f"tank_band{sy}", 0.101, 0.006, (ex, ey + sy * 0.15, DECK + 0.6), m["steel"], ROT_Y, (32, 4))
+        band.scale = (1.0, 0.84, 1.0)
+        out.append(band)
+    tank = sphere("tank", 1, (ex, ey, DECK + 0.6), m["paint"], (0.12, 0.26, 0.1), (32, 18))
+    dent(tank, 0.004, cuts=1, seed=3)
     out.append(tank)
-    out.append(cyl("tank_cap", 0.03, 0.03, (ex, ey + 0.08, DECK + 0.7), m["steel"]))
-    out.append(cyl("fuel_line", 0.005, 0.3, (ex - 0.07, ey - 0.05, DECK + 0.42), m["tape"], (0, 0, 0), 6))
+    out.append(cyl("tank_cap", 0.032, 0.025, (ex, ey + 0.08, DECK + 0.7), m["steel"], (0, 0, 0), 24))
+    out.append(box("tank_cap_wing", (0.05, 0.008, 0.02), (ex, ey + 0.08, DECK + 0.72), m["steel"]))
+    out.append(cyl("petcock", 0.01, 0.04, (ex, ey - 0.08, DECK + 0.49), m["steel"], (0, 0, 0), 8))
+    out.append(box("petcock_lever", (0.03, 0.006, 0.008), (ex + 0.015, ey - 0.08, DECK + 0.48), m["steel"]))
+    hose = [(ex, ey - 0.08, DECK + 0.47), (ex - 0.03, ey - 0.12, DECK + 0.43), (carb.x - 0.05, carb.y, carb.z + 0.03)]
+    for i in range(len(hose) - 1):
+        rod(f"fuel_hose{i}", hose[i], hose[i + 1], 0.006, m["tape"], out)
 
 
 def driver_place(m, out):
