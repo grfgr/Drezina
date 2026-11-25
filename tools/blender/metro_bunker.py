@@ -60,6 +60,10 @@ def mats():
         "board3": hz.tex_material("metro_sign_board3", "metro_sign_board3", 0.9),
         "board4": hz.tex_material("metro_sign_board4", "metro_sign_board4", 0.9),
         "board5": hz.tex_material("metro_sign_board5", "metro_sign_board5", 0.9),
+        "board6": hz.tex_material("metro_sign_board6", "metro_sign_board6", 0.9),
+        "board7": hz.tex_material("metro_sign_board7", "metro_sign_board7", 0.9),
+        "board8": hz.tex_material("metro_sign_board8", "metro_sign_board8", 0.9),
+        "board9": hz.tex_material("metro_sign_board9", "metro_sign_board9", 0.9),
     })
     return m
 
@@ -464,6 +468,19 @@ def build_entrance(outdir, save_fn, reset_fn):
     p.append(hz.cone("vent_cap", 0.34, 0.05, 0.26, (1.6, -3.2, 4.8), m["rust"], (0, 0, 0), 24))
     for i, x in enumerate((-1.75, -1.35)):
         p.append(sphere(f"bag{i}", 1, (x, 1.1, 0.1), m["canvas"], (0.25, 0.16, 0.1), (16, 10)))
+    # --- антураж снаружи (этап 3): всё стоит на отмостке (верх z=0.03) — не повиснет на склоне
+    p.append(cyl("ext_barrel", 0.29, 0.86, (1.55, 2.1, 0.46), m["rust"], (0, 0, 0), 18))
+    for z in (0.18, 0.74):
+        p.append(torus(f"ext_barrel_hoop{z}", 0.295, 0.012, (1.55, 2.1, z), m["rust"], (0, 0, 0), (24, 6)))
+    p.append(cyl("ext_barrel_lid", 0.29, 0.02, (1.75, 2.45, 0.05), m["rust"], (math.radians(8), 0, 0), 18))
+    for k in range(4):        # поддон, прислонённый к откосу
+        p.append(box(f"ext_pallet{k}", (1.0, 0.1, 0.02), (-1.6, 2.15 + 0.05, 0.25 + k * 0.22), m["wood"], (math.radians(-20), 0, 0)))
+    for sx in (-0.42, 0.42):
+        p.append(box(f"ext_pallet_rail{sx}", (0.08, 0.08, 0.95), (-1.6 + sx, 2.12, 0.52), m["wood"], (math.radians(-20), 0, 0)))
+    # щит прислонён к левой части портала (верх к стене)
+    p.append(painted_board("ext_board", 0.84, 0.42, (-1.43, 0.6, 0.25), m["board8"], face="+y", lean=math.radians(-14)))
+    for k in range(4):
+        p.append(cyl(f"ext_can{k}", 0.035, 0.11, (rnd.uniform(-0.6, 1.0), rnd.uniform(1.2, 2.4), 0.065), m["steel"], (math.radians(90), 0, rnd.uniform(0, 3)), 10))
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 3.0)
     # срез насыпи — за фасадом блока (y = -0.35): заглушка не закрывает дверь, по бокам её прячут откосы
@@ -483,6 +500,7 @@ def build_entrance(outdir, save_fn, reset_fn):
     for sx in (-1, 1):
         geo(f"geometry_wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), (math.radians(-32), 0, 0))
     geo("geometry_mound", (11, 8, 6.5), (0, -4.5, 0.25))
+    geo("geometry_ext_barrel", (0.6, 0.6, 0.86), (1.55, 2.1, 0.46))
     save_fn(outdir, "bunker_entrance")
 
 
@@ -582,6 +600,31 @@ def build_stairs(outdir, save_fn, reset_fn):
     for k in range(5):
         p.append(box(f"riser_clamp{k}", (0.5, 0.06, 0.05), (SH_X - 0.25, -SH_Y + 0.08, 1.0 + k * 2.4), m["steel"]))
     p += debris("deb", (-0.8, 2.0), 5, 0.5, m)
+    # --- антураж (этап 3)
+    # ночлег под маршем (низ, x<0): матрас, ящик, свечи, банки, надпись на стене
+    p.append(box("nook_mattress", (0.8, 1.8, 0.12), (-0.8, -1.3, 0.06), m["canvas"], (0, 0, math.radians(4))))
+    p.append(cyl("nook_bedroll", 0.13, 0.7, (-0.8, -2.55, 0.13), m["paint"], ROT_Y, 14))
+    p.append(box("nook_crate", (0.45, 0.4, 0.38), (-1.25, 0.2, 0.19), m["wood"], (0, 0, math.radians(-8))))
+    for k in range(3):
+        p.append(cyl(f"nook_candle{k}", 0.018, 0.05 + k * 0.02, (-1.32 + k * 0.06, 0.15, 0.38 + 0.025 + k * 0.01), m["tile"], (0, 0, 0), 8))
+        p.append(cyl(f"nook_can{k}", 0.035, 0.11, (-0.3 + k * 0.12, 0.3 - k * 0.08, 0.055), m["steel"], (0, 0, 0), 10))
+    p.append(painted_board("nook_board", 1.0, 0.5, (-SH_X + 0.03, -1.0, 1.3), m["board9"], face="+x"))
+    # у двери внизу: лужа, бумаги
+    p += puddle_blob("bot_pud", 0.6, 2.4, 0.5, 0.35, m)
+    for k in range(4):
+        p.append(box(f"bot_paper{k}", (0.2, 0.15, 0.004), (rnd.uniform(-1.2, 1.2), rnd.uniform(1.9, 2.8), 0.004), m["canvas"], (0, 0, rnd.uniform(0, 3))))
+    # площадка 4.8: ящик со свечой и банками в углу
+    p.append(box("land_crate", (0.4, 0.3, 0.32), (1.3, SH_Y - 0.18, LEVEL * 2 + 0.16), m["wood"], (0, 0, math.radians(5))))
+    p.append(cyl("land_candle", 0.018, 0.06, (1.25, SH_Y - 0.2, LEVEL * 2 + 0.35), m["tile"], (0, 0, 0), 8))
+    p.append(cyl("land_bottle", 0.035, 0.26, (1.38, SH_Y - 0.15, LEVEL * 2 + 0.45), m["paint"], (0, 0, 0), 10))
+    # площадка 7.2 и 2.4: банки и бумаги у стены
+    for z in (LEVEL * 3, LEVEL):
+        p.append(cyl(f"land_can{z}", 0.035, 0.11, (-1.3, -SH_Y + 0.15, z + 0.035), m["steel"], (math.radians(90), 0, 0.5), 10))
+        p.append(box(f"land_paper{z}", (0.2, 0.15, 0.004), (0.6, -SH_Y + 0.4, z + 0.004), m["tile"], (0, 0, 1.0)))
+    # верх: «ПРОВЕРЬ ДОЗИМЕТР» напротив двери выхода, через пролёт
+    p.append(painted_board("top_board", 1.2, 0.6, (SH_X - 0.03, -0.5, STAIR_TOP + 1.4), m["board7"], face="-x"))
+    # оборванный кабель вдоль шахты
+    p += sag_cable("shaft_cab", (SH_X - 0.1, -1.5, SH_H - 0.3), (SH_X - 0.15, 1.0, STAIR_TOP - 1.5), 0.4, m, segs=8)
 
     o = join(p, "bunker_stairs")
     uv_box(o, 3.0)
@@ -597,6 +640,8 @@ def build_stairs(outdir, save_fn, reset_fn):
         geo(f"geometry_front_side{sx}", (0.8, 0.4, 2.4), (sx * 1.2, SH_Y + 0.2, 1.2))
     geo("geometry_floor", (2 * SH_X, 2 * SH_Y, 0.3), (0, 0, -0.15))
     geo("geometry_divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2))
+    geo("geometry_nook_crate", (0.45, 0.4, 0.38), (-1.25, 0.2, 0.19))
+    geo("geometry_land_crate", (0.4, 0.3, 0.32), (1.3, SH_Y - 0.18, LEVEL * 2 + 0.16))
     geo("geometry_top_rail", (0.12, run, STAIR_TOP + 1.05 - (STAIR_TOP - LEVEL * 0.5)), (0.08, 0, (STAIR_TOP + 1.05 + STAIR_TOP - LEVEL * 0.5) / 2))
     for z, yy in ((STAIR_TOP, SH_Y - 0.5), (LEVEL * 2, SH_Y - 0.5), (LEVEL * 3, -SH_Y + 0.5), (LEVEL, -SH_Y + 0.5)):
         geo(f"geometry_landing{z}", (2 * SH_X, 1.0, 0.2), (0, yy, z - 0.1))
@@ -631,7 +676,26 @@ def build_corridor(outdir, save_fn, reset_fn):
     # водосток
     p.append(box("drain", (0.2, L, 0.02), (-COR_W / 2 + 0.2, 0, 0.005), m["steel"]))
     p += debris("deb", (0.6, -2.5), 4, 0.4, m)
+    # --- антураж (этап 3): опрокинутый шкаф, упавшая балка, стул, противогаз на трубе, надпись, лужа
+    p.append(box("cab_fallen", (0.45, 1.6, 0.42), (-0.93, -2.0, 0.21), m["paint2"], (0, 0, math.radians(3))))
+    p.append(box("cab_fallen_door", (0.43, 0.75, 0.02), (-0.55, -2.4, 0.04), m["paint2"], (0, math.radians(-4), math.radians(-25))))
+    for k in range(5):
+        p.append(box(f"cab_paper{k}", (0.21, 0.29, 0.004), (-0.5 + rnd.uniform(-0.2, 0.4), -2.0 + rnd.uniform(-1.0, 1.0), 0.004), m["tile"],
+                     (0, 0, rnd.uniform(0, 3))))
+    p.append(box("beam_fallen", (0.2, 0.22, 3.0), (0.97, 2.2, 1.3), m["concrete"], (math.radians(-38), 0, 0)))
+    for k in range(3):
+        p.append(cyl(f"beam_rebar{k}", 0.007, 0.35, (0.95 + (k - 1) * 0.05, 1.05, 0.12), m["rust"], (math.radians(-60 + k * 20), 0, 0), 6))
+    p.append(box("chair_seat", (0.4, 0.4, 0.03), (0.55, -0.4, 0.22), m["wood"], (math.radians(80), 0, math.radians(20))))
+    for k, (dx, dz) in enumerate(((-0.17, 0.1), (0.17, 0.1), (-0.17, 0.42), (0.17, 0.42))):
+        p.append(cyl(f"chair_leg{k}", 0.012, 0.42, (0.55 + dx, -0.25, dz), m["steel"], (math.radians(90), 0, math.radians(20)), 6))
+    p.append(sphere("gasmask", 0.1, (-COR_W / 2 + 0.2, 0.8, 2.15), m["paint"], (0.9, 0.8, 1.1), (12, 8)))
+    p.append(cyl("gasmask_filter", 0.045, 0.08, (-COR_W / 2 + 0.24, 0.88, 2.05), m["steel"], (math.radians(60), 0, 0), 10))
+    p.append(cyl("gasmask_strap", 0.006, 0.3, (-COR_W / 2 + 0.17, 0.8, 2.33), m["tape"], (0, 0, 0), 6))
+    p.append(painted_board("cor_board", 1.1, 0.55, (COR_W / 2 - 0.03, -1.2, 1.5), m["board6"], face="-x"))
+    p += puddle_blob("cor_pud", 0.1, 0.9, 0.5, 0.9, m)
     o = finish(p, "bunker_corridor")
+    geo("geometry_cab_fallen", (0.45, 1.6, 0.42), (-0.93, -2.0, 0.21))
+    geo("geometry_beam_fallen", (0.25, 2.0, 2.4), (0.97, 2.2, 1.2))
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.4, L, COR_H), (sx * (COR_W / 2 + 0.2), 0, COR_H / 2))
     geo("geometry_floor", (COR_W, L, 0.3), (0, 0, -0.15))
@@ -858,8 +922,8 @@ def station_details(m):
 
 def painted_board(name, w, h, loc, mat, face="-y", lean=0.0):
     """Фанерный щит с надписью. face — куда смотрит лицевая сторона (-y, +y, -x, +x); lean — наклон верха к стене."""
-    b = sign_plate(name, (w, 0.018, h), (0, 0, 0), mat)      # читается с -Y
-    b.rotation_euler = (lean, 0, math.radians({"-y": 0, "+y": 180, "-x": -90, "+x": 90}[face]))
+    b = sign_plate(name, (w, 0.018, h), (0, 0, 0), mat)      # читается с +Y (см. uv_front)
+    b.rotation_euler = (-lean, 0, math.radians({"+y": 0, "-y": 180, "+x": -90, "-x": 90}[face]))
     bpy.ops.object.select_all(action="DESELECT")
     b.select_set(True)
     bpy.context.view_layer.objects.active = b
@@ -929,14 +993,14 @@ def stalker_station(m):
     p.append(cyl("camp_pot_chain", 0.004, 0.22, (cx, cy, P + 0.73), m["steel"], (0, 0, 0), 6))
     g.append(("geometry_camp_table", (0.7, 0.5, 0.45), (-3.1, 7.0, P + 0.225)))
     # --- надписи краской на фанере
-    p.append(painted_board("graf_board1", 1.4, 0.7, (ST_W / 2 - 0.12, 9.0, 0.38), m["board1"], face="-x", lean=math.radians(-12)))
+    p.append(painted_board("graf_board1", 1.4, 0.7, (ST_W / 2 - 0.12, 8.0, 0.38), m["board1"], face="-x", lean=math.radians(-12)))
     p.append(painted_board("graf_board2", 1.2, 0.6, (-ST_W / 2 + 0.03, 9.4, P + 1.35), m["board2"], face="+x"))
     p.append(painted_board("graf_board3", 1.0, 0.5, (DOOR_X + 1.5, -ST_LEN / 2 + 0.03, 1.4), m["board3"], face="+y"))
     for k, (x, y, z) in enumerate(((-ST_W / 2 + 0.035, 9.0, P + 1.62), (-ST_W / 2 + 0.035, 9.8, P + 1.62))):   # гвозди
         p.append(cyl(f"graf_nail{k}", 0.006, 0.03, (x + 0.01, y, z), m["steel"], ROT_Y, 6))
     # --- знак радиации у портала и рядом с ним, ржавый, на одном гвозде (перекошен)
     rad = sign_plate("rad_sign", (0.8, 0.012, 0.4), (TUN_W / 2 + 0.9, ST_LEN / 2 - 0.03, 2.1), m["sign_rad"])
-    rad.rotation_euler = (0, math.radians(7), 0)
+    rad.rotation_euler = (0, math.radians(7), math.radians(180))     # лицом в зал (-Y), иначе зеркально
     p.append(rad)
     # --- баррикада из мешков у портала: слева и справа от пути, проход для дрезины свободен
     for side in (-1, 1):
