@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Motor", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
@@ -137,9 +137,36 @@ class CfgSoundSets
 	};
 };
 
+// слоты бочек грузового прицепа (каждая бочка — отдельное хранилище)
+class CfgSlots
+{
+	class Slot_DrezinaBarrel1
+	{
+		name = "DrezinaBarrel1";
+		displayName = "Бочка 1";
+		ghostIcon = "set:dayz_inventory image:cat_common_cargo";
+	};
+	class Slot_DrezinaBarrel2: Slot_DrezinaBarrel1
+	{
+		name = "DrezinaBarrel2";
+		displayName = "Бочка 2";
+	};
+	class Slot_DrezinaBarrel3: Slot_DrezinaBarrel1
+	{
+		name = "DrezinaBarrel3";
+		displayName = "Бочка 3";
+	};
+	class Slot_DrezinaBarrel4: Slot_DrezinaBarrel1
+	{
+		name = "DrezinaBarrel4";
+		displayName = "Бочка 4";
+	};
+};
+
 class CfgVehicles
 {
 	class Inventory_Base;
+	class Container_Base;
 	class HouseNoDestruct;
 
 	// Дрезина (Sheffield hand car, ~1890). Двигается скриптом по рельсам, в инвентарь не берётся.
@@ -471,6 +498,140 @@ class CfgVehicles
 				description = "";
 				icon = "set:dayz_inventory image:cat_vehicle_body";
 				attachmentSlots[] = {"Reflector_1_1", "Reflector_2_1"};
+			};
+		};
+	};
+
+
+	// ------------------------------------------------------------------ прицепы к мотодрезине
+	// Машина без водителя: ходовая (SimulationModule), звук и материалы фонарей — от мотодрезины.
+	class Drezina_TrailerBase: Drezina_Motor
+	{
+		scope = 0;
+		displayName = "Прицеп мотодрезины";
+		descriptionShort = "Цепляется к мотодрезине у терминала выдачи.";
+		attachments[] = {"NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
+		fuelCapacity = 1;
+		class Crew {};
+		class Cargo
+		{
+			itemsCargoSize[] = {0, 0};
+			openable = 0;
+		};
+		class DamageSystem
+		{
+			class GlobalHealth
+			{
+				class Health
+				{
+					hitpoints = 3000;
+					healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+				};
+			};
+			class DamageZones
+			{
+				class Chassis
+				{
+					fatalInjuryCoef = -1;
+					componentNames[] = {"dmgZone_chassis"};
+					class Health
+					{
+						hitpoints = 3000;
+						transferToGlobalCoef = 0;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {};
+				};
+			};
+		};
+		class GUIInventoryAttachmentsProps {};
+	};
+
+	// пассажирский: две лавки спинками друг к другу, 4 места лицом в стороны
+	class Drezina_TrailerPassenger: Drezina_TrailerBase
+	{
+		scope = 2;
+		displayName = "Пассажирский прицеп";
+		model = "\Drezina\data\trailer_passenger.p3d";
+		class Crew
+		{
+			class Cargo1
+			{
+				actionSel = "seat_cargo1";
+				proxyPos = "crewCargo1";
+				getInPos = "pos_cargo1";
+				getInDir = "pos_cargo1_dir";
+			};
+			class Cargo2
+			{
+				actionSel = "seat_cargo2";
+				proxyPos = "crewCargo2";
+				getInPos = "pos_cargo2";
+				getInDir = "pos_cargo2_dir";
+			};
+			class Cargo3
+			{
+				actionSel = "seat_cargo3";
+				proxyPos = "crewCargo3";
+				getInPos = "pos_cargo3";
+				getInDir = "pos_cargo3_dir";
+			};
+			class Cargo4
+			{
+				actionSel = "seat_cargo4";
+				proxyPos = "crewCargo4";
+				getInPos = "pos_cargo4";
+				getInDir = "pos_cargo4_dir";
+			};
+		};
+	};
+
+	// грузовой: 4 бочки, каждая — своё хранилище
+	class Drezina_TrailerCargo: Drezina_TrailerBase
+	{
+		scope = 2;
+		displayName = "Грузовой прицеп";
+		model = "\Drezina\data\trailer_cargo.p3d";
+		attachments[] = {"NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2", "DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+		class GUIInventoryAttachmentsProps
+		{
+			class Barrels
+			{
+				name = "Бочки";
+				description = "";
+				icon = "set:dayz_inventory image:cat_common_cargo";
+				attachmentSlots[] = {"DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+			};
+		};
+	};
+
+	class Drezina_TrailerBarrel: Container_Base
+	{
+		scope = 2;
+		displayName = "Бочка прицепа";
+		descriptionShort = "Бочка на грузовом прицепе мотодрезины.";
+		model = "\Drezina\data\trailer_barrel.p3d";
+		weight = 10000;
+		itemSize[] = {10, 10};
+		itemBehaviour = 0;
+		inventorySlot[] = {"DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+		carveNavmesh = 0;
+		canBeDigged = 0;
+		class Cargo
+		{
+			itemsCargoSize[] = {10, 10};
+			openable = 0;
+			allowOwnedCargoManipulation = 1;
+		};
+		class DamageSystem
+		{
+			class GlobalHealth
+			{
+				class Health
+				{
+					hitpoints = 1000;
+					healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+				};
 			};
 		};
 	};

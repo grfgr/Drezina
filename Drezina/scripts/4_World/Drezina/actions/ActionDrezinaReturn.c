@@ -64,9 +64,10 @@ class ActionDrezinaReturn : ActionContinuousBase
 			return;
 		if (!car.CargoEmpty())
 		{
-			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала заберите вещи из сумки мотодрезины.");
+			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала заберите вещи из сумки мотодрезины и бочек прицепа.");
 			return;
 		}
+		car.ServerDetachTrailer();          // прицеп сдаётся вместе с ней
 		Print("[Drezina] мотодрезина сдана на терминале");
 		DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Мотодрезина сдана.");
 		GetGame().ObjectDelete(car);

@@ -15,5 +15,8 @@ modded class ActionConstructor
 		actions.Insert(ActionDrezinaTurnAround);
 		actions.Insert(ActionDrezinaOffRail);
 		actions.Insert(ActionDrezinaOnRail);
+		actions.Insert(ActionDrezinaAttachPassenger);
+		actions.Insert(ActionDrezinaAttachCargo);
+		actions.Insert(ActionDrezinaDetachTrailer);
 	}
 }

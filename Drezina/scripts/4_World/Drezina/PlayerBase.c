@@ -21,6 +21,9 @@ modded class PlayerBase
 		AddAction(ActionMetroDown, InputActionMap);
 		AddAction(ActionMetroUp, InputActionMap);
 		AddAction(ActionDrezinaReturn, InputActionMap);
+		AddAction(ActionDrezinaAttachPassenger, InputActionMap);
+		AddAction(ActionDrezinaAttachCargo, InputActionMap);
+		AddAction(ActionDrezinaDetachTrailer, InputActionMap);
 	}
 
 	bool IsRidingDrezina()

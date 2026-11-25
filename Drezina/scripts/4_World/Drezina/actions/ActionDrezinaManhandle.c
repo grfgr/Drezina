@@ -63,8 +63,8 @@ class ActionDrezinaTurnAround : ActionDrezinaManhandleBase
 	override void OnFinishProgressServer(ActionData action_data)
 	{
 		Drezina_Motor car = Car(action_data.m_Target);
-		if (car && car.CanTurnAround())
-			car.ServerTurnAround();
+		if (car && car.CanTurnAround() && !car.ServerTurnAround())
+			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Мало места для прицепа: отъедьте от конца пути.");
 	}
 }
 

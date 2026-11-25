@@ -31,6 +31,9 @@ import bpy
 MODELS = {
     "handcar": (227.0, True),
     "motor_handcar": (380.0, True),
+    "trailer_passenger": (300.0, True),
+    "trailer_cargo": (320.0, True),
+    "trailer_barrel": (30.0, False),
     "rail_10m": (2000.0, False),
     "rail_2m": (400.0, False),
     "dispenser": (500.0, False),
@@ -54,7 +57,7 @@ SURF_CONCRETE = "dz\\data\\data\\penetration\\concrete.rvmat"
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
 SURFACE = {
-    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "dispenser": SURF_METAL, "tunnel_lamp": SURF_METAL,
+    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_METAL, "tunnel_lamp": SURF_METAL,
     "rail_10m": SURF_WOOD, "rail_2m": SURF_WOOD,
 }
 
