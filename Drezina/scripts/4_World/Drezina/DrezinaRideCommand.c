@@ -12,13 +12,17 @@ class DrezinaRideCommand extends HumanCommandScript
 		m_Handcar = handcar;
 	}
 
+	bool m_Logged;
+
 	override void OnActivate()
 	{
+		Print("[Drezina] ride command activated, server=" + GetGame().IsServer());
 		// Здесь можно запустить свою анимацию качания рычага, когда появится анимграф (см. README).
 	}
 
 	override void OnDeactivate()
 	{
+		Print("[Drezina] ride command deactivated");
 	}
 
 	override void PreAnimUpdate(float pDt)
@@ -43,6 +47,11 @@ class DrezinaRideCommand extends HumanCommandScript
 		vector pos;
 		float yaw;
 		m_Handcar.GetDriverTransform(pos, yaw);
+		if (!m_Logged)
+		{
+			m_Logged = true;
+			Print("[Drezina] ride PostPhys: seat " + pos + ", player " + m_Player.GetPosition());
+		}
 
 		vector mat[3];
 		Math3D.YawPitchRollMatrix(Vector(yaw, 0, 0), mat);

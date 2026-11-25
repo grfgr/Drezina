@@ -497,6 +497,8 @@ class Drezina_Handcar extends ItemBase
 		else
 			ClientSimulate(timeSlice);
 
+		KeepDriverOnDeck();
+
 		if (!GetGame().IsDedicatedServer())
 			UpdateAnimation(timeSlice);
 	}
@@ -511,6 +513,25 @@ class Drezina_Handcar extends ItemBase
 		pos[1] = pos[1] + DrezinaSettings.Get().RailHeightOffset;
 		SetPosition(pos);
 		SetDirection(dir);
+	}
+
+	// Запасная привязка водителя: если скриптовая команда езды не держит персонажа на площадке,
+	// ставим его на место сами (сервер — для всех, клиент водителя — чтобы не было рывков).
+	void KeepDriverOnDeck()
+	{
+		if (!m_Driver || !HasDriver())
+			return;
+		bool mine = !GetGame().IsDedicatedServer() && m_Driver == GetGame().GetPlayer();
+		if (!GetGame().IsServer() && !mine)
+			return;
+		vector seat;
+		float yaw;
+		GetDriverTransform(seat, yaw);
+		if (vector.Distance(m_Driver.GetPosition(), seat) > 0.25)
+		{
+			m_Driver.SetPosition(seat);
+			m_Driver.SetOrientation(Vector(yaw, 0, 0));
+		}
 	}
 
 	// Где стоит водитель (мир) и куда смотрит (yaw в градусах).
