@@ -10,6 +10,7 @@ modded class MissionServer
 	void DrezinaServerInit()
 	{
 		DrezinaTrackManager.Get().ServerInit();
+		DrezinaTunnelManager.Get().ServerInit(); // после путей: тоннель ссылается на свой путь
 
 		// игроки, зашедшие раньше инициализации
 		array<Man> players = new array<Man>;

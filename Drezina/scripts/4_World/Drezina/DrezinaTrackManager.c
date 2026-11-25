@@ -95,24 +95,42 @@ class DrezinaTrackManager
 		return obj;
 	}
 
-	// Рельсы кусками по 2 м вдоль сглаженной линии.
+	// Рельсы: на прямых участках звенья по 10 м (меньше объектов), на кривых — по 2 м.
 	void SpawnRails(DrezinaTrack t, array<Object> outObjects)
 	{
 		float len = t.GetLength();
-		float piece = DrezinaConst.RAIL_PIECE_LEN;
+		if (len < 0.1)
+			return;
 		vector up = Vector(0, DrezinaSettings.Get().RailHeightOffset, 0);
-		int pieces = Math.Ceil(len / piece);
-		for (int i = 0; i < pieces; i++)
+		float d = 0;
+		while (d < len - 0.01)
 		{
-			float center = (i + 0.5) * piece;
-			if (center > len)
-				center = len - piece * 0.5;
+			string type = "Drezina_Rail";
+			float piece = DrezinaConst.RAIL_PIECE_LEN;
+			if (d + 10.0 <= len && IsStraight(t, d, d + 10.0))
+			{
+				type = "Drezina_Rail10";
+				piece = 10.0;
+			}
+			float center = d + piece * 0.5;
+			if (center + piece * 0.5 > len)
+				center = Math.Max(len - piece * 0.5, piece * 0.5); // последний кусок — с нахлёстом назад
 			vector pos, dir;
 			t.GetPosDir(center, pos, dir);
-			Object rail = SpawnStatic("Drezina_Rail", pos + up, dir);
+			Object rail = SpawnStatic(type, pos + up, dir);
 			if (rail)
 				outObjects.Insert(rail);
+			d += piece;
 		}
+	}
+
+	static bool IsStraight(DrezinaTrack t, float d0, float d1)
+	{
+		vector p0, dir0, p1, dir1, pm, dirm;
+		t.GetPosDir(d0 + 0.01, p0, dir0);
+		t.GetPosDir(d1 - 0.01, p1, dir1);
+		t.GetPosDir((d0 + d1) * 0.5, pm, dirm);
+		return vector.Dot(dir0, dir1) > 0.9995 && vector.Dot(dir0, dirm) > 0.9995;
 	}
 
 	void SpawnTrackObjects(DrezinaTrack t)
@@ -615,6 +633,31 @@ class DrezinaTrackManager
 				break;
 			}
 		}
+	}
+
+	// Создать путь из готовых узлов (используется метро).
+	int CreateTrack(array<vector> nodes, string name)
+	{
+		DrezinaTrackData data = new DrezinaTrackData();
+		data.Id = NextTrackId();
+		data.Name = name;
+		data.Nodes.InsertAll(nodes);
+		DrezinaTrack t = new DrezinaTrack(data);
+		m_Tracks.Set(data.Id, t);
+		SpawnTrackObjects(t);
+		SaveTracks();
+		BroadcastTrack(t);
+		return data.Id;
+	}
+
+	void DeleteTrack(int id)
+	{
+		if (!GetTrack(id))
+			return;
+		DespawnTrackObjects(id);
+		m_Tracks.Remove(id);
+		SaveTracks();
+		BroadcastRemove(id);
 	}
 
 	int FindNearestTrack(vector p, float maxDist)

@@ -296,6 +296,188 @@ def build_dispenser(outdir):
     return disp
 
 
+# ----------------------------------------------------------------------------- рельсы 10 м
+
+def build_rail10(outdir):
+    reset_scene()
+    m = mats()
+    parts = []
+    length = 10.0
+    half = GAUGE / 2
+    for i in range(15):
+        y = -length / 2 + 0.33 + i * (length - 0.66) / 14
+        parts.append(box(f"sleeper_{i}", (2.6, 0.24, 0.15), (0, y, 0.075), m["wood_dark"]))
+    for sx in (-1, 1):
+        x = sx * (half + 0.036)
+        parts.append(box(f"foot_{sx}", (0.13, length, 0.012), (x, 0, 0.156), m["rust"]))
+        parts.append(box(f"web_{sx}", (0.02, length, 0.11), (x, 0, 0.21), m["rust"]))
+        parts.append(box(f"head_{sx}", (0.072, length, 0.035), (x, 0, RAIL_TOP + 0.08), m["steel"]))
+    rail = join(parts, "rail")
+    set_origin(rail, (0, 0, RAIL_TOP + 0.0975))
+    rail.location = (0, 0, 0)
+    add_selection_group(rail, "rail")
+    save(outdir, "rail_10m")
+
+
+# ----------------------------------------------------------------------------- метро
+
+TUN_W = 6.0      # внутренняя ширина тоннеля
+TUN_H = 5.0      # высота в ключе свода
+WALL = 0.5       # толщина стен
+ST_W = 12.0      # ширина станции
+ST_H = 6.0
+ST_LEN = 24.0    # длина станции (DrezinaConst.STATION_LEN)
+
+
+def concrete_mats():
+    return {
+        "concrete": material("metro_concrete", (0.48, 0.47, 0.45), rough=0.95),
+        "concrete_dark": material("metro_concrete_dark", (0.3, 0.3, 0.29), rough=0.95),
+        "tile": material("metro_tile", (0.75, 0.72, 0.62), rough=0.5),
+        "iron": material("drezina_iron", (0.12, 0.12, 0.12), rough=0.6, metal=0.8),
+        "sign": material("metro_sign", (0.65, 0.08, 0.08)),
+        "glass": material("metro_lamp", (1.0, 0.85, 0.55), rough=0.3),
+    }
+
+
+def arch(name, width, height, length, y, m, thickness=WALL, segs=10):
+    """Свод: стены до высоты пят + полукруглая арка из плит."""
+    parts = []
+    spring = height - width / 2          # высота пят свода
+    for sx in (-1, 1):
+        parts.append(box(f"{name}_wall_{sx}", (thickness, length, spring),
+                         (sx * (width / 2 + thickness / 2), y, spring / 2), m))
+    r = width / 2 + thickness / 2
+    for i in range(segs):
+        a0 = math.pi * i / segs
+        a1 = math.pi * (i + 1) / segs
+        am = (a0 + a1) / 2
+        chord = 2 * r * math.sin((a1 - a0) / 2) + 0.02
+        parts.append(box(f"{name}_arch_{i}", (chord, length, thickness),
+                         (math.cos(am) * r, y, spring + math.sin(am) * r), m, (0, -(am - math.pi / 2), 0)))
+    return parts
+
+
+def geometry_box(name, size, loc):
+    o = box(name, size, loc, material("geometry", (1, 0, 1)))
+    o.display_type = "WIRE"
+    return o
+
+
+def build_tunnel(outdir):
+    reset_scene()
+    m = concrete_mats()
+    L = 10.0
+    parts = [box("floor", (TUN_W + 2 * WALL, L, 0.3), (0, 0, -0.15), m["concrete_dark"])]
+    parts += arch("t", TUN_W, TUN_H, L, 0, m["concrete"])
+    # кабели вдоль стены
+    for k in range(3):
+        parts.append(cyl(f"cable_{k}", 0.03, L, (-TUN_W / 2 + 0.06, 0, 1.6 + k * 0.12), m["iron"], (math.radians(90), 0, 0), 6))
+    # рёбра-тюбинги
+    for yy in (-L / 2 + 0.15, L / 2 - 0.15):
+        parts += arch(f"rib{yy}", TUN_W - 0.3, TUN_H - 0.15, 0.3, yy, m["concrete_dark"], thickness=0.2, segs=8)
+    t = join(parts, "tunnel")
+    add_selection_group(t, "tunnel")
+    # Geometry LOD: пол, стены, потолок
+    geometry_box("geometry_floor", (TUN_W + 1, L, 0.4), (0, 0, -0.2))
+    for sx in (-1, 1):
+        geometry_box(f"geometry_wall_{sx}", (0.5, L, TUN_H), (sx * (TUN_W / 2 + 0.25), 0, TUN_H / 2))
+    geometry_box("geometry_roof", (TUN_W + 1, L, 0.5), (0, 0, TUN_H + 0.25))
+    save(outdir, "tunnel_10m")
+
+
+def build_station(outdir):
+    """Станция: origin = пол по центру. Глухой торец на -Y, проём в тоннель на +Y."""
+    reset_scene()
+    m = concrete_mats()
+    parts = [box("floor", (ST_W + 2 * WALL, ST_LEN, 0.3), (0, 0, -0.15), m["concrete_dark"])]
+    parts += arch("st", ST_W, ST_H, ST_LEN, 0, m["tile"], segs=14)
+    spring = ST_H - ST_W / 2
+    r = ST_W / 2
+    # глухой торец: сплошная стена, сверху ступеньками под арку
+    parts.append(box("back_wall", (ST_W, WALL, spring), (0, -ST_LEN / 2 - WALL / 2, spring / 2), m["tile"]))
+    steps = 8
+    for i in range(steps):
+        x0 = -r + 2 * r * i / steps
+        xm = x0 + r / steps
+        h = math.sqrt(max(r * r - xm * xm, 0))
+        parts.append(box(f"back_arch_{i}", (2 * r / steps + 0.02, WALL, h), (xm, -ST_LEN / 2 - WALL / 2, spring + h / 2), m["tile"]))
+    # передний торец с проёмом под тоннель
+    side_w = (ST_W - TUN_W) / 2
+    for sx in (-1, 1):
+        parts.append(box(f"front_side_{sx}", (side_w, WALL, ST_H), (sx * (TUN_W / 2 + side_w / 2), ST_LEN / 2 + WALL / 2, ST_H / 2), m["tile"]))
+    parts.append(box("front_top", (TUN_W, WALL, ST_H - TUN_H), (0, ST_LEN / 2 + WALL / 2, TUN_H + (ST_H - TUN_H) / 2), m["tile"]))
+    # колонны и скамейки
+    for yy in (-6, 0, 6):
+        for sx in (-1, 1):
+            parts.append(box(f"col_{yy}_{sx}", (0.5, 0.5, spring), (sx * 4.2, yy, spring / 2), m["concrete"]))
+    parts.append(box("bench", (0.5, 2.5, 0.45), (-5.4, -8, 0.225), m["concrete_dark"]))
+    # табличка «МЕТРО»
+    parts.append(box("sign", (2.4, 0.08, 0.6), (0, -ST_LEN / 2 + 0.05, 3.2), m["sign"]))
+    st = join(parts, "station")
+    add_selection_group(st, "station")
+    geometry_box("geometry_floor", (ST_W + 1, ST_LEN, 0.4), (0, 0, -0.2))
+    for sx in (-1, 1):
+        geometry_box(f"geometry_wall_{sx}", (0.5, ST_LEN, ST_H), (sx * (ST_W / 2 + 0.25), 0, ST_H / 2))
+        geometry_box(f"geometry_front_{sx}", (side_w, 0.5, ST_H), (sx * (TUN_W / 2 + side_w / 2), ST_LEN / 2 + 0.25, ST_H / 2))
+    geometry_box("geometry_back", (ST_W, 0.5, ST_H), (0, -ST_LEN / 2 - 0.25, ST_H / 2))
+    geometry_box("geometry_roof", (ST_W + 1, ST_LEN, 0.5), (0, 0, ST_H + 0.25))
+    save(outdir, "metro_station")
+
+
+def build_hatch(outdir):
+    """Павильон-спуск: бетонная будка 3x3 с дверным проёмом на +Y и надписью МЕТРО."""
+    reset_scene()
+    m = concrete_mats()
+    parts = [box("base", (3.4, 3.4, 0.3), (0, 0, 0.0), m["concrete_dark"])]
+    for sx in (-1, 1):
+        parts.append(box(f"wall_side_{sx}", (0.25, 3.0, 2.8), (sx * 1.5, 0, 1.55), m["concrete"]))
+    parts.append(box("wall_back", (3.0, 0.25, 2.8), (0, -1.5, 1.55), m["concrete"]))
+    for sx in (-1, 1):
+        parts.append(box(f"wall_front_{sx}", (0.9, 0.25, 2.8), (sx * 1.05, 1.5, 1.55), m["concrete"]))
+    parts.append(box("lintel", (1.2, 0.25, 0.6), (0, 1.5, 2.65), m["concrete"]))
+    parts.append(box("roof", (3.6, 3.6, 0.25), (0, 0, 3.05), m["concrete_dark"]))
+    parts.append(box("sign", (1.6, 0.08, 0.45), (0, 1.66, 3.4), m["sign"]))
+    # тёмный проём-лестница вниз внутри
+    parts.append(box("stair_hole", (1.4, 2.0, 0.02), (0, -0.2, 0.16), m["iron"]))
+    h = join(parts, "hatch")
+    add_selection_group(h, "hatch")
+    geometry_box("geometry_back", (3.0, 0.3, 2.8), (0, -1.5, 1.55))
+    for sx in (-1, 1):
+        geometry_box(f"geometry_side_{sx}", (0.3, 3.0, 2.8), (sx * 1.5, 0, 1.55))
+        geometry_box(f"geometry_front_{sx}", (0.9, 0.3, 2.8), (sx * 1.05, 1.5, 1.55))
+    save(outdir, "metro_hatch")
+
+
+def build_ladder(outdir):
+    """Стальная лестница у стены станции, уходит в шахту в своде."""
+    reset_scene()
+    m = concrete_mats()
+    parts = []
+    height = ST_H
+    for sx in (-0.25, 0.25):
+        parts.append(box(f"rail_{sx}", (0.05, 0.05, height), (sx, 0, height / 2), m["iron"]))
+    n = int(height / 0.3)
+    for i in range(n):
+        parts.append(cyl(f"rung_{i}", 0.015, 0.5, (0, 0, 0.3 + i * 0.3), m["iron"], (0, math.radians(90), 0), 6))
+    parts.append(box("hatch_ring", (1.0, 1.0, 0.15), (0, 0, height - 0.1), m["concrete_dark"]))
+    parts.append(box("sign_exit", (0.6, 0.04, 0.25), (0, 0.15, 2.2), material("metro_exit", (0.1, 0.55, 0.15))))
+    lad = join(parts, "ladder")
+    add_selection_group(lad, "ladder")
+    geometry_box("geometry_ladder", (0.6, 0.2, height), (0, 0, height / 2))
+    save(outdir, "metro_ladder")
+
+
+def build_lamp(outdir):
+    reset_scene()
+    m = concrete_mats()
+    parts = [box("housing", (0.35, 0.8, 0.12), (0, 0, 0.06), m["iron"]),
+             box("glass", (0.28, 0.7, 0.03), (0, 0, -0.01), m["glass"])]
+    lamp = join(parts, "lamp")
+    add_selection_group(lamp, "lamp")
+    save(outdir, "tunnel_lamp")
+
+
 def main():
     argv = sys.argv
     if "--" in argv:
@@ -306,6 +488,12 @@ def main():
     build_handcar(outdir)
     build_rail(outdir)
     build_dispenser(outdir)
+    build_rail10(outdir)
+    build_tunnel(outdir)
+    build_station(outdir)
+    build_hatch(outdir)
+    build_ladder(outdir)
+    build_lamp(outdir)
     print("[Drezina] models written to", outdir)
 
 

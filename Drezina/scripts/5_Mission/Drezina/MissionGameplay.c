@@ -17,7 +17,7 @@ modded class ChatInputMenu
 			string text = m_edit_box.GetText();
 			string low = text;
 			low.ToLower();
-			if (low.IndexOf(DrezinaConst.CHAT_PREFIX) == 0)
+			if (low.IndexOf(DrezinaConst.CHAT_PREFIX) == 0 || low.IndexOf(DrezinaConst.METRO_PREFIX) == 0)
 			{
 				PlayerBase player = PlayerBase.Cast(GetGame().GetPlayer());
 				if (player)

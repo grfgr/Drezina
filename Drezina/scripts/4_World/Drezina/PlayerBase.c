@@ -8,6 +8,8 @@ modded class PlayerBase
 		AddAction(ActionDrezinaTake, InputActionMap);
 		AddAction(ActionDrezinaBoard, InputActionMap);
 		AddAction(ActionDrezinaReverse, InputActionMap);
+		AddAction(ActionMetroDown, InputActionMap);
+		AddAction(ActionMetroUp, InputActionMap);
 	}
 
 	bool IsRidingDrezina()
@@ -36,7 +38,14 @@ modded class PlayerBase
 			{
 				Param1<string> p = new Param1<string>("");
 				if (ctx.Read(p) && sender && sender.GetPlayer() == this)
-					DrezinaTrackManager.Get().ServerOnAdminCommand(sender, p.param1);
+				{
+					string low = p.param1;
+					low.ToLower();
+					if (low.IndexOf(DrezinaConst.METRO_PREFIX) == 0)
+						DrezinaTunnelManager.Get().ServerOnAdminCommand(sender, p.param1);
+					else
+						DrezinaTrackManager.Get().ServerOnAdminCommand(sender, p.param1);
+				}
 			}
 		}
 		else
