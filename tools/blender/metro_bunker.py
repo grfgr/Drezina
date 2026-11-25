@@ -64,6 +64,11 @@ def mats():
         "board7": hz.tex_material("metro_sign_board7", "metro_sign_board7", 0.9),
         "board8": hz.tex_material("metro_sign_board8", "metro_sign_board8", 0.9),
         "board9": hz.tex_material("metro_sign_board9", "metro_sign_board9", 0.9),
+        "board10": hz.tex_material("metro_sign_board10", "metro_sign_board10", 0.9),
+        "board11": hz.tex_material("metro_sign_board11", "metro_sign_board11", 0.9),
+        "sign_tp": hz.tex_material("metro_sign_tp", "metro_sign_tp", 0.7, 0.3),
+        "wall_b": hz.tex_material("metro_wall_b", "metro_wall_b", 0.9),
+        "wall_c": hz.tex_material("metro_wall_c", "metro_wall_c", 0.6),
     })
     return m
 
@@ -287,6 +292,17 @@ def rib(prefix, w, wall_h, rise, y, mat, depth=0.22, t=0.14, segs=28):
         for z in (0.6, 1.4, 2.0):
             if z < wall_h:
                 parts.append(hz.bolt(f"{prefix}_b{sx}{z}", (sx * (a - t / 2), y + depth / 2 - 0.02, z), "x" if sx < 0 else "-x", mat, 0.018))
+    # заклёпки по дуге на обеих гранях кольца и фланцы стыков сегментов
+    ra, rb = a, rise - t / 2
+    for k in range(1, 12):
+        th = math.pi * k / 12
+        px, pz = math.cos(th) * ra, wall_h + math.sin(th) * rb
+        for sy in (-1, 1):
+            if (k + (sy > 0)) % 2 == 0:     # через одну на каждой грани (бюджет треугольников станции)
+                parts.append(hz.bolt(f"{prefix}_r{k}{sy}", (px, y + sy * (depth / 2 + 0.004), pz), "y" if sy > 0 else "-y", mat, 0.014))
+        if k % 3 == 0:     # стык сегментов: утолщённый фланец
+            ang = th - math.pi / 2
+            parts.append(box(f"{prefix}_fl{k}", (0.05, depth + 0.04, t + 0.04), (px, y, pz), mat, (0, ang, 0)))
     return parts
 
 
@@ -537,9 +553,9 @@ def build_stairs(outdir, save_fn, reset_fn):
     # стены шахты
     # снизу (3 м) — крашеная стена, выше — голый бетон в потёках
     for sx in (-1, 1):
-        p.append(box(f"wall_x{sx}", (t, 2 * SH_Y + 2 * t, 3.0), (sx * (SH_X + t / 2), 0, 1.5), m["wall"], round_edges=False))
+        p.append(box(f"wall_x{sx}", (t, 2 * SH_Y + 2 * t, 3.0), (sx * (SH_X + t / 2), 0, 1.5), m["wall_b"], round_edges=False))
         p.append(box(f"wall_xc{sx}", (t, 2 * SH_Y + 2 * t, SH_H - 3.0), (sx * (SH_X + t / 2), 0, 3.0 + (SH_H - 3.0) / 2), m["concrete"], round_edges=False))
-    p.append(box("wall_back", (2 * SH_X, t, 3.0), (0, -SH_Y - t / 2, 1.5), m["wall"], round_edges=False))
+    p.append(box("wall_back", (2 * SH_X, t, 3.0), (0, -SH_Y - t / 2, 1.5), m["wall_b"], round_edges=False))
     p.append(box("wall_backc", (2 * SH_X, t, SH_H - 3.0), (0, -SH_Y - t / 2, 3.0 + (SH_H - 3.0) / 2), m["concrete"], round_edges=False))
     front = box("wall_front", (2 * SH_X, t, SH_H), (0, SH_Y + t / 2, SH_H / 2), m["concrete"], round_edges=False)
     cutter = box("cut_front", (1.6, 1.0, 2.4), (0, SH_Y + t / 2, 1.2), m["wall"], round_edges=False)
@@ -662,7 +678,7 @@ def build_corridor(outdir, save_fn, reset_fn):
     p = []
     L = COR_LEN
     for sx in (-1, 1):
-        p.append(box(f"wall{sx}", (WALL_T, L, COR_H), (sx * (COR_W / 2 + WALL_T / 2), 0, COR_H / 2), m["wall"], round_edges=False))
+        p.append(box(f"wall{sx}", (WALL_T, L, COR_H), (sx * (COR_W / 2 + WALL_T / 2), 0, COR_H / 2), m["wall_c"], round_edges=False))
     p.append(box("floor", (COR_W + 2 * WALL_T, L, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False))
     p.append(box("ceiling", (COR_W + 2 * WALL_T, L, 0.3), (0, 0, COR_H + 0.15), m["concrete"], round_edges=False))
     for i in range(5):
@@ -1264,6 +1280,60 @@ def tunnel_props(variant, m, walk_h):
         g.append(("geometry_stash", (0.65, 0.5, 0.42), (-2.62, 1.6, walk_h + 0.21)))
         p.append(painted_board("board5", 1.0, 0.5, (-TUN_W / 2 + 0.03, -2.0, walk_h + 1.6), m["board5"], face="+x"))
         p += broken_lamp("blamp", 0.6, 3.6, m, 0.4)
+    elif variant == "e":
+        # служебная ниша: металлическая дверь в стене (закрыта), щитки, телефон, табличка ТП-4
+        dx = -TUN_W / 2 + 0.06
+        p.append(box("door_frame", (0.12, 1.2, 2.2), (dx, 1.0, walk_h + 1.1), m["steel"]))
+        p.append(box("door_leaf", (0.06, 1.0, 2.0), (dx + 0.05, 1.0, walk_h + 1.0), m["door"]))
+        p.append(cyl("door_handle", 0.015, 0.14, (dx + 0.1, 1.38, walk_h + 1.0), m["steel"], ROT_X, 8))
+        for zh in (0.3, 1.7):
+            p.append(cyl(f"door_hinge{zh}", 0.02, 0.12, (dx + 0.08, 0.52, walk_h + zh), m["rust"]))
+        p.append(painted_board("tp_sign", 0.5, 0.25, (dx + 0.09, 1.0, walk_h + 2.35), m["sign_tp"], face="+x"))
+        for k, yy in enumerate((-1.2, -2.0)):
+            p.append(box(f"cab{k}", (0.25, 0.6, 0.8), (-TUN_W / 2 + 0.13, yy, walk_h + 1.3), m["paint"]))
+            p.append(box(f"cab_door{k}", (0.02, 0.56, 0.76), (-TUN_W / 2 + 0.26, yy, walk_h + 1.3), m["paint2"]))
+            p.append(box(f"cab_lock{k}", (0.02, 0.04, 0.08), (-TUN_W / 2 + 0.28, yy + 0.22, walk_h + 1.3), m["steel"]))
+        p.append(box("phone_box", (0.15, 0.25, 0.35), (-TUN_W / 2 + 0.08, -3.4, walk_h + 1.4), m["hazard"]))
+        p.append(torus("phone_cord", 0.05, 0.006, (-TUN_W / 2 + 0.17, -3.4, walk_h + 1.15), m["tape"], ROT_Y, (12, 6)))
+        p += puddle_blob("pud_e", 1.7, -2.5, 0.7, 0.6, m)
+    elif variant == "f":
+        # брошенный блокпост: мешки у стены и на проходе, шлагбаум, ящики с патронами, бочка, щит «Стой! Пропуск»
+        for row in range(3):
+            for k in range(3 - (row == 2)):
+                p.append(sandbag(f"bp_bag{row}{k}", (1.6 + k * 0.52 + (0.26 if row % 2 else 0), 2.6, 0.11 + row * 0.21), rnd.uniform(-0.15, 0.15), m))
+        g.append(("geometry_bp_bags", (1.6, 0.45, 0.66), (2.25, 2.6, 0.33)))
+        for k in range(2):
+            p.append(sandbag(f"bp_wbag{k}", (-2.62, 2.2 + k * 0.6, walk_h + 0.11), 1.57, m))
+        p.append(box("barrier_post", (0.12, 0.12, 1.0), (1.3, 1.6, 0.5), m["hazard"]))
+        p.append(box("barrier_arm", (1.6, 0.08, 0.08), (2.1, 1.6, 0.95), m["hazard"]))     # поднят вдоль стены, путь свободен
+        for k, (x, y) in enumerate(((2.4, -1.0), (2.4, -1.55), (2.35, -1.25))):
+            z = 0.15 if k < 2 else 0.45
+            p.append(box(f"ammo{k}", (0.55, 0.3, 0.3), (x, y, z), m["paint"] if k != 1 else m["wood"], (0, 0, math.radians(rnd.uniform(-8, 8)))))
+        g.append(("geometry_ammo", (0.65, 0.9, 0.6), (2.4, -1.25, 0.3)))
+        p.append(cyl("bp_barrel", 0.29, 0.86, (2.5, 0.6, 0.43), m["rust"], (0, 0, 0), 18))
+        p.append(cyl("bp_barrel_ash", 0.26, 0.01, (2.5, 0.6, 0.84), m["tape"]))
+        g.append(("geometry_bp_barrel", (0.6, 0.6, 0.86), (2.5, 0.6, 0.43)))
+        p.append(painted_board("board10", 1.0, 0.5, (TUN_W / 2 - 0.03, 2.0, 1.45), m["board10"], face="-x"))
+        p.append(cyl("bp_bedroll", 0.13, 0.7, (-2.62, -1.2, walk_h + 0.13), m["paint"], (math.radians(90), 0, 0), 14))
+    elif variant == "g":
+        # аварийная крепь: деревянные стойки и прогоны под треснувшим сводом, капёж, лужи, предупреждение
+        for k, yy in enumerate((-2.5, 0.0, 2.5)):
+            for sx in (-1, 1):
+                x = sx * (TUN_W / 2 - 0.35)
+                h = tun_vault_z(x) - 0.25
+                p.append(box(f"prop{k}{sx}", (0.2, 0.2, h), (x, yy, h / 2), m["wood"]))
+            p.append(box(f"cap{k}", (TUN_W - 0.5, 0.22, 0.22), (0, yy, tun_vault_z(TUN_W / 2 - 0.35) - 0.14), m["wood"]))
+            p.append(box(f"wedge{k}", (0.3, 0.2, 0.08), (0, yy, tun_vault_z(0) - 0.05), m["wood"]))
+        for k in range(3):
+            p.append(box(f"lagging{k}", (0.25, 5.4, 0.04), (-1.0 + k * 1.0, 0, tun_vault_z(-1.0 + k * 1.0) - 0.04), m["wood"], (0, math.radians(-14 + k * 14), 0)))
+        g.append(("geometry_props_l", (0.25, 5.3, 2.5), (-(TUN_W / 2 - 0.35), 0, 1.25)))
+        g.append(("geometry_props_r", (0.25, 5.3, 2.5), (TUN_W / 2 - 0.35, 0, 1.25)))
+        p.append(box("crack_scar", (1.6, 1.8, 0.05), (0.4, 1.2, tun_vault_z(0.4) - 0.03), m["dirt"], round_edges=False))
+        p += puddle_blob("pud_g1", 0.2, 1.0, 1.3, 1.1, m)
+        p += puddle_blob("pud_g2", -1.4, -2.2, 0.6, 0.7, m)
+        for k in range(5):
+            p.append(box(f"plank{k}", (0.2, 1.4, 0.03), (rnd.uniform(1.4, 2.6), rnd.uniform(-4, 4), 0.02 + k * 0.03), m["wood"], (0, 0, rnd.uniform(-0.4, 0.4))))
+        p.append(painted_board("board11", 1.0, 0.5, (-TUN_W / 2 + 0.03, 3.6, walk_h + 1.6), m["board11"], face="+x"))
     return p, g
 
 
@@ -1274,7 +1344,8 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="
     floor_len = 2.02 if short else L
     wall_len = 2.2 if short else L
     p = [box("floor", (TUN_W + 2 * WALL_T, floor_len, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False)]
-    p += vault("t", TUN_W, TUN_WALL_H, TUN_RISE, wall_len, 0, m["wall"], m["concrete"])
+    wall_mat = m[{"a": "wall", "b": "wall_b", "c": "wall_c", "d": "wall", "e": "wall_b", "f": "wall_c", "g": "wall"}.get(variant, "wall")]
+    p += vault("t", TUN_W, TUN_WALL_H, TUN_RISE, wall_len, 0, wall_mat, m["concrete"])
     ribs = [0.0] if short else [-3.75, -1.25, 1.25, 3.75]
     for i, y in enumerate(ribs):
         p += rib(f"rib{i}", TUN_W, TUN_WALL_H, TUN_RISE, y, m["tubing"], depth=0.2)
@@ -1293,6 +1364,19 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="
         p.append(box(f"handrail_bracket{y}", (0.1, 0.03, 0.03), (-TUN_W / 2 + 0.04, y, walk_h + 0.95), m["rust"]))
     amb_geo = []
     if not short:
+        # кабельный лоток вдоль правой стены (над кабелями на крюках) и распределительная коробка
+        tz = 2.15
+        p.append(box("tray", (0.3, floor_len, 0.012), (TUN_W / 2 - 0.25, 0, tz), m["steel"], round_edges=False))
+        for sx in (-1, 1):
+            p.append(box(f"tray_lip{sx}", (0.012, floor_len, 0.06), (TUN_W / 2 - 0.25 + sx * 0.15, 0, tz + 0.03), m["steel"], round_edges=False))
+        for k in range(4):
+            p.append(cyl(f"tray_cable{k}", 0.02, floor_len, (TUN_W / 2 - 0.35 + k * 0.06, 0, tz + 0.03), m["tape"], ROT_Y, 8))
+        for yy in (-3.75, -1.25, 1.25, 3.75):
+            p.append(box(f"tray_bracket{yy}", (0.34, 0.04, 0.04), (TUN_W / 2 - 0.2, yy + 0.15, tz - 0.03), m["rust"]))
+        jy = {"a": 3.0, "b": -2.0, "c": 2.4, "d": -3.2, "e": 1.8, "f": -1.6, "g": 3.4}.get(variant, 0.0)
+        p.append(box("jbox", (0.12, 0.35, 0.45), (TUN_W / 2 - 0.06, jy, 1.45), m["paint"]))
+        p.append(box("jbox_lid", (0.02, 0.33, 0.43), (TUN_W / 2 - 0.13, jy, 1.45), m["paint2"]))
+        p.append(cyl("jbox_conduit", 0.02, 0.65, (TUN_W / 2 - 0.08, jy, 1.93), m["steel"], (0, 0, 0), 8))
         # отметка пикета на стене
         p.append(box("picket", (0.02, 0.3, 0.2), (-TUN_W / 2 + 0.01, 2.5, walk_h + 1.5), m["sign_in"]))
         amb, amb_geo = tunnel_props(variant, m, walk_h)
@@ -1394,7 +1478,7 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_corridor(outdir, save_fn, reset_fn)
     build_station(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn)
-    for v in "bcd":                                  # варианты звена с антуражем
+    for v in "bcdefg":                               # варианты звена с антуражем
         build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_" + v, v)
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_junction_hall(outdir, save_fn, reset_fn)

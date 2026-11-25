@@ -272,6 +272,45 @@ def wall_two_tone_tex(size):
     return c
 
 
+def wall_variant_tex(size, kind):
+    """Варианты стены тоннеля: 'b' — охристая краска внизу и сильные потёки воды;
+    'c' — внизу белый кафель 15x15 см, часть плиток отбита до бетона."""
+    conc = concrete_tex(size)
+    rows = np.arange(size)[:, None] / size                    # 0 вверху, 1 внизу
+    band_top = 1 - 1.4 / 3.0
+    white = lerp(col(176, 172, 158), col(146, 142, 130), noise(size, 60, 5))
+    if kind == "b":
+        low = lerp(col(124, 96, 58), col(98, 74, 44), noise(size, 50, 5))
+        is_low = (rows > band_top).astype(np.float32) * np.ones((1, size))
+        paint = lerp(white, low, is_low)
+        peel = np.clip((noise(size, 30, 6) - 0.58) * 7, 0, 1)
+        c = lerp(paint, conc, peel)
+        wet = np.clip(streaks(size, 0.85, 0.7), 0, 1)
+        c = lerp(c, col(48, 46, 40), wet * 0.75)                                   # мокрые полосы
+        c = lerp(c, col(165, 160, 140), np.clip(streaks(size, 0.4, 0.35), 0, 1) * 0.4 * (1 - rows))  # высолы
+    else:
+        x = np.arange(size)
+        cell = size // 20
+        seam = ((x % cell) < max(2, size // 400)).astype(np.float32)
+        grid = np.maximum(seam[None, :], seam[:, None])
+        tile = lerp(col(196, 196, 186), col(170, 170, 160), noise(size, 40, 4))
+        tile = lerp(tile, col(90, 88, 80), grid)
+        # отбитые плитки: целыми ячейками
+        r = np.random.default_rng(31)
+        cells = r.random((size // cell + 1, size // cell + 1)) < 0.18
+        broken = np.kron(cells, np.ones((cell, cell)))[:size, :size].astype(np.float32)
+        tile = lerp(tile, conc * 0.85, broken)
+        is_low = (rows > band_top).astype(np.float32) * np.ones((1, size))
+        c = lerp(white, tile, is_low)
+        line = (np.abs(rows - band_top) < 0.006).astype(np.float32) * np.ones((1, size))
+        c = lerp(c, col(60, 60, 54), line)
+        c = lerp(c, col(60, 55, 40), np.clip(streaks(size, 0.6, 0.45), 0, 1) * (1 - rows) * 0.7)
+    c = lerp(c, col(35, 32, 28), np.clip(rows - 0.85, 0, 1) * 4 * noise(size, 30, 4))
+    c *= (1 - cracks(size, 16, 41)[..., None] * 0.35)
+    c += grain(size, 0.035, 43)[..., None]
+    return c
+
+
 def hazard_tex(size):
     """Жёлто-чёрные диагональные полосы, затёртые и ржавые."""
     x = np.arange(size)
@@ -531,9 +570,14 @@ RVMAT_PARAMS = {
     "metro_sign_board7": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_sign_board8": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_sign_board9": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board10": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board11": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_tp": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
     "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
     "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
+    "metro_wall_b": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
+    "metro_wall_c": (0.12, 30, 0.0, 0.3, "0, 0, 0, 1"),
     "metro_hazard": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
     "metro_door": (0.15, 40, 0.4, 0.35, "0, 0, 0, 1"),
     "metro_tubing": (0.15, 30, 0.6, 0.3, "0, 0, 0, 1"),
@@ -559,22 +603,36 @@ DETAIL_MAPS = {
     "drezina_plate": (0.8, 0.3),
     "metro_concrete": (1.4, 0.05),
     "metro_wall": (0.9, 0.12),
+    "metro_wall_b": (0.9, 0.15),
+    "metro_wall_c": (1.1, 0.3),
     "metro_door": (1.0, 0.3),
     "metro_tubing": (1.2, 0.25),
     "metro_tile": (1.0, 0.25),
     "metro_hazard": (0.6, 0.15),
     "drezina_ballast": (2.0, 0.04),
+    "drezina_railtop": (0.6, 0.7),
+    "metro_dirt": (1.6, 0.05),
+    "metro_puddle": (0.3, 0.9),
 }
 
 
 def detail_maps(out, name, strength, shine):
-    """Из цветовой текстуры: рельеф по яркости -> карта нормалей (_nohq), блеск (_smdi: G — блеск, B — глянец).
-    Тёмное (ржавчина, щели, грязь) — ниже и матовее, светлое — выше и блестит."""
+    """Из цветовой текстуры: рельеф -> карта нормалей (_nohq), блеск (_smdi: G — сила блика, B — глянец).
+    Рельеф собирается в трёх масштабах: крупные пятна, средние сколы и мелкое зерно; швы, щели, трещины
+    и ржавые раковины (тёмное) — ниже и матовее, светлое — выше и блестит. Так на каждом шве и сколе
+    появляется объём, как у ванильных материалов."""
     co = np.asarray(Image.open(os.path.join(out, name + "_co.png")).convert("RGB"), dtype=np.float32) / 255.0
     lum = co.mean(axis=2)
-    h = np.asarray(Image.fromarray((lum * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)), dtype=np.float32) / 255.0
-    dx = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) * strength
-    dy = (np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) * strength
+    img = Image.fromarray((lum * 255).astype(np.uint8))
+    def blur(r):
+        return np.asarray(img.filter(ImageFilter.GaussianBlur(r)), dtype=np.float32) / 255.0
+    h = blur(0.6) * 0.55 + blur(2.5) * 0.3 + blur(8.0) * 0.15
+    # края тёмных деталей (швы, щели) острее: подчёркиваем локальный контраст
+    h = h + (h - blur(4.0)) * 0.8
+    sz = h.shape[0]
+    k = strength * sz / 1024.0 * 4.0       # заметный объём на швах и сколах
+    dx = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) * k
+    dy = (np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) * k
     n = np.stack([-dx, dy, np.ones_like(h)], axis=2)
     n /= np.linalg.norm(n, axis=2, keepdims=True)
     save(n * 0.5 + 0.5, os.path.join(out, name + "_nohq.png"))
@@ -586,9 +644,9 @@ def detail_maps(out, name, strength, shine):
     save(smdi, os.path.join(out, name + "_smdi.png"))
 
 
-# Карты _nohq/_smdi в материалах выключены: с ними поверхности не освещались фонариком в игре
-# (свет от фонаря не ложился на текстуры). Материалы снова с нейтральной нормалью и постоянным блеском.
-USE_DETAIL_MAPS = False
+# Карты рельефа и блеска включены. (Раньше их выключали: свет фонаря «не ложился» — но причиной были
+# перевёрнутые нормали в экспорте p3d, это исправлено.)
+USE_DETAIL_MAPS = True
 
 
 def write_rvmats(out):
@@ -624,6 +682,8 @@ def main():
     save(vanilla_grade(ballast_tex(size // 2), 0.6), os.path.join(out, "drezina_ballast_co.png"))
     save(railtop_tex(size // 4), os.path.join(out, "drezina_railtop_co.png"))
     save(vanilla_grade(wall_two_tone_tex(big), 0.3), os.path.join(out, "metro_wall_co.png"))
+    save(vanilla_grade(wall_variant_tex(big, "b"), 0.3), os.path.join(out, "metro_wall_b_co.png"))
+    save(vanilla_grade(wall_variant_tex(big, "c"), 0.3), os.path.join(out, "metro_wall_c_co.png"))
     save(vanilla_grade(hazard_tex(size // 2), 0.6), os.path.join(out, "metro_hazard_co.png"))
     save(vanilla_grade(door_tex(size), 0.6), os.path.join(out, "metro_door_co.png"))
     save(vanilla_grade(tubing_tex(big), 0.3), os.path.join(out, "metro_tubing_co.png"))
@@ -644,6 +704,9 @@ def main():
     save(vanilla_grade(painted_board_tex(size, ["ПРОВЕРЬ", "ДОЗИМЕТР"], (25, 25, 22), seed=7), 0.4), os.path.join(out, "metro_sign_board7_co.png"))
     save(vanilla_grade(painted_board_tex(size, ["ВНИЗУ ЛЮДИ", "НЕ СТРЕЛЯЙ"], (210, 205, 190), seed=8), 0.4), os.path.join(out, "metro_sign_board8_co.png"))
     save(vanilla_grade(painted_board_tex(size, ["НЕ СПИ.", "ОНИ СЛЫШАТ"], (150, 25, 20), seed=9), 0.4), os.path.join(out, "metro_sign_board9_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["СТОЙ!", "ПРОПУСК"], (150, 25, 20), seed=10), 0.4), os.path.join(out, "metro_sign_board10_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["ОПАСНО!", "ОБРУШЕНИЕ"], (25, 25, 22), seed=11), 0.4), os.path.join(out, "metro_sign_board11_co.png"))
+    save(sign_tex(size // 2, ["ТП-4", "380 В  НЕ ВКЛЮЧАТЬ"], bg=(60, 70, 64), fg=(220, 210, 60)), os.path.join(out, "metro_sign_tp_co.png"))
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
             detail_maps(out, name, strength, shine)

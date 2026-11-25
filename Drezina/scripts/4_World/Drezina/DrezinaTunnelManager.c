@@ -358,8 +358,8 @@ class DrezinaTunnelManager
 		float tEnd = len - tStart;
 		float d = tStart;
 		int piece10 = 0;
-		// чередование вариантов прямого звена: чаще обычное, между ними — обвал, вагонетка, протечка
-		array<string> variants = {"Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10", "Drezina_Tunnel10C", "Drezina_Tunnel10", "Drezina_Tunnel10D"};
+		// чередование вариантов прямого звена: обычное и 6 «событий» (обвал, ниша ТП, вагонетка, блокпост, протечка, крепь)
+		array<string> variants = {"Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10E", "Drezina_Tunnel10", "Drezina_Tunnel10C", "Drezina_Tunnel10F", "Drezina_Tunnel10", "Drezina_Tunnel10D", "Drezina_Tunnel10G"};
 		while (d < tEnd - 0.01)
 		{
 			string type = "Drezina_Tunnel2";

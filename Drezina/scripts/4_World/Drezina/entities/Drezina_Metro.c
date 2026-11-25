@@ -18,6 +18,9 @@ class Drezina_Tunnel10 extends House {}
 class Drezina_Tunnel10B extends Drezina_Tunnel10 {}
 class Drezina_Tunnel10C extends Drezina_Tunnel10 {}
 class Drezina_Tunnel10D extends Drezina_Tunnel10 {}
+class Drezina_Tunnel10E extends Drezina_Tunnel10 {}
+class Drezina_Tunnel10F extends Drezina_Tunnel10 {}
+class Drezina_Tunnel10G extends Drezina_Tunnel10 {}
 class Drezina_Tunnel2 extends House {}
 class Drezina_JunctionHall extends House {}
 class Drezina_JunctionWall extends House {}
