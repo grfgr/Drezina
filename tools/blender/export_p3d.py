@@ -45,6 +45,16 @@ MODELS = {
 }
 LOD_RES = [1.0, 4.0, 10.0, 25.0]
 
+# Материал граней в Geometry / Fire Geometry / Roadway: по нему игра выбирает звук шагов,
+# следы попаданий и пробиваемость (ванильные penetration-rvmat ссылаются на свой .bisurf).
+SURF_CONCRETE = "dz\\data\\data\\penetration\\concrete.rvmat"
+SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
+SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
+SURFACE = {
+    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "dispenser": SURF_METAL, "tunnel_lamp": SURF_METAL,
+    "rail_10m": SURF_WOOD, "rail_2m": SURF_WOOD,
+}
+
 
 # ============================================================================ запись MLOD
 
@@ -197,7 +207,7 @@ def box_faces(o, top_only=False):
     return pts, quads
 
 
-def components_lod(geoms, resolution, mass=None, roadway=False, proxies=()):
+def components_lod(geoms, resolution, mass=None, roadway=False, proxies=(), surface=SURF_CONCRETE):
     points, faces = [], []
     taggs = b""
     comp = []
@@ -208,7 +218,7 @@ def components_lod(geoms, resolution, mass=None, roadway=False, proxies=()):
         points += pts
         f0 = len(faces)
         for q in quads:
-            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], "", ""))
+            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], "", surface))
         comp.append((range(base, base + len(pts)), range(f0, len(faces))))
         if not roadway and "sel" in o:
             for sname in str(o["sel"]).split(","):
@@ -291,10 +301,11 @@ def export_model(src_dir, out_dir, name, mass, shadow):
     _, geometry, memory = scene_parts()
     prx = proxy_triangles(scene_proxies())
     if geometry:
-        lods.append(components_lod(geometry, 1e13, mass))
-        lods.append(components_lod(geometry, 6e15, proxies=prx))
-        lods.append(components_lod(geometry, 7e15, proxies=prx))
-        lods.append(components_lod(geometry, 3e15, roadway=True))
+        surf = SURFACE.get(name, SURF_CONCRETE)
+        lods.append(components_lod(geometry, 1e13, mass, surface=surf))
+        lods.append(components_lod(geometry, 6e15, proxies=prx, surface=surf))
+        lods.append(components_lod(geometry, 7e15, proxies=prx, surface=surf))
+        lods.append(components_lod(geometry, 3e15, roadway=True, surface=surf))
     else:
         xs, ys, zs = zip(*pts0)
         bpy.ops.mesh.primitive_cube_add(size=1)

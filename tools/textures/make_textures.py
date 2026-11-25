@@ -50,6 +50,39 @@ def vanilla_grade(c, blur=0.9):
     return np.asarray(img, dtype=np.float32) / 255.0
 
 
+def cracks(size, count=14, seed=3):
+    """Тонкие ветвящиеся трещины (маска 0..1)."""
+    r = np.random.default_rng(seed)
+    img = Image.new("L", (size, size), 0)
+    d = ImageDraw.Draw(img)
+    for _ in range(count):
+        x, y = r.random() * size, r.random() * size
+        ang = r.random() * 6.283
+        w = max(1, size // 900)
+        for _s in range(int(r.integers(20, 60))):
+            ang += r.normal(0, 0.45)
+            nx, ny = x + np.cos(ang) * size * 0.012, y + np.sin(ang) * size * 0.012
+            d.line((x, y, nx, ny), fill=int(r.integers(150, 255)), width=w)
+            if r.random() < 0.08:                      # ответвление
+                bx, by, ba = nx, ny, ang + r.choice((-1, 1)) * 0.9
+                for _b in range(int(r.integers(4, 12))):
+                    ba += r.normal(0, 0.5)
+                    ex, ey = bx + np.cos(ba) * size * 0.01, by + np.sin(ba) * size * 0.01
+                    d.line((bx, by, ex, ey), fill=120, width=1)
+                    bx, by = ex, ey
+            x, y = nx, ny
+    return np.asarray(img.filter(ImageFilter.GaussianBlur(0.6)), dtype=np.float32) / 255.0
+
+
+def grain(size, amount=0.08, seed=5):
+    """Мелкое зерно заполнителя: светлые и тёмные крупинки (то, чего не хватало вблизи)."""
+    r = np.random.default_rng(seed)
+    g = r.random((size, size)).astype(np.float32)
+    fine = np.asarray(Image.fromarray((g * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.7)), dtype=np.float32) / 255.0
+    specks = (r.random((size, size)) > 0.985).astype(np.float32) - (r.random((size, size)) > 0.985).astype(np.float32)
+    return (fine - 0.5) * amount * 2 + specks * amount * 1.5
+
+
 def save(arr, path):
     Image.fromarray((np.clip(arr, 0, 1) * 255).astype(np.uint8)).save(path)
 
@@ -180,16 +213,28 @@ def lamp_glass_tex(size):
 # ----------------------------------------------------------------------------- бункер / метро
 
 def concrete_tex(size, base=(118, 116, 108)):
-    """Бетон: опалубочные швы, раковины, сырые пятна, потёки."""
+    """Бетон: доски опалубки разного тона, швы, раковины, зерно, трещины, сырые пятна, потёки."""
     c = lerp(col(*base) * 0.8, col(*base), noise(size, 40, 6))
+    # доски опалубки: горизонтальные полосы по ~15 см, каждая чуть своего тона, с волокном
+    boards = 20
+    y = np.arange(size)
+    idx = y * boards // size
+    tone = np.random.default_rng(11).normal(0, 0.035, boards)[idx]
+    c += tone[:, None, None]
+    fib = noise(size, 3, 3, stretch=(30, 1))
+    c *= (0.96 + fib[..., None] * 0.06)
+    board_seam = ((y % (size // boards)) < max(1, size // 700)).astype(np.float32)
+    c *= (1 - board_seam[:, None, None] * 0.18)
     c = lerp(c, col(60, 60, 56), np.clip(noise(size, 100, 4) - 0.55, 0, 1) * 1.6)        # сырость
     pores = (noise(size, 3, 2) > 0.82).astype(np.float32)
     c *= (1 - pores[..., None] * 0.25)
-    # швы опалубки каждые 1/3 тайла
-    y = np.arange(size)
-    seam = ((y % (size // 3)) < 3).astype(np.float32)
-    c *= (1 - seam[:, None, None] * 0.25)
+    # крупные швы опалубки каждые 1/3 тайла
+    seam = ((y % (size // 3)) < max(3, size // 300)).astype(np.float32)
+    c *= (1 - seam[:, None, None] * 0.3)
+    c += grain(size, 0.06)[..., None]
+    c *= (1 - cracks(size, 10)[..., None] * 0.45)
     c = lerp(c, col(70, 52, 35), np.clip(streaks(size, 0.5), 0, 1) * 0.5)                # ржавые потёки
+    c = lerp(c, col(160, 158, 146), np.clip(streaks(size, 0.35, 0.3), 0, 1) * 0.35)       # известковые выцветы
     c = lerp(c, col(30, 30, 28), noise(size, 70, 5) ** 4 * 0.8)                           # копоть
     return c
 
@@ -210,6 +255,11 @@ def wall_two_tone_tex(size):
     c = lerp(paint, conc, peel)
     c = lerp(c, col(60, 55, 40), np.clip(streaks(size, 0.7, 0.5), 0, 1) * (1 - rows) * 0.8)   # потёки сверху
     c = lerp(c, col(35, 32, 28), np.clip(rows - 0.85, 0, 1) * 4 * noise(size, 30, 4))         # грязь у пола
+    # кромка отслоившейся краски чуть темнее, по краске — мелкие трещинки-«паутинка»
+    edge = np.clip(1 - np.abs(peel - 0.5) * 6, 0, 1) * (peel > 0.02)
+    c *= (1 - edge[..., None] * 0.2)
+    c *= (1 - cracks(size, 18, 9)[..., None] * 0.35)
+    c += grain(size, 0.035, 7)[..., None]
     return c
 
 
@@ -228,8 +278,24 @@ def door_tex(size):
 
 
 def tubing_tex(size):
-    """Чугунные тюбинги: тёмный металл, ржавчина, известковые потёки."""
+    """Чугунные тюбинги: литые панели с рёбрами и болтовыми отверстиями, ржавчина, известковые потёки."""
     c = lerp(col(40, 40, 40), col(66, 64, 60), noise(size, 30, 5))
+    c += grain(size, 0.05, 13)[..., None]
+    # литая поверхность: рябь
+    c *= (0.93 + noise(size, 4, 3)[..., None] * 0.1)
+    # продольные рёбра-кромки и стыки сегментов
+    x = np.arange(size)
+    edge = ((x % (size // 2)) < size // 64).astype(np.float32)
+    c = lerp(c, col(78, 76, 70), edge[None, :] * np.ones((size, 1)) * 0.6)
+    seg = ((x % (size // 4)) < max(2, size // 400)).astype(np.float32)
+    c *= (1 - seg[:, None, None] * 0.45)
+    # болты/отверстия по стыкам
+    yy, xx = np.mgrid[0:size, 0:size]
+    step = size // 8
+    by = (yy % (size // 4)) - size // 64
+    bx = (xx % step) - step // 2
+    bolt = (by ** 2 + bx ** 2) < (size // 110) ** 2
+    c[bolt] = c[bolt] * 0.45
     c = lerp(c, rust_tex(size), np.clip(noise(size, 50, 5) - 0.45, 0, 1) * 1.8)
     c = lerp(c, col(170, 165, 150), np.clip(streaks(size, 0.4, 0.4), 0, 1) * 0.6)
     return c
@@ -312,6 +378,8 @@ def tile_tex(size):
     c = lerp(c, col(55, 52, 45), grid)
     chips = np.clip((noise(size, 18, 5) - 0.72) * 8, 0, 1)
     c = lerp(c, concrete_tex(size) * 0.8, chips)
+    c += grain(size, 0.03, 21)[..., None]
+    c *= (1 - cracks(size, 8, 23)[..., None] * 0.4)
     return lerp(c, col(40, 38, 32), noise(size, 80, 4) ** 3 * 0.7)
 
 
@@ -461,19 +529,19 @@ def main():
     save(vanilla_grade(leather_tex(size // 2)), os.path.join(out, "drezina_leather_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
-    save(vanilla_grade(concrete_tex(size), 0.6), os.path.join(out, "metro_concrete_co.png"))
+    save(vanilla_grade(concrete_tex(big), 0.3), os.path.join(out, "metro_concrete_co.png"))
     save(vanilla_grade(ballast_tex(size // 2), 0.6), os.path.join(out, "drezina_ballast_co.png"))
     save(railtop_tex(size // 4), os.path.join(out, "drezina_railtop_co.png"))
-    save(vanilla_grade(wall_two_tone_tex(size), 0.6), os.path.join(out, "metro_wall_co.png"))
+    save(vanilla_grade(wall_two_tone_tex(big), 0.3), os.path.join(out, "metro_wall_co.png"))
     save(vanilla_grade(hazard_tex(size // 2), 0.6), os.path.join(out, "metro_hazard_co.png"))
     save(vanilla_grade(door_tex(size), 0.6), os.path.join(out, "metro_door_co.png"))
-    save(vanilla_grade(tubing_tex(size), 0.6), os.path.join(out, "metro_tubing_co.png"))
+    save(vanilla_grade(tubing_tex(big), 0.3), os.path.join(out, "metro_tubing_co.png"))
     save(vanilla_grade(dirt_tex(size // 2), 0.6), os.path.join(out, "metro_dirt_co.png"))
     save(sign_tex(size // 2, ["ОБЪЕКТ 17", "ВХОД ВОСПРЕЩЁН"]), os.path.join(out, "metro_sign_entrance_co.png"))
     save(sign_tex(size // 2, ["ВЫХОД"], bg=(40, 110, 50)), os.path.join(out, "metro_sign_exit_co.png"))
     save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
     save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
-    save(vanilla_grade(tile_tex(size), 0.6), os.path.join(out, "metro_tile_co.png"))
+    save(vanilla_grade(tile_tex(big), 0.3), os.path.join(out, "metro_tile_co.png"))
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
             detail_maps(out, name, strength, shine)
