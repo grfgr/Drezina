@@ -27,6 +27,10 @@ class Drezina_Handcar extends ItemBase
 	int   m_LocalThrottle;
 	float m_PredSpeed;
 
+	// сервер: когда последний раз переставляли модель
+	float m_ServerXformTimer;
+	bool  m_ServerXformStopped;
+
 	// --- локальное состояние (сервер и клиент)
 	float m_Dist;
 	float m_Speed;
@@ -160,6 +164,14 @@ class Drezina_Handcar extends ItemBase
 		SetSynchDirty();
 	}
 
+	bool DriverFarFromSeat()
+	{
+		vector seat;
+		float yaw;
+		GetDriverTransform(seat, yaw);
+		return vector.Distance(m_Driver.GetPosition(), seat) > 6.0;
+	}
+
 	bool IsSenderDriver(PlayerIdentity sender)
 	{
 		if (!sender || !m_Driver || !m_Driver.GetIdentity())
@@ -229,7 +241,7 @@ class Drezina_Handcar extends ItemBase
 		// водитель пропал / умер / отошёл
 		if (HasDriver())
 		{
-			if (!m_Driver || !m_Driver.IsAlive() || m_Driver.IsUnconscious() || !m_Driver.GetIdentity() || vector.Distance(m_Driver.GetPosition(), GetPosition()) > 6.0)
+			if (!m_Driver || !m_Driver.IsAlive() || m_Driver.IsUnconscious() || !m_Driver.GetIdentity() || DriverFarFromSeat())
 				ServerClearDriver();
 		}
 
@@ -265,7 +277,16 @@ class Drezina_Handcar extends ItemBase
 
 		bool pumping = m_Throttle > 0;
 		bool braking = m_Throttle < 0 && m_Speed > 0.3;
-		ApplyTransform();
+		// модель на сервере двигаем редко: раз в 2 с на ходу и при остановке. Каждое такое
+		// перемещение пересылается клиентам, а они двигают дрезину сами и плавно.
+		m_ServerXformTimer += dt;
+		bool stopped = m_Speed < 0.01;
+		if (m_ServerXformTimer >= 2.0 || (stopped && !m_ServerXformStopped))
+		{
+			m_ServerXformTimer = 0;
+			ApplyTransform();
+		}
+		m_ServerXformStopped = stopped;
 
 		// синхронизация ~10 раз в секунду или при смене состояния
 		m_SyncTimer += dt;
@@ -601,14 +622,25 @@ class Drezina_Handcar extends ItemBase
 	}
 
 	// Где стоит водитель (мир) и куда смотрит (yaw в градусах).
+	// Считается прямо по пути (по m_Dist), а не по модели: на сервере модель двигается
+	// не каждый кадр (иначе её положение пересылается клиентам и дрезина у них дрожит).
 	void GetDriverTransform(out vector pos, out float yaw)
 	{
-		vector seatLocal = Vector(0, DECK_HEIGHT, -SEAT_BACK * m_Dir);
-		pos = ModelToWorld(seatLocal);
-		vector dir = GetDirection();
+		DrezinaTrack t = GetTrack();
+		if (!t)
+		{
+			pos = ModelToWorld(Vector(0, DECK_HEIGHT, -SEAT_BACK * m_Dir));
+			yaw = GetDirection().VectorToAngles()[0];
+			return;
+		}
+		vector tp, dir;
+		t.GetPosDir(m_Dist, tp, dir);
+		tp[1] = tp[1] + DrezinaSettings.Get().RailHeightOffset + DECK_HEIGHT;
+		pos = tp - dir * (SEAT_BACK * m_Dir);
+		vector face = dir;
 		if (m_Dir < 0)
-			dir = dir * -1;
-		yaw = dir.VectorToAngles()[0];
+			face = dir * -1;
+		yaw = face.VectorToAngles()[0];
 	}
 
 	// Текущая подсказка для HUD.

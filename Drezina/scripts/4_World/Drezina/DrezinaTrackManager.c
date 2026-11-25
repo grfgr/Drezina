@@ -349,7 +349,8 @@ class DrezinaTrackManager extends Managed
 			hc.ServerPlaceOnTrack(t.GetId(), startDist, dir);
 		}
 
-		hc.ServerSetDriver(player);
+		// дрезина подана — встать за рычаг игрок решает сам (действие «Встать за рычаг»)
+		Notify(player.GetIdentity(), "Дрезина подана на путь. Подойдите и выберите «Встать за рычаг».");
 	}
 
 	// ------------------------------------------------------------------ сервер: тик

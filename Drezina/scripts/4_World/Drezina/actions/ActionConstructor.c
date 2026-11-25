@@ -10,5 +10,6 @@ modded class ActionConstructor
 		actions.Insert(ActionDrezinaReverse);
 		actions.Insert(ActionMetroDown);
 		actions.Insert(ActionMetroUp);
+		actions.Insert(ActionDrezinaReturn);
 	}
 }

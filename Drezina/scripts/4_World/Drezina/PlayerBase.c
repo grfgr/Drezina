@@ -1,7 +1,8 @@
 modded class PlayerBase
 {
 	Drezina_Handcar m_DrezinaHandcar; // дрезина, на которой игрок стоит водителем
-	bool m_DrezinaInputOff;           // обычное управление персонажем выключено на время езды
+	bool m_DrezinaInputOff;           // (старое) управление было выключено целиком
+	bool m_DrezinaMoveBlocked;        // ходьба и оружие заблокированы на время езды
 	int m_DrezinaLeftTime = -100000;  // когда сошёл с дрезины (мс игрового времени)
 
 	// сразу после схода нельзя снова встать за рычаг: то же нажатие F запускало «Встать за рычаг»
@@ -18,6 +19,7 @@ modded class PlayerBase
 		AddAction(ActionDrezinaReverse, InputActionMap);
 		AddAction(ActionMetroDown, InputActionMap);
 		AddAction(ActionMetroUp, InputActionMap);
+		AddAction(ActionDrezinaReturn, InputActionMap);
 	}
 
 	bool IsRidingDrezina()
@@ -36,6 +38,14 @@ modded class PlayerBase
 		{
 			GetInputController().SetDisabled(false);
 			m_DrezinaInputOff = false;
+		}
+		// на дрезине блокируем только ходьбу и поднятие оружия, обзор мышью остаётся
+		if (riding != m_DrezinaMoveBlocked && GetInputController())
+		{
+			GetInputController().OverrideMovementSpeed(riding, 0);
+			GetInputController().OverrideMovementAngle(riding, 0);
+			GetInputController().OverrideRaise(riding, false);
+			m_DrezinaMoveBlocked = riding;
 		}
 
 		if (riding && IsAlive())
