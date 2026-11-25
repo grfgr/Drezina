@@ -123,13 +123,10 @@ def tape_tex(size):
 def canvas_tex(size):
     """Армейский брезент: плотное полотняное плетение, выгоревшие складки, пятна масла и грязи, штопка."""
     x = np.arange(size)
-    f = size / 512 * 2.2
-    warp = (np.sin(x / f)[None, :] * 0.5 + 0.5) * (np.sin(x / (f * 2.0))[:, None] * 0.25 + 0.75)
-    weft = (np.sin(x / f)[:, None] * 0.5 + 0.5) * (np.sin(x / (f * 2.0))[None, :] * 0.25 + 0.75)
-    checker = ((x[None, :] // max(1, int(f * 3.14)) + x[:, None] // max(1, int(f * 3.14))) % 2).astype(np.float32)
-    weave = warp * checker + weft * (1 - checker)
+    f = size / 1024 * 1.6
+    weave = (np.sin(x / f)[None, :] * np.sin(x / f)[:, None]) * 0.5 + 0.5
     base = lerp(col(78, 82, 54), col(108, 110, 76), noise(size, 50, 5))
-    c = base * (0.82 + 0.22 * weave[..., None])
+    c = base * (0.93 + 0.1 * weave[..., None])
     c = lerp(c, col(130, 128, 96), np.clip(noise(size, 160, 3) - 0.5, 0, 1) * 1.2)       # выгорело
     c = lerp(c, col(42, 38, 30), np.clip(noise(size, 90, 5) - 0.62, 0, 1) * 2.5)         # масло
     c = lerp(c, col(92, 76, 52), np.clip(noise(size, 30, 4) - 0.6, 0, 1) * 1.8)          # грязь

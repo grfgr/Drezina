@@ -193,23 +193,37 @@ def bag(m, out):
     for f in body.data.polygons:
         f.use_smooth = True
     out.append(body)
-    # клапан сверху с кожаным кантом
-    flap = box("bag_flap", (0.26, 0.3, 0.012), (bx, by + 0.12, bz + R * 0.8), m["canvas"], (math.radians(-6), 0, 0))
+    # клапан: изогнутая брезентовая накладка по верху мешка, с кожаным кантом
+    bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=R + 0.012, depth=0.3, location=(bx, by + 0.12, bz), rotation=(math.radians(90), 0, 0))
+    flap = bpy.context.active_object
+    flap.name = "bag_flap"
+    bm = bmesh.new()
+    bm.from_mesh(flap.data)
+    kill = [v for v in bm.verts if v.co.y < R * 0.25]       # локальная Y — вверх: оставляем верхнюю дугу
+    bmesh.ops.delete(bm, geom=kill, context="VERTS")
+    bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=0.006)
+    bm.to_mesh(flap.data)
+    bm.free()
+    flap.data.materials.append(m["canvas"])
+    for f in flap.data.polygons:
+        f.use_smooth = True
     out.append(flap)
-    out.append(box("bag_flap_edge", (0.27, 0.02, 0.016), (bx, by + 0.27, bz + R * 0.72), m["leather"]))
-    # два кожаных ремня обхватывают мешок, пряжки из латуни
+    out.append(box("bag_flap_edge", (0.22, 0.02, 0.014), (bx, by + 0.27, bz + R * 0.86), m["leather"]))
+    # два кожаных ремня обхватывают мешок (поверх брезента), пряжки из латуни
     for k, dy in enumerate((-0.17, 0.17)):
-        out.append(torus(f"bag_strap{k}", R * 0.93, 0.008, (bx, by + dy, bz - 0.005), m["leather"], ROT_Y, (32, 6)))
-        out.append(box(f"bag_strap_flat{k}", (0.03, 0.03, 0.004), (bx + R * 0.7, by + dy, bz + R * 0.55), m["leather"], (0, math.radians(45), 0)))
-        out.append(box(f"bag_buckle{k}", (0.04, 0.012, 0.035), (bx + R * 0.74, by + dy, bz + R * 0.5), m["steel"], (0, math.radians(45), 0)))
-        out.append(box(f"bag_buckle_pin{k}", (0.004, 0.014, 0.03), (bx + R * 0.76, by + dy, bz + R * 0.5), m["steel"], (0, math.radians(45), 0)))
+        st = torus(f"bag_strap{k}", R * 1.0 + 0.012, 0.007, (bx, by + dy, bz), m["leather"], ROT_Y, (40, 6))
+        st.scale = (1.0, 1.0, 0.86)
+        out.append(st)
+        out.append(box(f"bag_buckle{k}", (0.035, 0.012, 0.04), (bx + R * 0.8, by + dy, bz + R * 0.5), m["steel"], (0, math.radians(50), 0)))
+        out.append(box(f"bag_strap_tail{k}", (0.03, 0.03, 0.005), (bx + R * 0.95, by + dy, bz + R * 0.25), m["leather"], (0, math.radians(75), 0)))
     # ручка для переноски
     out.append(torus("bag_handle", 0.06, 0.01, (bx, by, bz + R * 0.95), m["leather"], (0, math.radians(90), 0), (24, 8)))
     for dy in (-0.06, 0.06):
         out.append(box(f"bag_handle_tab{dy}", (0.04, 0.03, 0.006), (bx, by + dy, bz + R * 0.86), m["leather"]))
     # боковой карман с клапаном и кнопкой
-    out.append(box("bag_pocket", (0.03, 0.22, 0.14), (bx - R * 0.9, by - 0.04, bz - 0.01), m["canvas"]))
-    out.append(box("bag_pocket_flap", (0.034, 0.23, 0.06), (bx - R * 0.93, by - 0.04, bz + 0.06), m["canvas"], (math.radians(4), 0, 0)))
+    pocket = sphere("bag_pocket", 1, (bx - R * 0.88, by - 0.04, bz - 0.01), m["canvas"], (0.035, 0.11, 0.075), (20, 12))
+    out.append(pocket)
+    out.append(box("bag_pocket_flap", (0.02, 0.21, 0.05), (bx - R * 0.97, by - 0.04, bz + 0.05), m["canvas"], (math.radians(4), 0, 0)))
     out.append(cyl("bag_pocket_button", 0.008, 0.008, (bx - R * 0.95, by - 0.04, bz + 0.04), m["steel"], ROT_X, 12))
     # шнуровка на торце и заплатка
     for k in range(5):
