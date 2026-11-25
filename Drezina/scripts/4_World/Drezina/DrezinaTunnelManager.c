@@ -804,6 +804,53 @@ class DrezinaTunnelManager
 		}
 	}
 
+	// Пересекающиеся линии с разницей пола до 6 м выравниваем: более новая (больший номер) встаёт на уровень
+	// старой, если над ней остаётся хотя бы 4 м земли. Иначе зала со стрелками не получится, а тоннели
+	// врезаются друг в друга (дрезина упирается в стену чужого тоннеля).
+	void LevelCrossings()
+	{
+		bool changed = false;
+		foreach (int ia, DrezinaTunnelData a : m_Tunnels)
+		{
+			foreach (int ib, DrezinaTunnelData b : m_Tunnels)
+			{
+				if (a.Id >= b.Id || a.Zone || b.Zone)
+					continue;
+				float diff = Math.AbsFloat(a.FloorY - b.FloorY);
+				if (diff <= 0.3 || diff > 6.0)
+					continue;
+				array<vector> xs = new array<vector>;
+				array<float> das = new array<float>;
+				array<float> dbs = new array<float>;
+				AllCrossings(GetSpline(a), GetSpline(b), xs, das, dbs);
+				if (xs.Count() == 0)
+					continue;
+				float top = MinSurfaceAlong(b.Route) - 4.0;
+				if (a.FloorY > top)
+				{
+					Print("[Drezina] метро #" + b.Id + " не поднять до уровня #" + a.Id + ": над ним не останется земли");
+					continue;
+				}
+				Print("[Drezina] метро #" + b.Id + ": пол " + b.FloorY + " -> " + a.FloorY + " (на уровень #" + a.Id + " для развязки)");
+				b.FloorY = a.FloorY;
+				m_Splines.Remove(b.Id);
+				// путь внутри — на новую высоту
+				DrezinaTrack tr = DrezinaTrackManager.Get().GetTrack(b.TrackId);
+				if (tr)
+				{
+					array<vector> nodes = new array<vector>;
+					vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset, 0);
+					foreach (vector rp : b.Route)
+						nodes.Insert(ToUnder(b, rp) + railUp);
+					DrezinaTrackManager.Get().ReplaceNodes(b.TrackId, nodes);
+				}
+				changed = true;
+			}
+		}
+		if (changed)
+			Save();
+	}
+
 	void ComputeJunctions()
 	{
 		m_Junctions.Clear();
@@ -877,6 +924,7 @@ class DrezinaTunnelManager
 		}
 		DrezinaTrackManager.Get().RemoveServiceTracks();
 		m_Splines.Clear();
+		LevelCrossings();
 		ComputeJunctions();
 		foreach (int id, DrezinaTunnelData t : m_Tunnels)
 			SpawnTunnel(t);
@@ -1172,7 +1220,8 @@ class DrezinaTunnelManager
 			// пересекает другую линию — пол на её уровне (если это не выше допустимого), чтобы получилась развязка
 			foreach (int oid, DrezinaTunnelData ot : m_Tunnels)
 			{
-				if (ot.Zone || ot.FloorY > floorY)
+				// уровень другой линии годится, если над новой остаётся не меньше 4 м земли
+				if (ot.Zone || ot.FloorY > floorY + depth - 4.0 || Math.AbsFloat(ot.FloorY - floorY) > 6.0)
 					continue;
 				vector cx, cdA, cdB;
 				float cda, cdb;

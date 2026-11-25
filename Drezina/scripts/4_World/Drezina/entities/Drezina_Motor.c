@@ -467,8 +467,9 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
-		// прицеп ставим в тот же кадр — на клиенте водителя он едет вплотную, без отставания
-		if (tr && !tr.m_OffRail)
+		// прицеп ставит только сервер: если ставить его ещё и на клиенте, позиция с сервера (с задержкой
+		// сети) спорит с клиентской и прицеп дёргается взад-вперёд на полметра
+		if (server && tr && !tr.m_OffRail)
 		{
 			DrezinaTrack tt;
 			float td;

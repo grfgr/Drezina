@@ -103,6 +103,20 @@ class Drezina_Trailer extends CarScript
 		return true;
 	}
 
+	// у ванильной машины «дотянуться до сиденья» проверяется по точкам seat_con_*, у прицепа их нет:
+	// проверяем расстояние до места посадки pos_cargoN
+	override bool CanReachSeatFromDoors(string pSeatSelection, vector pFromPos, float pDistance = 1.0)
+	{
+		string pos = pSeatSelection;
+		pos.Replace("seat_", "pos_");
+		if (!MemoryPointExists(pos))
+			return false;
+		vector ws = ModelToWorld(GetMemoryPointPos(pos));
+		ws[1] = 0;
+		pFromPos[1] = 0;
+		return vector.Distance(pFromPos, ws) <= 1.6;
+	}
+
 	override float GetTransportCameraDistance()
 	{
 		return 3.5;
@@ -268,6 +282,18 @@ class Drezina_Trailer extends CarScript
 			UpdateBrakeLight(lead);
 		if (!lead || m_OffRail || lead.m_OffRail)
 			return;
+		// клиенты: только колёса крутим со скоростью ведущей; положение приходит с сервера (плавно)
+		if (!GetGame().IsServer())
+		{
+			if (dt > 0 && dt < 0.5)
+			{
+				float cspeed = vector.Dot(GetVelocity(lead), GetDirection());
+				m_WheelPhase += cspeed * dt / (Math.PI2 * Drezina_Motor.WHEEL_RADIUS);
+				m_WheelPhase -= Math.Floor(m_WheelPhase);
+				SetAnimationPhase("drezina_wheels", m_WheelPhase);
+			}
+			return;
+		}
 		DrezinaTrack t = lead.GetTrack();
 		if (!t)
 			return;

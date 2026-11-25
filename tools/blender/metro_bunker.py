@@ -762,6 +762,12 @@ def build_station(outdir, save_fn, reset_fn):
     geo("geometry_booth_side_b", (0.1, by + 0.9 - d1, 2.4), (bx + 1.2, (d1 + by + 0.9) / 2, PLATFORM_H + 1.2))
     geo("geometry_booth_lintel", (0.1, d1 - d0, 0.4), (bx + 1.2, (d0 + d1) / 2, PLATFORM_H + 2.2))
     geo("geometry_booth_locker", (0.5, 0.45, 1.8), (bx - 0.85, by - 0.62, PLATFORM_H + 0.9))
+    # окно без стекла и стол: через окно не залезть, на стол не встать
+    geo("geometry_booth_window", (2.4, 0.1, 1.1), (bx, by + 0.9, PLATFORM_H + 1.55))
+    geo("geometry_booth_desk", (1.6, 0.5, 0.95), (bx, by + 0.55, PLATFORM_H + 0.475))
+    geo("geometry_booth_bin", (0.3, 0.3, 0.35), (bx + 0.85, by - 0.6, PLATFORM_H + 0.175))
+    a = math.radians(75)
+    geo("geometry_booth_door", (0.05, 0.78, 1.98), (bx + 1.2 + 0.39 * math.sin(a), by - 0.75 + 0.39 * math.cos(a), PLATFORM_H + 1.0), (0, 0, -a))
     geo("geometry_booth_drawers", (0.4, 0.45, 0.85), (bx + 0.55, by + 0.55, PLATFORM_H + 0.425))
     geo("geometry_booth_front", (2.4, 0.1, 1.0), (bx, by + 0.9, PLATFORM_H + 0.5))
     geo("geometry_booth_roof", (2.6, 2.0, 0.1), (bx, by, PLATFORM_H + 2.44))
@@ -911,7 +917,8 @@ def station_details(m):
     p.append(box("gen_switch", (0.08, 0.06, 0.18), (ST_W / 2 - 0.22, gy + 0.18, 1.6), m["steel"], (0, math.radians(20), 0)))
     p.append(cyl("gen_cable", 0.02, ST_W / 2 - gx - 0.5, (gx + (ST_W / 2 - gx) / 2, gy + 0.3, 0.03), m["tape"], (0, math.radians(90), 0), 8))
     p.append(cyl("gen_cable_up", 0.02, 1.0, (ST_W / 2 - 0.12, gy + 0.3, 0.5), m["tape"], (0, 0, 0), 8))
-    p.append(sign_plate("gen_sign", (0.5, 0.02, 0.18), (ST_W / 2 - 0.2, gy, 2.15), m["sign_in"]))
+    # табличка на стене над щитом, лицом в зал (раньше торчала из стены поперёк)
+    p.append(painted_board("gen_sign", 0.5, 0.18, (ST_W / 2 - 0.02, gy, 2.15), m["sign_in"], face="-x"))
     # стеллаж с запчастями и запасное колесо у стены
     for k in range(3):
         p.append(box(f"shelf{k}", (0.5, 1.6, 0.04), (ST_W / 2 - 0.3, gy + 2.5, 0.4 + k * 0.6), m["rust"]))

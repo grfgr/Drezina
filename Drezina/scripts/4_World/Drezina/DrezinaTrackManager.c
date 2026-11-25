@@ -849,6 +849,20 @@ class DrezinaTrackManager extends Managed
 		}
 	}
 
+	// новые узлы у существующего пути (метро опустили/подняли на уровень другой линии)
+	void ReplaceNodes(int id, array<vector> nodes)
+	{
+		DrezinaTrack t = GetTrack(id);
+		if (!t)
+			return;
+		t.m_Data.Nodes.Clear();
+		t.m_Data.Nodes.InsertAll(nodes);
+		t.Build();
+		SpawnTrackObjects(t);
+		SaveTracks();
+		BroadcastTrack(t);
+	}
+
 	void DeleteTrack(int id)
 	{
 		if (!GetTrack(id))

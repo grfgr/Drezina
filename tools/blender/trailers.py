@@ -50,14 +50,18 @@ def chassis(m):
 
 def rear_lamp(m, out, sel_parts):
     parts = []
-    hz.headlamp("tail", (0.0, -1.29, DECK + 0.02), -1, m, parts)
+    lz = DECK + 0.16
+    hz.headlamp("tail", (0.0, -1.25, lz), -1, m, parts)
     for p in parts:
         out.append(p)
         if p.name.endswith("_glass"):
             sel_parts.append((p, "light_brake_1_2"))
-    # стойка-фонарь сбоку со светоотражателем
-    out.append(box("tail_reflector_l", (0.08, 0.01, 0.08), (-0.6, -1.21, DECK + 0.05), m["glass"]))
-    out.append(box("tail_reflector_r", (0.08, 0.01, 0.08), (0.6, -1.21, DECK + 0.05), m["glass"]))
+    # фонарь на стойке, привинченной к торцевой балке (раньше висел в воздухе за рамой)
+    out.append(box("tail_post", (0.06, 0.06, 0.3), (0.0, -1.17, DECK + 0.01), m["rust"]))
+    out.append(box("tail_post_plate", (0.14, 0.012, 0.12), (0.0, -1.195, DECK - 0.08), m["steel"]))
+    # катафоты на торцевой балке (раньше торчали над настилом)
+    out.append(box("tail_reflector_l", (0.08, 0.012, 0.06), (-0.55, -1.205, DECK - 0.08), m["glass"]))
+    out.append(box("tail_reflector_r", (0.08, 0.012, 0.06), (0.55, -1.205, DECK - 0.08), m["glass"]))
 
 
 def passenger_benches(m, out):
@@ -71,10 +75,11 @@ def passenger_benches(m, out):
         for dy in (-0.85, 0.0, 0.85):
             for dx in (-0.17, 0.17):
                 out.append(box(f"bench_leg{sx}{dy}{dx}", (0.05, 0.05, SEAT_H - DECK - 0.05), (x + dx, dy, (SEAT_H + DECK) / 2 - 0.025), m["rust"]))
-        # подножка вдоль борта
-        out.append(box(f"footboard{sx}", (0.22, L, 0.03), (sx * 0.78, 0, DECK - 0.2), m["wood"]))
-        for dy in (-0.7, 0.7):
-            out.append(box(f"footboard_bracket{sx}{dy}", (0.25, 0.04, 0.2), (sx * 0.72, dy, DECK - 0.11), m["rust"]))
+        # подножка вдоль борта — снаружи колёс и крыльев (раньше проходила сквозь колёса)
+        out.append(box(f"footboard{sx}", (0.2, L + 0.3, 0.03), (sx * 1.0, 0, DECK - 0.12), m["wood"]))
+        for dy in (-1.1, 0.0, 1.1):          # кронштейны там, где нет колёс: посередине и на концах
+            out.append(box(f"footboard_bracket{sx}{dy}", (0.36, 0.05, 0.04), (sx * 0.84, dy, DECK - 0.1), m["rust"]))
+            out.append(box(f"footboard_strut{sx}{dy}", (0.04, 0.05, 0.12), (sx * 0.68, dy, DECK - 0.06), m["rust"]))
     # общая спинка посередине: доски на стойках
     for k, z in enumerate((0.2, 0.4)):
         out.append(box(f"backrest{k}", (0.05, L, 0.13), (0, 0, SEAT_H + z), m["wood"]))
@@ -123,7 +128,7 @@ def common_points():
     mem_point("mem_axle_front_2", (hz.HALF, hz.AXLE_Y, hz.WHEEL_R))
     mem_point("mem_axle_rear_1", (-hz.HALF, -hz.AXLE_Y, hz.WHEEL_R))
     mem_point("mem_axle_rear_2", (hz.HALF, -hz.AXLE_Y, hz.WHEEL_R))
-    mem_point("mem_light_reverse", (0.0, -1.36, DECK + 0.02))
+    mem_point("mem_light_reverse", (0.0, -1.36, DECK + 0.16))
     mem_point("mem_camera", (0, 0, 1.6))
 
 
