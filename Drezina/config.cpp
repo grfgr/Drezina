@@ -160,16 +160,17 @@ class CfgVehicles
 		model = "\Drezina\data\motor_handcar.p3d";
 		attachments[] = {"SparkPlug", "Reflector_1_1", "Reflector_2_1", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
 		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
-		hiddenSelectionsTextures[] = {"dz\vehicles\wheeled\offroadhatchback\data\headlights_glass.paa", "dz\vehicles\wheeled\offroadhatchback\data\headlights_glass.paa", "", "", "", "", "", "", ""};
-		hiddenSelectionsMaterials[] = {"dz\vehicles\wheeled\offroadhatchback\data\headlights_glass.rvmat", "dz\vehicles\wheeled\offroadhatchback\data\headlights_glass.rvmat", "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights.rvmat", "", "", "", "", "", ""};
-		frontReflectorMatOn = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights_e.rvmat";
-		frontReflectorMatOff = "dz\vehicles\wheeled\offroadhatchback\data\headlights_glass.rvmat";
-		brakeReflectorMatOn = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights_e.rvmat";
-		brakeReflectorMatOff = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights.rvmat";
-		ReverseReflectorMatOn = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights_e.rvmat";
-		ReverseReflectorMatOff = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights.rvmat";
-		TailReflectorMatOn = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights_e.rvmat";
-		TailReflectorMatOff = "dz\vehicles\wheeled\offroadhatchback\data\offroadhatchback_lights.rvmat";
+		// свои стёкла фар: мутно-белое (спереди) и красное (стоп сзади); _e — светящийся вариант
+		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_co.paa", "Drezina\data\textures\drezina_glass_co.paa", "Drezina\data\textures\drezina_redglass_co.paa", "", "", "", "", "", ""};
+		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_redglass.rvmat", "", "", "", "", "", ""};
+		frontReflectorMatOn = "Drezina\data\textures\drezina_glass_e.rvmat";
+		frontReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		brakeReflectorMatOn = "Drezina\data\textures\drezina_redglass_e.rvmat";
+		brakeReflectorMatOff = "Drezina\data\textures\drezina_redglass.rvmat";
+		ReverseReflectorMatOn = "Drezina\data\textures\drezina_glass_e.rvmat";
+		ReverseReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		TailReflectorMatOn = "Drezina\data\textures\drezina_redglass_e.rvmat";
+		TailReflectorMatOff = "Drezina\data\textures\drezina_redglass.rvmat";
 		dashboardMatOn = "Drezina\data\textures\drezina_glass.rvmat";
 		dashboardMatOff = "Drezina\data\textures\drezina_glass.rvmat";
 		fuelCapacity = 20;
@@ -594,6 +595,9 @@ class CfgVehicles
 		scope = 2;
 		displayName = "Светильник";
 		model = "\Drezina\data\tunnel_lamp.p3d";
+		hiddenSelections[] = {"glass"};
+		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_co.paa"};
+		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass.rvmat"};
 		weight = 2000;
 		itemSize[] = {2, 2};
 		carveNavmesh = 0;

@@ -58,6 +58,11 @@ class Drezina_TunnelLamp extends ItemBase
 
 	void UpdateLight()
 	{
+		// стекло светится только когда лампа включена (раньше светилось всегда — жёлтым в темноте)
+		if (m_On)
+			SetObjectMaterial(0, "Drezina\\data\\textures\\drezina_glass_e.rvmat");
+		else
+			SetObjectMaterial(0, "Drezina\\data\\textures\\drezina_glass.rvmat");
 		if (m_On && !m_Light)
 		{
 			m_Light = Drezina_TunnelLight.Cast(ScriptedLightBase.CreateLight(Drezina_TunnelLight, GetPosition() - Vector(0, 0.45, 0)));
@@ -92,7 +97,7 @@ class Drezina_TunnelLamp extends ItemBase
 	}
 }
 
-// Тёплый свет лампы накаливания; чуть мерцает (напряжение от генератора гуляет).
+// Мутно-белый свет старой лампы; чуть мерцает (напряжение от генератора гуляет).
 class Drezina_TunnelLight extends PointLightBase
 {
 	void Drezina_TunnelLight()
@@ -102,8 +107,8 @@ class Drezina_TunnelLight extends PointLightBase
 		SetBrightnessTo(3.2);
 		SetCastShadow(false);
 		SetFlareVisible(false);
-		SetDiffuseColor(1.0, 0.8, 0.52);
-		SetAmbientColor(1.0, 0.8, 0.52);
+		SetDiffuseColor(0.86, 0.88, 0.84);
+		SetAmbientColor(0.86, 0.88, 0.84);
 		SetFlickerAmplitude(0.08);
 		SetFlickerSpeed(2.5);
 	}

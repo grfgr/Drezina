@@ -211,6 +211,13 @@ class Drezina_Motor extends CarScript
 		AddAction(ActionVehicleHornLong);
 	}
 
+	// аккумулятора нет (как у ванильного мотоцикла) — фары включаются без него.
+	// Базовая машина требует аккумулятор, поэтому раньше работал только стоп-сигнал.
+	override bool OnBeforeLightOn()
+	{
+		return true;
+	}
+
 	// почему не заводится — в лог
 	override bool OnBeforeEngineStart()
 	{

@@ -53,6 +53,11 @@ def mats():
         "sign_station": hz.tex_material("metro_sign_station", "metro_sign_station", 0.8),
         "sign_depot": hz.tex_material("metro_sign_depot", "metro_sign_depot", 0.8),
         "tile": hz.tex_material("metro_tile", "metro_tile", 0.6),
+        "puddle": hz.tex_material("metro_puddle", "metro_puddle", 0.05),
+        "sign_rad": hz.tex_material("metro_sign_rad", "metro_sign_rad", 0.7),
+        "board1": hz.tex_material("metro_sign_board1", "metro_sign_board1", 0.9),
+        "board2": hz.tex_material("metro_sign_board2", "metro_sign_board2", 0.9),
+        "board3": hz.tex_material("metro_sign_board3", "metro_sign_board3", 0.9),
     })
     return m
 
@@ -666,7 +671,11 @@ def build_station(outdir, save_fn, reset_fn):
     for z in (0.15, 0.75):
         p.append(torus(f"barrel_hoop{z}", 0.305, 0.012, (-5.2, -6.5, z), m["rust"], (0, 0, 0), (32, 6)))
     p += station_details(m)
+    amb, amb_geo = stalker_station(m)
+    p += amb
     o = finish(p, "metro_station")
+    for gname, gsize, gloc in amb_geo:
+        geo(gname, gsize, gloc)
     geo("geometry_floor", (ST_W + 1, ST_LEN, 0.4), (0, 0, -0.2))
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.5, ST_LEN, total_h), (sx * (ST_W / 2 + 0.25), 0, total_h / 2))
@@ -843,6 +852,155 @@ def station_details(m):
     return p
 
 
+# ============================================================================ антураж «зоны» (этап 1: станция)
+
+def painted_board(name, w, h, loc, mat, face="-y", lean=0.0):
+    """Фанерный щит с надписью. face — куда смотрит лицевая сторона (-y, +y, -x, +x); lean — наклон верха к стене."""
+    b = sign_plate(name, (w, 0.018, h), (0, 0, 0), mat)      # читается с -Y
+    b.rotation_euler = (lean, 0, math.radians({"-y": 0, "+y": 180, "-x": -90, "+x": 90}[face]))
+    bpy.ops.object.select_all(action="DESELECT")
+    b.select_set(True)
+    bpy.context.view_layer.objects.active = b
+    bpy.ops.object.transform_apply(location=False, rotation=True)
+    b.location = loc
+    return b
+
+
+def sandbag(name, loc, rot, m):
+    k = 1 + (sum(map(ord, name)) % 7 - 3) * 0.03          # мешки чуть разные
+    o = sphere(name, 1, loc, m["canvas"], (0.3 * k, 0.19, 0.12 / k), (12, 8), (0, 0, rot))
+    return o
+
+
+def sag_cable(prefix, a, b, sag, m, r=0.014, segs=10):
+    """Провисший кабель между точками a и b (цепная линия из отрезков)."""
+    parts = []
+    pts = []
+    for i in range(segs + 1):
+        t = i / segs
+        p = [a[k] + (b[k] - a[k]) * t for k in range(3)]
+        p[2] -= sag * 4 * t * (1 - t)
+        pts.append(p)
+    for i in range(segs):
+        p0, p1 = pts[i], pts[i + 1]
+        d = [p1[k] - p0[k] for k in range(3)]
+        ln = math.sqrt(sum(c * c for c in d))
+        mid = [(p0[k] + p1[k]) / 2 for k in range(3)]
+        o = cyl(f"{prefix}_{i}", r, ln + 0.01, mid, m["tape"], (0, 0, 0), 8)
+        o.rotation_mode = "QUATERNION"
+        import mathutils
+        o.rotation_quaternion = mathutils.Vector((0, 0, 1)).rotation_difference(mathutils.Vector(d).normalized())
+        parts.append(o)
+    return parts
+
+
+def vault_z(x, w=ST_W, wall_h=ST_WALL_H, rise=ST_RISE):
+    return wall_h + rise * math.sqrt(max(0.0, 1 - (x / (w / 2)) ** 2))
+
+
+def stalker_station(m):
+    """Заброшка: лагерь, баррикада у тоннеля, надписи краской, знак радиации, завал, лужи, кабели."""
+    p, g = [], []          # g — коллизии (имя, размер, центр)
+    P = PLATFORM_H
+    # --- лагерь у кострища (-4.3, 7.8): второй матрас, спальник, ящик-стол с бутылками и рацией, рюкзак, тренога с котелком
+    cx, cy = -4.3, 7.8
+    p.append(box("camp_mattress2", (0.85, 1.85, 0.12), (-2.9, 9.7, P + 0.06), m["canvas"], (0, 0, math.radians(78))))
+    p.append(cyl("camp_bedroll", 0.14, 0.75, (-5.4, 10.6, P + 0.14), m["paint"], (0, math.radians(90), 0), 16))
+    for sx in (-0.39, 0.39):
+        p.append(cyl(f"camp_bedroll_strap{sx}", 0.145, 0.03, (-5.4 + sx * 0.6, 10.6, P + 0.14), m["leather"], (0, math.radians(90), 0), 16))
+    p.append(box("camp_table", (0.7, 0.5, 0.45), (-3.1, 7.0, P + 0.225), m["wood"], (0, 0, math.radians(8))))
+    for k, (dx, dy, hgt) in enumerate(((-0.2, 0.1, 0.28), (-0.08, -0.05, 0.3), (0.05, 0.12, 0.22))):
+        p.append(cyl(f"camp_bottle{k}", 0.035, hgt, (-3.1 + dx, 7.0 + dy, P + 0.45 + hgt / 2), m["paint"], (0, 0, 0), 12))
+        p.append(cyl(f"camp_bottle_neck{k}", 0.013, 0.07, (-3.1 + dx, 7.0 + dy, P + 0.45 + hgt + 0.035), m["paint"], (0, 0, 0), 8))
+    p.append(box("camp_radio", (0.22, 0.1, 0.14), (-2.95, 6.9, P + 0.52), m["paint2"], (0, 0, math.radians(-12))))
+    p.append(cyl("camp_radio_ant", 0.004, 0.35, (-2.88, 6.88, P + 0.76), m["steel"], (math.radians(10), 0, 0), 6))
+    p.append(cyl("camp_radio_knob", 0.015, 0.02, (-2.9, 6.84, P + 0.53), m["steel"], ROT_Y, 10))
+    p.append(cyl("camp_candle", 0.02, 0.06, (-3.3, 6.9, P + 0.48), m["tile"], (0, 0, 0), 8))
+    p.append(box("camp_pack", (0.38, 0.22, 0.5), (-5.5, 9.0, P + 0.24), m["canvas"], (math.radians(-12), 0, math.radians(20))))
+    p.append(sphere("camp_pack_top", 0.17, (-5.5, 9.0, P + 0.5), m["canvas"], (1.1, 0.7, 0.5), (12, 8)))
+    for k in range(3):
+        a = k * 2 * math.pi / 3
+        o = cyl(f"camp_tripod{k}", 0.012, 1.0, (cx + math.cos(a) * 0.22, cy + math.sin(a) * 0.22, P + 0.47), m["wood"], (0, 0, 0), 6)
+        o.rotation_euler = (math.sin(a) * 0.45, -math.cos(a) * 0.45, 0)
+        p.append(o)
+    p.append(cyl("camp_pot", 0.12, 0.14, (cx, cy, P + 0.55), m["rust"], (0, 0, 0), 16))
+    p.append(cyl("camp_pot_chain", 0.004, 0.22, (cx, cy, P + 0.73), m["steel"], (0, 0, 0), 6))
+    g.append(("geometry_camp_table", (0.7, 0.5, 0.45), (-3.1, 7.0, P + 0.225)))
+    # --- надписи краской на фанере
+    p.append(painted_board("graf_board1", 1.4, 0.7, (ST_W / 2 - 0.12, 9.0, 0.38), m["board1"], face="-x", lean=math.radians(-12)))
+    p.append(painted_board("graf_board2", 1.2, 0.6, (-ST_W / 2 + 0.03, 9.4, P + 1.35), m["board2"], face="+x"))
+    p.append(painted_board("graf_board3", 1.0, 0.5, (DOOR_X + 1.5, -ST_LEN / 2 + 0.03, 1.4), m["board3"], face="+y"))
+    for k, (x, y, z) in enumerate(((-ST_W / 2 + 0.035, 9.0, P + 1.62), (-ST_W / 2 + 0.035, 9.8, P + 1.62))):   # гвозди
+        p.append(cyl(f"graf_nail{k}", 0.006, 0.03, (x + 0.01, y, z), m["steel"], ROT_Y, 6))
+    # --- знак радиации у портала и рядом с ним, ржавый, на одном гвозде (перекошен)
+    rad = sign_plate("rad_sign", (0.8, 0.012, 0.4), (TUN_W / 2 + 0.9, ST_LEN / 2 - 0.03, 2.1), m["sign_rad"])
+    rad.rotation_euler = (0, math.radians(7), 0)
+    p.append(rad)
+    # --- баррикада из мешков у портала: слева и справа от пути, проход для дрезины свободен
+    for side in (-1, 1):
+        for row in range(3):
+            n = 4 - (row == 2)
+            for k in range(n):
+                x = side * (1.65 + k * 0.52 + (0.26 if row % 2 else 0))
+                if abs(x) > TUN_W / 2 - 0.1:
+                    continue
+                p.append(sandbag(f"bag{side}_{row}_{k}", (x, ST_LEN / 2 - 1.2 + rnd.uniform(-0.03, 0.03), 0.11 + row * 0.21),
+                                 rnd.uniform(-0.15, 0.15), m))
+        g.append((f"geometry_barricade{side}", (1.4, 0.4, 0.66), (side * 2.3, ST_LEN / 2 - 1.2, 0.33)))
+    p.append(box("barricade_plank", (0.15, 0.025, 1.0), (1.6, ST_LEN / 2 - 1.42, 0.45), m["wood"], (math.radians(-15), 0, math.radians(4))))
+    # --- бочка-печка у баррикады: прожжённая, с поленьями
+    bx_, by_ = 3.6, ST_LEN / 2 - 2.6
+    p.append(cyl("burn_barrel", 0.29, 0.86, (bx_, by_, 0.43), m["rust"], (0, 0, 0), 20))
+    for z in (0.15, 0.7):
+        p.append(torus(f"burn_hoop{z}", 0.295, 0.012, (bx_, by_, z), m["rust"], (0, 0, 0), (24, 6)))
+    for k in range(4):
+        p.append(cyl(f"burn_log{k}", 0.035, 0.45, (bx_ + rnd.uniform(-0.1, 0.1), by_ + rnd.uniform(-0.1, 0.1), 0.9), m["wood"],
+                     (rnd.uniform(-0.6, 0.6), rnd.uniform(-0.6, 0.6), 0), 8))
+    p.append(cyl("burn_ash", 0.26, 0.01, (bx_, by_, 0.84), m["tape"]))
+    g.append(("geometry_burn_barrel", (0.6, 0.6, 0.86), (bx_, by_, 0.43)))
+    # --- завал у правой стены: куски бетона, косо упавшая плита, гнутая арматура
+    rx, ry = 5.0, 5.5
+    for k in range(14):
+        sz = rnd.uniform(0.18, 0.5)
+        p.append(box(f"rubble{k}", (sz, sz * rnd.uniform(0.6, 1.1), sz * 0.55),
+                     (rx + rnd.uniform(-0.8, 0.7), ry + rnd.uniform(-1.0, 1.0), sz * 0.25 + (0.15 if k > 9 else 0)), m["concrete"],
+                     (rnd.uniform(-0.5, 0.5), rnd.uniform(-0.5, 0.5), rnd.uniform(0, 3))))
+    p.append(box("rubble_slab", (1.4, 1.0, 0.16), (rx + 0.2, ry + 0.1, 0.55), m["concrete"], (math.radians(8), math.radians(-28), math.radians(12))))
+    for k in range(5):
+        o = cyl(f"rebar{k}", 0.008, rnd.uniform(0.6, 1.1), (rx + rnd.uniform(-0.3, 0.6), ry + rnd.uniform(-0.6, 0.6), 0.7), m["rust"],
+                (rnd.uniform(-0.9, 0.9), rnd.uniform(-0.9, 0.9), 0), 6)
+        p.append(o)
+    # пятно сколотого свода над завалом
+    p.append(box("vault_scar", (0.9, 1.6, 0.05), (ST_W / 2 - 0.55, ry, vault_z(ST_W / 2 - 0.55) - 0.12), m["dirt"],
+                 (0, math.radians(-62), 0), round_edges=False))
+    g.append(("geometry_rubble", (1.6, 2.0, 0.6), (rx, ry, 0.3)))
+    # --- провисшие и оборванные кабели под сводом
+    p += sag_cable("sag_a", (3.2, -6.0, vault_z(3.2) - 0.15), (3.4, 2.0, vault_z(3.4) - 0.15), 0.9, m)
+    p += sag_cable("sag_b", (-2.0, 1.0, vault_z(-2.0) - 0.12), (-1.6, 9.0, vault_z(-1.6) - 0.12), 0.6, m)
+    p += sag_cable("sag_c", (3.6, 2.0, vault_z(3.6) - 0.15), (3.0, 2.3, 2.3), 0.15, m, segs=5)     # оборванный, висит
+    p.append(box("sag_c_end", (0.03, 0.03, 0.06), (3.0, 2.3, 2.27), m["steel"]))
+    # --- лужи (тёмная вода с бликом) и мусор
+    for k, (x, y, sx, sy) in enumerate(((2.6, -2.0, 1.2, 0.6), (3.6, 4.0, 0.8, 1.0), (1.8, 8.5, 0.6, 0.9), (-0.0, -4.5, 0.4, 1.4), (4.3, -6.0, 0.7, 0.5))):
+        # лужа неправильной формы: несколько перекрывающихся пятен разного размера
+        for j in range(4):
+            a = rnd.uniform(0, 6.28)
+            off = 0.0 if j == 0 else rnd.uniform(0.25, 0.55)
+            sc = 1.0 if j == 0 else rnd.uniform(0.35, 0.6)
+            p.append(sphere(f"puddle{k}_{j}", 1, (x + math.cos(a) * off * sx, y + math.sin(a) * off * sy, 0.003 + j * 0.0005), m["puddle"],
+                            (sx * sc * rnd.uniform(0.6, 0.9), sy * sc * rnd.uniform(0.6, 0.9), 0.004), (16, 4), (0, 0, rnd.uniform(0, 3))))
+    for k in range(12):
+        p.append(box(f"paper{k}", (rnd.uniform(0.12, 0.25), rnd.uniform(0.1, 0.2), 0.003),
+                     (rnd.uniform(1.5, 5.5), rnd.uniform(-10, 10), 0.003), m["canvas"] if k % 2 else m["tile"], (0, 0, rnd.uniform(0, 3))))
+    for k in range(6):
+        x, y = rnd.uniform(-5.5, -2.5), rnd.uniform(-8, 10)
+        p.append(cyl(f"litter_can{k}", 0.035, 0.11, (x, y, P + 0.035), m["steel"], (math.radians(90), 0, rnd.uniform(0, 3)), 10))
+    # --- стопка покрышек у ящиков
+    for k in range(3):
+        p.append(torus(f"tire{k}", 0.3, 0.1, (5.2, 3.0, 0.1 + k * 0.2), m["tape"], (0, 0, 0), (20, 8)))
+    g.append(("geometry_tires", (0.8, 0.8, 0.6), (5.2, 3.0, 0.3)))
+    return p, g
+
+
 # ============================================================================ будка выдачи дрезин
 
 def build_dispenser(outdir, save_fn, reset_fn, tex_dir):
@@ -893,6 +1051,7 @@ def build_lamp(outdir, save_fn, reset_fn, tex_dir):
          cyl("stem", 0.015, 0.25, (0, 0, -0.15), m["steel"]),
          cyl("housing", 0.09, 0.08, (0, 0, -0.3), m["paint"]),
          sphere("glass", 0.075, (0, 0, -0.38), m["glass"], (1, 1, 1.2), (16, 10))]
+    hz.selection(p[-1], "glass")          # hiddenSelection: скрипт включает светящийся материал
     for k in range(4):
         a = k * math.pi / 2
         p.append(box(f"cage{k}", (0.008, 0.008, 0.17), (math.cos(a) * 0.085, math.sin(a) * 0.085, -0.41), m["steel"]))

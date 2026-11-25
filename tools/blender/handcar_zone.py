@@ -77,7 +77,7 @@ def materials():
         "canvas": tex_material("drezina_canvas", "drezina_canvas", 1.0),
         "leather": tex_material("drezina_leather", "drezina_leather", 0.7),
         "plate": tex_material("drezina_plate", "drezina_plate", 0.8, 0.3),
-        "glass": tex_material("drezina_glass", "drezina_glass", 0.2, 0.0, emission=(1.0, 0.7, 0.3)),
+        "glass": tex_material("drezina_glass", "drezina_glass", 0.2, 0.0),
     }
 
 

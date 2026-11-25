@@ -206,8 +206,17 @@ def plate_tex(size):
 
 
 def lamp_glass_tex(size):
+    """Мутное молочно-белое стекло: налёт, пыль, разводы."""
     n = noise(size, 30, 4)
-    return lerp(col(170, 140, 70), col(90, 70, 40), n * 0.8)
+    c = lerp(col(205, 206, 198), col(150, 150, 142), n * 0.8)
+    return lerp(c, col(110, 104, 92), noise(size, 60, 4) ** 3 * 0.6)
+
+
+def red_glass_tex(size):
+    """Красное стекло стоп-сигнала, пыльное."""
+    n = noise(size, 30, 4)
+    c = lerp(col(150, 28, 22), col(95, 18, 14), n * 0.8)
+    return lerp(c, col(80, 70, 60), noise(size, 60, 4) ** 3 * 0.5)
 
 
 # ----------------------------------------------------------------------------- бункер / метро
@@ -331,6 +340,73 @@ def sign_tex(size, lines, bg=(150, 30, 25), fg=(225, 220, 205)):
     return lerp(a, rust, wear * 0.85)
 
 
+def painted_board_tex(size, lines, paint=(150, 25, 20), seed=1):
+    """Фанерный щит, надпись от руки краской: неровные буквы, подтёки, облупилось."""
+    r = np.random.default_rng(seed)
+    w, h = size, size // 2
+    ply = lerp(col(150, 128, 96), col(118, 98, 72), noise(size, 3, 3, stretch=(1, 40))[:h, :w] * 0.8)
+    ply = lerp(ply, col(70, 62, 50), noise(size, 50, 5)[:h, :w] ** 2 * 0.7)              # грязь и сырость
+    img = Image.fromarray((np.clip(ply, 0, 1) * 255).astype(np.uint8))
+    mask = Image.new("L", (w, h), 0)
+    d = ImageDraw.Draw(mask)
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    fs = int(h / (len(lines) + 0.6))
+    font = ImageFont.truetype(font_path, fs)
+    while fs > 8 and max(d.textlength(t, font=font) for t in lines) > w * 0.9:
+        fs -= 2
+        font = ImageFont.truetype(font_path, fs)
+    line_h = h / len(lines)
+    for i, t in enumerate(lines):
+        x = (w - d.textlength(t, font=font)) / 2
+        for ch in t:                      # каждая буква со своим наклоном и сдвигом — «от руки»
+            layer = Image.new("L", (fs * 2, fs * 2), 0)
+            ImageDraw.Draw(layer).text((fs * 0.4, fs * 0.3), ch, font=font, fill=255)
+            layer = layer.rotate(r.normal(0, 6), resample=Image.BICUBIC)
+            y = line_h * i + (line_h - fs) / 2 - fs * 0.3 + r.normal(0, fs * 0.05)
+            mask.paste(255, (int(x - fs * 0.4), int(y)), layer)
+            x += d.textlength(ch, font=font) * r.uniform(0.95, 1.08)
+    # подтёки краски вниз от букв
+    m = np.asarray(mask, dtype=np.float32) / 255.0
+    drip = m.copy()
+    cols = r.random(w) < 0.04
+    for k in range(1, h // 6):
+        drip[k:, cols] = np.maximum(drip[k:, cols], m[:-k, cols] * (1 - k / (h / 6)))
+    m = np.clip(np.maximum(m, drip * 0.9), 0, 1)
+    m = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)), dtype=np.float32) / 255.0
+    m *= np.clip(1.3 - noise(size, 12, 5)[:h, :w] * 0.9, 0, 1)                           # облупилось
+    a = np.asarray(img, dtype=np.float32) / 255.0
+    return lerp(a, col(*paint), m)
+
+
+def rad_sign_tex(size):
+    """Жёлтый знак «радиационная опасность»: трилистник и надпись, ржавчина по краям."""
+    w, h = size, size // 2
+    img = Image.new("RGB", (w, h), (205, 165, 30))
+    d = ImageDraw.Draw(img)
+    cx, cy, R = h * 0.5, h * 0.5, h * 0.4
+    for k in range(3):
+        a0 = -90 + k * 120 - 30
+        d.pieslice([cx - R, cy - R, cx + R, cy + R], a0, a0 + 60, fill=(20, 18, 15))
+    d.ellipse([cx - R * 0.3, cy - R * 0.3, cx + R * 0.3, cy + R * 0.3], fill=(205, 165, 30))
+    d.ellipse([cx - R * 0.18, cy - R * 0.18, cx + R * 0.18, cy + R * 0.18], fill=(20, 18, 15))
+    fs = int(h * 0.2)
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", fs)
+    while d.textlength("ОСТОРОЖНО", font=font) > w - h * 1.05 - h * 0.08:
+        fs -= 2
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", fs)
+    d.text((h * 1.0, h * 0.5 - fs * 1.15), "ОСТОРОЖНО", font=font, fill=(20, 18, 15))
+    d.text((h * 1.0, h * 0.5 + fs * 0.1), "РАДИАЦИЯ", font=font, fill=(20, 18, 15))
+    a = np.asarray(img, dtype=np.float32) / 255.0
+    wear = np.clip((noise(size, 20, 5)[:h, :w] - 0.66) * 5, 0, 1)
+    return lerp(a, rust_tex(size)[:h, :w], wear * 0.85)
+
+
+def puddle_tex(size):
+    """Лужа: тёмная мутная вода с масляными разводами."""
+    c = lerp(col(52, 50, 44), col(78, 74, 64), noise(size, 40, 5))
+    return lerp(c, col(92, 80, 60), noise(size, 15, 4) ** 3 * 0.6)
+
+
 def ballast_tex(size):
     """Щебень: угловатые камни разного серого, тени между ними, мазутные пятна."""
     rng_l = np.random.default_rng(65)
@@ -439,8 +515,16 @@ RVMAT_PARAMS = {
     "drezina_canvas": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_leather": (0.06, 20, 0.0, 0.2, "0, 0, 0, 1"),
     "drezina_plate": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
-    "drezina_glass": (0.6, 120, 0.0, 0.9, "1, 0.7, 0.3, 1"),
+    "drezina_glass": (0.6, 120, 0.0, 0.9, "0, 0, 0, 1"),            # выключено: не светится
+    "drezina_glass_e": (0.6, 120, 0.0, 0.9, "0.85, 0.87, 0.82, 1"), # включено: мутно-белый
+    "drezina_redglass": (0.6, 120, 0.0, 0.9, "0, 0, 0, 1"),
+    "drezina_redglass_e": (0.6, 120, 0.0, 0.9, "1, 0.12, 0.08, 1"),
     "metro_concrete": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_puddle": (0.9, 200, 0.0, 1.0, "0, 0, 0, 1"),
+    "metro_sign_rad": (0.1, 20, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_sign_board1": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board2": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_sign_board3": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
     "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
     "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
@@ -529,6 +613,7 @@ def main():
     save(vanilla_grade(leather_tex(size // 2)), os.path.join(out, "drezina_leather_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
+    save(red_glass_tex(size // 4), os.path.join(out, "drezina_redglass_co.png"))
     save(vanilla_grade(concrete_tex(big), 0.3), os.path.join(out, "metro_concrete_co.png"))
     save(vanilla_grade(ballast_tex(size // 2), 0.6), os.path.join(out, "drezina_ballast_co.png"))
     save(railtop_tex(size // 4), os.path.join(out, "drezina_railtop_co.png"))
@@ -542,6 +627,11 @@ def main():
     save(sign_tex(size // 2, ["СТАНЦИЯ", "«ОБЪЕКТ 17»"], bg=(30, 50, 110)), os.path.join(out, "metro_sign_station_co.png"))
     save(sign_tex(size // 2, ["ВЫДАЧА", "ДРЕЗИН"], bg=(170, 120, 20), fg=(25, 22, 18)), os.path.join(out, "metro_sign_depot_co.png"))
     save(vanilla_grade(tile_tex(big), 0.3), os.path.join(out, "metro_tile_co.png"))
+    save(vanilla_grade(puddle_tex(size // 2), 0.6), os.path.join(out, "metro_puddle_co.png"))
+    save(vanilla_grade(rad_sign_tex(size // 2), 0.4), os.path.join(out, "metro_sign_rad_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["НЕ ХОДИ", "В ТОННЕЛЬ!"], seed=1), 0.4), os.path.join(out, "metro_sign_board1_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["ЖИВЫЕ ЕСТЬ?", "СТУЧИ 3 РАЗА"], (25, 25, 22), seed=2), 0.4), os.path.join(out, "metro_sign_board2_co.png"))
+    save(vanilla_grade(painted_board_tex(size, ["ВЫХОД", "НАВЕРХ ->"], (210, 205, 190), seed=3), 0.4), os.path.join(out, "metro_sign_board3_co.png"))
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
             detail_maps(out, name, strength, shine)
