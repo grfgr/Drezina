@@ -307,6 +307,9 @@ python tools/textures/make_textures.py Drezina/data/textures 1024
 blender --background --python tools/blender/make_models.py -- build_models
 ```
 
+На Windows проще запустить `tools\build_models.bat` (двойной клик): он сам находит Blender
+(нужен 4.1 или новее) и складывает результат в `build_models`.
+
 Он создаёт в виде `.blend` и `.fbx`: `handcar` (через `handcar_zone.py`), `rail_2m`, `rail_10m`, `dispenser`,
 а для метро (через `metro_bunker.py`) — `bunker_entrance`, `bunker_inner_door`, `bunker_stairs`,
 `bunker_corridor`, `metro_station`, `tunnel_10m`, `tunnel_2m`, `dispenser`, `tunnel_lamp`;
