@@ -37,6 +37,7 @@ class DrezinaConst
 	static const float  BUNKER_WALL       = 0.35;
 	static const float  STAIR_TOP         = 9.6;  // высота верхней площадки над полом станции
 	static const float  BUNKER_SIDE_X     = -3.0; // проход в коридор: X станции (влево от пути, если смотреть в тоннель)
+	static const float  LAMP_STEP         = 30.0; // светильники в тоннеле через 30 м
 	static const float  TUNNEL_SHORT_STEP = 2.0;  // шаг коротких звеньев на поворотах (модель 2.4 м, с нахлёстом)
 	static const float  METRO_MIN_LEN     = 50.0;
 
