@@ -22,6 +22,8 @@ class Drezina_Motor extends CarScript
 	int m_LastFrameTime;
 	float m_LogTimer;
 	bool m_GravityOff;
+	bool m_Sleeping;
+	float m_StillTime;
 
 	void Drezina_Motor()
 	{
@@ -38,10 +40,13 @@ class Drezina_Motor extends CarScript
 		// мотор справа впереди (координаты модели: x вправо, y вверх, z вперёд)
 		SetEnginePos("0.22 0.82 0.72");
 		s_All.Insert(this);
+		GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(WakeWatch);
 	}
 
 	void ~Drezina_Motor()
 	{
+		if (GetGame())
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Remove(WakeWatch);
 		if (s_All)
 			s_All.RemoveItem(this);
 	}
@@ -133,6 +138,29 @@ class Drezina_Motor extends CarScript
 	override bool IsVitalGlowPlug()
 	{
 		return false;
+	}
+
+	// аккумулятор не нужен: заводится свечой и бензином, фары горят от генератора при работающем моторе
+	override bool NeedElectricitySourceDevice()
+	{
+		return false;
+	}
+
+	// спящую физику будим, когда водитель газует или переключил передачу при заведённом моторе
+	void WakeWatch(float dt)
+	{
+		if (!m_Sleeping)
+			return;
+		if (!GetGame().IsServer() && !IsOwner())
+			return;
+		if (!CrewDriver())
+			return;
+		if ((EngineIsOn() && GetThrottle() > 0.01) || GetBrake() > 0.01)
+		{
+			m_Sleeping = false;
+			m_StillTime = 0;
+			dBodyActive(this, ActiveState.ACTIVE);
+		}
 	}
 
 	override bool IsVitalSparkPlug()
@@ -365,6 +393,21 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
+
+		// стоим и газа нет — усыпляем физику: тело больше не шевелится (иначе дрожь на месте)
+		if (v == 0 && throttle <= 0.01)
+		{
+			m_StillTime += dt;
+			if (m_StillTime > 0.3 && !m_Sleeping)
+			{
+				m_Sleeping = true;
+				dBodyActive(this, ActiveState.INACTIVE);
+			}
+		}
+		else
+		{
+			m_StillTime = 0;
+		}
 
 		m_LogTimer -= dt;
 		if (m_LogTimer <= 0 && CrewDriver())

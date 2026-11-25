@@ -344,13 +344,10 @@ class DrezinaTrackManager extends Managed
 		car.ServerFitWheels();
 		car.ServerPlaceOnTrack(t.GetId(), startDist, face);
 		car.GetInventory().CreateAttachment("SparkPlug");
-		ItemBase battery = ItemBase.Cast(car.GetInventory().CreateAttachment("CarBattery"));
-		if (battery && battery.GetCompEM())
-			battery.GetCompEM().SetEnergy(battery.GetCompEM().GetEnergyMax());
 		car.GetInventory().CreateAttachment("HeadlightH7");
 		car.GetInventory().CreateAttachment("HeadlightH7");
 		Print("[Drezina] take: мотодрезина создана на " + pos);
-		Notify(player.GetIdentity(), "Мотодрезина подана. Бак пустой — заправьте канистрой. Садитесь как в машину.");
+		Notify(player.GetIdentity(), "Мотодрезина подана. Бак пустой — заправьте канистрой. Аккумулятор не нужен. Садитесь как в машину.");
 	}
 
 	// ------------------------------------------------------------------ сервер: тик
