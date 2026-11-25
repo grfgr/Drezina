@@ -1,6 +1,7 @@
 modded class PlayerBase
 {
 	Drezina_Handcar m_DrezinaHandcar; // дрезина, на которой игрок стоит водителем
+	bool m_DrezinaInputOff;           // обычное управление персонажем выключено на время езды
 
 	override void SetActions(out TInputActionMap InputActionMap)
 	{
@@ -23,6 +24,15 @@ modded class PlayerBase
 		if (m_DrezinaHandcar && pCurrentCommandID == DayZPlayerConstants.COMMANDID_MOVE && !IsRidingDrezina())
 		{
 			StartCommand_Script(new DrezinaRideCommand(this, m_DrezinaHandcar));
+		}
+
+		// на дрезине обычное управление (ходьба, удары, оружие) выключено: ваниль иначе пытается
+		// обработать удар без команды ходьбы. Клавиши дрезины читаются отдельно (DrezinaClientInput).
+		bool riding = m_DrezinaHandcar != null;
+		if (riding != m_DrezinaInputOff && GetInputController())
+		{
+			GetInputController().SetDisabled(riding);
+			m_DrezinaInputOff = riding;
 		}
 
 		super.CommandHandler(pDt, pCurrentCommandID, pCurrentCommandFinished);

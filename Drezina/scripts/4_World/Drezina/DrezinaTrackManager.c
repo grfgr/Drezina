@@ -203,10 +203,28 @@ class DrezinaTrackManager
 
 	// ------------------------------------------------------------------ дрезины
 
+	bool m_UpdateHooked;
+
 	void RegisterHandcar(Drezina_Handcar hc)
 	{
 		if (m_Handcars.Find(hc) == -1)
 			m_Handcars.Insert(hc);
+		if (!m_UpdateHooked)
+		{
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(OnUpdate);
+			m_UpdateHooked = true;
+		}
+	}
+
+	// каждый кадр (сервер и клиент): движение, анимация, звук и свет дрезин
+	void OnUpdate(float timeslice)
+	{
+		for (int i = m_Handcars.Count() - 1; i >= 0; i--)
+		{
+			Drezina_Handcar hc = m_Handcars[i];
+			if (hc)
+				hc.Tick(timeslice);
+		}
 	}
 
 	void UnregisterHandcar(Drezina_Handcar hc)

@@ -59,7 +59,6 @@ class Drezina_Handcar extends ItemBase
 		RegisterNetSyncVariableInt("m_DriverLow");
 		RegisterNetSyncVariableInt("m_DriverHigh");
 
-		SetEventMask(EntityEvent.FRAME);
 		DrezinaTrackManager.Get().RegisterHandcar(this);
 	}
 
@@ -136,6 +135,8 @@ class Drezina_Handcar extends ItemBase
 		m_Throttle = 0;
 		m_IdleTime = 0;
 		SetSynchDirty();
+		Print("[Drezina] водитель назначен, путь #" + m_TrackId + ", дистанция " + m_Dist);
+		DrezinaTrackManager.Notify(player.GetIdentity(), HelpText());
 	}
 
 	void ServerClearDriver()
@@ -167,8 +168,10 @@ class Drezina_Handcar extends ItemBase
 		if (rpc_type == DrezinaRPC.HC_THROTTLE)
 		{
 			Param1<int> p = new Param1<int>(0);
-			if (ctx.Read(p) && IsSenderDriver(sender))
+			bool okRead = ctx.Read(p);
+			if (okRead && IsSenderDriver(sender))
 				m_Throttle = Math.Clamp(p.param1, -1, 1);
+			Print("[Drezina] throttle " + p.param1 + " driver=" + IsSenderDriver(sender));
 		}
 		else if (rpc_type == DrezinaRPC.HC_REVERSE)
 		{
@@ -482,7 +485,9 @@ class Drezina_Handcar extends ItemBase
 
 	// ------------------------------------------------------------------ общее
 
-	override void EOnFrame(IEntity other, float timeSlice)
+	// Вызывается каждый кадр из DrezinaTrackManager.OnUpdate (очередь обновления игры):
+	// EOnFrame у предметов срабатывает не везде.
+	void Tick(float timeSlice)
 	{
 		if (m_TrackId == 0)
 			return;
