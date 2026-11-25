@@ -163,7 +163,9 @@ def visual_lod(objs, resolution):
             verts = []
             for li, vi in zip(tri.loops, tri.vertices):
                 n = (nm @ corner_n[li]).normalized()
-                normals.append(to_p3d(n))
+                # в MLOD P3D нормали хранятся инвертированными (как пишет Object Builder);
+                # без минуса стороны, повёрнутые к фонарю, были чёрными, а освещалась изнанка
+                normals.append(to_p3d(-n))
                 u, v = (uv[li].uv if uv else (0.0, 0.0))
                 verts.append((base + vi, len(normals) - 1, u, 1.0 - v))
             tex, mat = mats[tri.material_index] if tri.material_index < len(mats) else ("", "")
