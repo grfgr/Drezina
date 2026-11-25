@@ -92,10 +92,11 @@ class Drezina_Motor extends CarScript
 		{
 			case 0:
 				return DayZPlayerConstants.VEHICLESEAT_DRIVER;
+			// пассажиры садятся как передний пассажир (шаг вбок на сиденье, без «нырка» назад, как на заднее
+			// сиденье Нивы). Анимация рассчитана на вход справа: правый садится снаружи, левый — с пола в центре.
 			case 1:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_R;   // после разворота модели место 1 — справа
 			case 2:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_L;
+				return DayZPlayerConstants.VEHICLESEAT_CODRIVER;
 		}
 		return 0;
 	}
