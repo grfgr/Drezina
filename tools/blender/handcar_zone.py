@@ -107,7 +107,7 @@ def box(name, size, loc, mat, rot=(0, 0, 0), round_edges=True):
     o.scale = size
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     smallest = min(size)
-    if round_edges and smallest > 0.004:
+    if round_edges and smallest > 0.02:          # мелочь без фаски: экономия граней (лимит вершин в LOD)
         bevel(o, min(0.012, smallest * 0.3), 2 if smallest > 0.03 else 1)
     return _finish(o, name, mat)
 

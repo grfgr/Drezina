@@ -614,6 +614,14 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry")]
     print(f"[Drezina] motor_handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
+    # бюджет LOD0: ~40 тыс. треугольников (в LOD у DayZ есть предел вершин) — упрощаем корпус и колёса
+    for o in meshes:
+        ratio = 0.6 if o.name == "body" else (0.75 if o.name.startswith("wheel") else 1.0)
+        if ratio < 1.0:
+            mod = o.modifiers.new("decimate0", "DECIMATE")
+            mod.ratio = ratio
+            bpy.context.view_layer.objects.active = o
+            bpy.ops.object.modifier_apply(modifier=mod.name)
     save_fn(outdir, "motor_handcar")
 
     for lod, ratio in ((1, 0.4), (2, 0.15)):
