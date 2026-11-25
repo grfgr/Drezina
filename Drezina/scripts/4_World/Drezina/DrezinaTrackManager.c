@@ -10,7 +10,7 @@ class DrezinaDraft
 	int m_EditTrackId;  // 0 = новая трасса, иначе редактирование существующей (продление)
 }
 
-class DrezinaTrackManager
+class DrezinaTrackManager extends Managed
 {
 	static ref DrezinaTrackManager s_Instance;
 
