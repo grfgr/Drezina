@@ -371,6 +371,9 @@ class DrezinaTrackManager extends Managed
 
 	// ------------------------------------------------------------------ синхронизация с клиентами
 
+	// клиент получил полный список путей (до этого он повторяет запрос)
+	static bool s_ClientGotData;
+
 	// RPC отправляем «на объект игрока» — так их принимает PlayerBase.OnRPC на клиенте.
 	void SendAllTo(PlayerIdentity identity)
 	{
@@ -420,6 +423,7 @@ class DrezinaTrackManager extends Managed
 	{
 		if (rpc_type == DrezinaRPC.TRACKS_FULL)
 		{
+			s_ClientGotData = true;
 			m_Tracks.Clear();
 			int c;
 			if (!ctx.Read(c))
@@ -430,6 +434,7 @@ class DrezinaTrackManager extends Managed
 				if (data)
 					m_Tracks.Set(data.Id, new DrezinaTrack(data));
 			}
+			Print("[Drezina] клиент: получено путей " + m_Tracks.Count());
 			return true;
 		}
 		if (rpc_type == DrezinaRPC.TRACK_ADD)

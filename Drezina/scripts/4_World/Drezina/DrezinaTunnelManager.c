@@ -142,6 +142,7 @@ class DrezinaTunnelManager
 			}
 			m_ClientTunnels.Insert(t);
 		}
+		Print("[Drezina] клиент: получено метро " + m_ClientTunnels.Count());
 		return true;
 	}
 

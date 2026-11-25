@@ -8,6 +8,7 @@ class DrezinaRPC
 	static const int TRACK_REMOVE    = 8817003; // удалена трасса
 	// клиент -> сервер
 	static const int ADMIN_COMMAND   = 8817010; // текст команды "/rail ..."
+	static const int REQUEST_ALL     = 8817011; // клиент загрузился: пришлите пути и метро
 	static const int HC_THROTTLE     = 8817020; // -1 тормоз, 0 отпустил, 1 качаю
 	static const int HC_REVERSE      = 8817021; // сменить направление
 	static const int HC_LEAVE        = 8817022; // сойти с дрезины

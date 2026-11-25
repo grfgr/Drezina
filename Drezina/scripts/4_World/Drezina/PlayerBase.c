@@ -4,6 +4,7 @@ modded class PlayerBase
 	bool m_DrezinaInputOff;           // (старое) управление было выключено целиком
 	bool m_DrezinaMoveBlocked;        // ходьба и оружие заблокированы на время езды
 	int m_DrezinaLeftTime = -100000;  // когда сошёл с дрезины (мс игрового времени)
+	int m_DrezinaNextRequest;         // клиент: когда снова запросить пути и метро у сервера
 
 	// сразу после схода нельзя снова встать за рычаг: то же нажатие F запускало «Встать за рычаг»
 	bool DrezinaBoardCooldown()
@@ -27,8 +28,24 @@ modded class PlayerBase
 		return DrezinaRideCommand.Cast(GetCommand_Script()) != null;
 	}
 
+	// Клиент сам просит у сервера пути и метро, когда его персонаж уже есть. Рассылка при подключении
+	// уходила раньше, чем персонаж появлялся на клиенте, и терялась: без путей дрезина у клиента ехала
+	// мимо рельсов и расходилась с сервером, а у КПК не было данных для карты метро.
+	void DrezinaRequestData()
+	{
+		if (GetGame().IsServer() || DrezinaTrackManager.s_ClientGotData || GetGame().GetPlayer() != this)
+			return;
+		int now = GetGame().GetTime();
+		if (now < m_DrezinaNextRequest)
+			return;
+		m_DrezinaNextRequest = now + 5000;
+		GetGame().RPCSingleParam(this, DrezinaRPC.REQUEST_ALL, new Param1<int>(0), true);
+		Print("[Drezina] клиент: запрос путей и метро у сервера");
+	}
+
 	override void CommandHandler(float pDt, int pCurrentCommandID, bool pCurrentCommandFinished)
 	{
+		DrezinaRequestData();
 		bool riding = m_DrezinaHandcar != null;
 
 		// управление персонажем не отключаем (иначе не работает обзор мышью):
@@ -74,6 +91,15 @@ modded class PlayerBase
 
 		if (GetGame().IsServer())
 		{
+			if (rpc_type == DrezinaRPC.REQUEST_ALL)
+			{
+				if (sender && sender.GetPlayer() == this)
+				{
+					DrezinaTrackManager.Get().SendAllTo(sender);
+					DrezinaTunnelManager.Get().SendAllTo(sender);
+				}
+				return;
+			}
 			if (rpc_type == DrezinaRPC.ADMIN_COMMAND)
 			{
 				Param1<string> p = new Param1<string>("");
