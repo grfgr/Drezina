@@ -301,12 +301,12 @@ class DrezinaTrackManager extends Managed
 
 		DrezinaSettings st = DrezinaSettings.Get();
 		float startDist = st.HandcarClearance * 0.5 + 1.5;
-		// сторона носа: в игре модель оказалась развёрнутой относительно пути — знак подобран по проверке
-		int face = -1;
+		// нос — в сторону пути (от торца станции)
+		int face = 1;
 		if (!atStart)
 		{
 			startDist = t.GetLength() - startDist;
-			face = 1;
+			face = -1;
 		}
 		startDist = Math.Clamp(startDist, 0, t.GetLength());
 

@@ -250,6 +250,17 @@ def build(outdir, tex_dir, save_fn, reset_fn):
                        ("1_2", -hz.HALF, -hz.AXLE_Y), ("2_2", hz.HALF, -hz.AXLE_Y)):
         geo(f"geometry_hub_{name}", (0.1, 0.5, 0.5), (x, y, hz.WHEEL_R + 0.02), f"dmgZone_wheel_{name},wheel_{name}_damper_land", m)
 
+    # В игре нос модели оказался сзади (по ходу машины DayZ «вперёд» — другая сторона), поэтому
+    # разворачиваем всю мотодрезину на 180° вокруг вертикали: мотор и водитель смотрят по ходу.
+    import mathutils
+    rot = mathutils.Matrix.Rotation(math.pi, 4, "Z")
+    for o in bpy.data.objects:
+        if o.parent is None:
+            o.matrix_world = rot @ o.matrix_world
+        if "proxy_fwd" in o:
+            fx, fy, fz = o["proxy_fwd"]
+            o["proxy_fwd"] = (-fx, -fy, fz)
+
     meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry")]
     print(f"[Drezina] motor_handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
     save_fn(outdir, "motor_handcar")

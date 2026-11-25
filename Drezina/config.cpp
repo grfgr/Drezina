@@ -252,7 +252,7 @@ class CfgVehicles
 			{
 				type = "GEARBOX_MANUAL";
 				reverse = 3.0;
-				ratios[] = {3.9, 2.4, 1.4};
+				ratios[] = {2.4};
 			};
 			class Axles
 			{

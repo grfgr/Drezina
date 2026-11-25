@@ -5,7 +5,7 @@ class ActionDrezinaTake extends ActionInteractBase
 	{
 		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_INTERACTONCE;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
-		m_Text = "Взять дрезину";
+		m_Text = "Взять мотодрезину";
 	}
 
 	override void CreateConditionComponents()
@@ -18,7 +18,11 @@ class ActionDrezinaTake extends ActionInteractBase
 	{
 		if (!target || player.m_DrezinaHandcar || player.DrezinaBoardCooldown())
 			return false;
-		return Drezina_Dispenser.Cast(target.GetObject()) != null;
+		Drezina_Dispenser disp = Drezina_Dispenser.Cast(target.GetObject());
+		if (!disp)
+			return false;
+		// у терминала уже стоит пустая мотодрезина — вместо «Взять» будет «Сдать» (зажать F)
+		return ActionDrezinaReturn.FindReturnable(disp) == null;
 	}
 
 	override void OnExecuteServer(ActionData action_data)

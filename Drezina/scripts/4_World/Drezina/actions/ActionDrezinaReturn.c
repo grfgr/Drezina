@@ -1,13 +1,24 @@
-// «Сдать дрезину»: стоящую пустую дрезину рядом со станцией выдачи можно убрать.
-class ActionDrezinaReturn extends ActionInteractBase
+// «Сдать мотодрезину» — только у терминала выдачи: зажать F на терминале. Пустая (без людей и вещей
+// в сумке) стоящая мотодрезина в RADIUS метрах от терминала убирается.
+class ActionDrezinaReturnCB : ActionContinuousBaseCB
 {
-	static const float NEAR_DISPENSER = 15.0;
+	override void CreateActionComponent()
+	{
+		m_ActionData.m_ActionComponent = new CAContinuousTime(3.0);
+	}
+}
+
+class ActionDrezinaReturn : ActionContinuousBase
+{
+	static const float RADIUS = 7.0;
 
 	void ActionDrezinaReturn()
 	{
-		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_INTERACTONCE;
+		m_CallbackClass = ActionDrezinaReturnCB;
+		m_CommandUID = DayZPlayerConstants.CMD_ACTIONFB_INTERACT;
+		m_FullBody = true;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
-		m_Text = "Сдать дрезину";
+		m_Text = "Сдать мотодрезину [зажать]";
 	}
 
 	override void CreateConditionComponents()
@@ -16,52 +27,48 @@ class ActionDrezinaReturn extends ActionInteractBase
 		m_ConditionTarget = new CCTObject(3.0);
 	}
 
-	static bool NearDispenser(Object hc)
+	override typename GetInputType()
 	{
-		array<Object> objs = new array<Object>;
-		GetGame().GetObjectsAtPosition(hc.GetPosition(), NEAR_DISPENSER, objs, null);
-		foreach (Object o : objs)
+		return ContinuousInteractActionInput;
+	}
+
+	override bool HasTarget()
+	{
+		return true;
+	}
+
+	// мотодрезина, которую можно сдать на этом терминале
+	static Drezina_Motor FindReturnable(Drezina_Dispenser disp)
+	{
+		if (!disp)
+			return null;
+		foreach (Drezina_Motor car : Drezina_Motor.s_All)
 		{
-			if (Drezina_Dispenser.Cast(o))
-				return true;
+			if (car && vector.Distance(car.GetPosition(), disp.GetPosition()) <= RADIUS && car.CanBeReturned())
+				return car;
 		}
-		return false;
+		return null;
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		if (!target || player.m_DrezinaHandcar || player.IsInVehicle())
+		if (!target || player.IsInVehicle())
 			return false;
-		Drezina_Motor car = Drezina_Motor.Cast(target.GetObject());
-		if (car)
-			return car.CanBeReturned() && NearDispenser(car);
-		Drezina_Handcar hc = Drezina_Handcar.Cast(target.GetObject());
-		return hc && !hc.HasDriver() && hc.m_SyncSpeed < 0.3 && NearDispenser(hc);
+		return FindReturnable(Drezina_Dispenser.Cast(target.GetObject())) != null;
 	}
 
-	override void OnExecuteServer(ActionData action_data)
+	override void OnFinishProgressServer(ActionData action_data)
 	{
-		Object obj = action_data.m_Target.GetObject();
-		Drezina_Motor car = Drezina_Motor.Cast(obj);
-		if (car)
+		Drezina_Motor car = FindReturnable(Drezina_Dispenser.Cast(action_data.m_Target.GetObject()));
+		if (!car)
+			return;
+		if (!car.CargoEmpty())
 		{
-			if (!car.CargoEmpty())
-			{
-				DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала заберите вещи из сумки мотодрезины.");
-				return;
-			}
-			if (car.CanBeReturned() && NearDispenser(car))
-			{
-				Print("[Drezina] мотодрезина сдана");
-				GetGame().ObjectDelete(car);
-			}
+			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала заберите вещи из сумки мотодрезины.");
 			return;
 		}
-		Drezina_Handcar hc = Drezina_Handcar.Cast(obj);
-		if (hc && !hc.HasDriver() && hc.m_Speed < 0.3 && NearDispenser(hc))
-		{
-			Print("[Drezina] дрезина сдана");
-			GetGame().ObjectDelete(hc);
-		}
+		Print("[Drezina] мотодрезина сдана на терминале");
+		DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Мотодрезина сдана.");
+		GetGame().ObjectDelete(car);
 	}
 }

@@ -13,7 +13,8 @@ class Drezina_Motor extends CarScript
 	static const float BRAKE_DECEL = 5.0;
 	static const float ROLL_DECEL = 0.25;    // накат без газа
 	static const float HANDBRAKE_DECEL = 7.0;
-	static const float HOVER = 0.05;         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
+	static const float HOVER = 0.05;
+	static const float MAX_SPEED = 8.4;      // 30 км/ч         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
 
 	int m_TrackId = -1;
 	int m_Face = 1;              // +1 — нос машины смотрит в сторону роста дистанции пути
@@ -91,9 +92,9 @@ class Drezina_Motor extends CarScript
 			case 0:
 				return DayZPlayerConstants.VEHICLESEAT_DRIVER;
 			case 1:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_L;
+				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_R;   // после разворота модели место 1 — справа
 			case 2:
-				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_R;
+				return DayZPlayerConstants.VEHICLESEAT_PASSENGER_L;
 		}
 		return 0;
 	}
@@ -339,24 +340,19 @@ class Drezina_Motor extends CarScript
 
 		float maxV = 0;
 		float sign = 1;
-		switch (gear)
+		// передачи: R — назад до 11 км/ч, N, D (единственная передача вперёд) — до 30 км/ч
+		if (gear == CarGear.REVERSE)
 		{
-			case CarGear.REVERSE:
-				maxV = 3.0;
-				sign = -1;
-				break;
-			case CarGear.NEUTRAL:
-				maxV = 0;
-				break;
-			case CarGear.FIRST:
-				maxV = 4.0;
-				break;
-			case CarGear.SECOND:
-				maxV = 8.0;
-				break;
-			default:
-				maxV = 12.5;
-				break;
+			maxV = 3.0;
+			sign = -1;
+		}
+		else if (gear == CarGear.NEUTRAL)
+		{
+			maxV = 0;
+		}
+		else
+		{
+			maxV = MAX_SPEED;
 		}
 
 		// разгон в сторону передачи до предела передачи
