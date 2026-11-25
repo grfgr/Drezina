@@ -284,7 +284,9 @@ class DrezinaTrackManager extends Managed
 		ServerTakeAt(player, disp.m_TrackId, disp.m_AtStart);
 	}
 
-	// Выдать дрезину у конца пути (у станции выдачи или по команде /rail take).
+	// Выдать мотодрезину у конца пути (у станции выдачи или по команде /rail take).
+	// Садятся в неё как в машину (действие «Сесть»). Выдаётся со свечой, аккумулятором и лампочками,
+	// но с пустым баком — заправить канистрой.
 	void ServerTakeAt(PlayerBase player, int trackId, bool atStart)
 	{
 		DrezinaTrack t = GetTrack(trackId);
@@ -296,61 +298,53 @@ class DrezinaTrackManager extends Managed
 			Notify(player.GetIdentity(), "Путь #" + trackId + " не найден на сервере.");
 			return;
 		}
-		if (player.m_DrezinaHandcar)
-		{
-			Notify(player.GetIdentity(), "Вы уже на дрезине.");
-			return;
-		}
 
 		DrezinaSettings st = DrezinaSettings.Get();
-		float startDist = st.HandcarClearance * 0.5 + 1.0;
-		int dir = 1;
+		float startDist = st.HandcarClearance * 0.5 + 1.5;
+		int face = 1;
 		if (!atStart)
 		{
 			startDist = t.GetLength() - startDist;
-			dir = -1;
+			face = -1;
 		}
 		startDist = Math.Clamp(startDist, 0, t.GetLength());
 
-		Drezina_Handcar hc = FindIdleHandcarNear(t.GetId(), startDist, 8.0);
-		if (hc)
+		int onTrack = 0;
+		foreach (Drezina_Motor other : Drezina_Motor.s_All)
 		{
-			// свободная дрезина у станции — просто разворачиваем её от торца и садимся
-			hc.ServerPlaceOnTrack(t.GetId(), hc.m_Dist, dir);
-		}
-		else
-		{
-			if (CountHandcarsOnTrack(t.GetId()) >= st.MaxHandcarsPerTrack)
+			if (!other || other.m_TrackId != t.GetId())
+				continue;
+			onTrack++;
+			float od = Drezina_Motor.ProjectDistOf(t, other.GetPosition());
+			if (Math.AbsFloat(od - startDist) < st.HandcarClearance)
 			{
-				Notify(player.GetIdentity(), "Все дрезины этого пути заняты. Подождите.");
+				Notify(player.GetIdentity(), "У станции уже стоит мотодрезина — садитесь в неё.");
 				return;
 			}
-
-			foreach (Drezina_Handcar other : m_Handcars)
-			{
-				if (other && other.m_TrackId == t.GetId() && Math.AbsFloat(other.m_Dist - startDist) < st.HandcarClearance)
-				{
-					Notify(player.GetIdentity(), "Путь у станции занят другой дрезиной.");
-					return;
-				}
-			}
-
-			vector pos, tdir;
-			t.GetPosDir(startDist, pos, tdir);
-			int flags = ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
-			hc = Drezina_Handcar.Cast(GetGame().CreateObjectEx("Drezina_Handcar", pos, flags, RF_DEFAULT));
-			if (!hc)
-			{
-				Print("[Drezina] take: !!! не удалось создать Drezina_Handcar");
-				Notify(player.GetIdentity(), "Не удалось создать дрезину (см. лог сервера).");
-				return;
-			}
-			Print("[Drezina] take: дрезина создана на " + pos);
-			hc.ServerPlaceOnTrack(t.GetId(), startDist, dir);
+		}
+		if (onTrack >= st.MaxHandcarsPerTrack)
+		{
+			Notify(player.GetIdentity(), "Все мотодрезины этого пути в пути. Подождите.");
+			return;
 		}
 
-		// дрезина подана — встать за рычаг игрок решает сам (действие «Встать за рычаг»)
-		Notify(player.GetIdentity(), "Дрезина подана на путь. Подойдите и выберите «Встать за рычаг».");
+		vector pos, tdir;
+		t.GetPosDir(startDist, pos, tdir);
+		pos[1] = pos[1] + st.RailHeightOffset + 0.05;
+		Drezina_Motor car = Drezina_Motor.Cast(GetGame().CreateObjectEx("Drezina_Motor", pos, ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN, RF_DEFAULT));
+		if (!car)
+		{
+			Print("[Drezina] take: !!! не удалось создать Drezina_Motor");
+			Notify(player.GetIdentity(), "Не удалось создать мотодрезину (см. лог сервера).");
+			return;
+		}
+		car.ServerPlaceOnTrack(t.GetId(), startDist, face);
+		car.GetInventory().CreateAttachment("SparkPlug");
+		car.GetInventory().CreateAttachment("CarBattery");
+		car.GetInventory().CreateAttachment("HeadlightH7");
+		car.GetInventory().CreateAttachment("HeadlightH7");
+		Print("[Drezina] take: мотодрезина создана на " + pos);
+		Notify(player.GetIdentity(), "Мотодрезина подана. Бак пустой — заправьте канистрой. Садитесь как в машину.");
 	}
 
 	// ------------------------------------------------------------------ сервер: тик

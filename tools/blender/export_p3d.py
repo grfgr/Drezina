@@ -30,6 +30,7 @@ import bpy
 # модель -> (масса, есть ли тень)
 MODELS = {
     "handcar": (227.0, True),
+    "motor_handcar": (380.0, True),
     "rail_10m": (2000.0, False),
     "rail_2m": (400.0, False),
     "dispenser": (500.0, False),
@@ -105,6 +106,28 @@ def scene_parts():
     return visual, geometry, memory
 
 
+def scene_proxies():
+    return [o for o in bpy.data.objects if o.type == "EMPTY" and "proxy_path" in o]
+
+
+def proxy_triangles(proxies):
+    """Треугольник прокси: вершина в точке прокси, длинный катет (1 м) — вперёд, короткий (0.5 м) — вверх.
+    Возвращает [(name_proxy, sel, (p0, p1, p2))] в осях P3D; номера прокси одного файла идут .001, .002 ..."""
+    out = []
+    counters = {}
+    for e in sorted(proxies, key=lambda o: o.name):
+        path = e["proxy_path"]
+        counters[path] = counters.get(path, 0) + 1
+        loc = e.matrix_world.translation
+        fx, fy, fz = e["proxy_fwd"]
+        p0 = (loc.x, loc.y, loc.z)
+        p1 = (loc.x + fx, loc.y + fy, loc.z + fz)
+        p2 = (loc.x, loc.y, loc.z + 0.5)
+        name = "proxy:%s.%03d" % (path, counters[path])
+        out.append((name, e["proxy_sel"], tuple(to_p3d(p) for p in (p0, p1, p2)), bool(e.get("proxy_visual", 0))))
+    return out
+
+
 def visual_lod(objs, resolution):
     points, normals, faces = [], [], []
     sel_points, sel_faces = {}, {}
@@ -170,10 +193,11 @@ def box_faces(o, top_only=False):
     return pts, quads
 
 
-def components_lod(geoms, resolution, mass=None, roadway=False):
+def components_lod(geoms, resolution, mass=None, roadway=False, proxies=()):
     points, faces = [], []
     taggs = b""
     comp = []
+    extra = {}
     for o in geoms:
         pts, quads = box_faces(o, top_only=roadway)
         base = len(points)
@@ -182,11 +206,29 @@ def components_lod(geoms, resolution, mass=None, roadway=False):
         for q in quads:
             faces.append(([(base + i, 0, 0.0, 0.0) for i in q], "", ""))
         comp.append((range(base, base + len(pts)), range(f0, len(faces))))
+        if not roadway and "sel" in o:
+            for sname in str(o["sel"]).split(","):
+                ps, fs = extra.setdefault(sname, (set(), set()))
+                ps.update(range(base, base + len(pts)))
+                fs.update(range(f0, len(faces)))
+    geo_points = len(points)
+    # прокси (экипаж) — только в View / Fire Geometry, без массы и вне компонент
+    for pname, psel, tri, _vis in proxies:
+        base = len(points)
+        points += list(tri)
+        fi = len(faces)
+        faces.append(([(base, 0, 0.0, 0.0), (base + 1, 0, 0.0, 0.0), (base + 2, 0, 0.0, 0.0)], "", ""))
+        for sname in (pname, psel):
+            ps, fs = extra.setdefault(sname, (set(), set()))
+            ps.update(range(base, base + 3))
+            fs.add(fi)
     if not roadway:
         for k, (ps, fs) in enumerate(comp):
             taggs += selection_tag("Component%02d" % (k + 1), len(points), len(faces), ps, fs)
+        for sname, (ps, fs) in extra.items():
+            taggs += selection_tag(sname, len(points), len(faces), ps, fs)
     if mass is not None and points:
-        taggs += tag("#Mass#", struct.pack("<%df" % len(points), *([mass / len(points)] * len(points))))
+        taggs += tag("#Mass#", struct.pack("<%df" % len(points), *([mass / geo_points] * geo_points + [0.0] * (len(points) - geo_points))))
     if resolution == 1e13:
         taggs += prop("autocenter", "0")
     return lod_bytes(points, [(0.0, 1.0, 0.0)], faces, resolution, taggs)
@@ -195,7 +237,10 @@ def components_lod(geoms, resolution, mass=None, roadway=False):
 def memory_lod(empties):
     points, groups = [], {}
     for e in empties:
-        name = re.sub(r"_\d$", "", e.name[len("mem_"):])
+        name = e.name[len("mem_"):]
+        # пары точек оси: mem_axle_front_1 / _2 -> одна selection "axle_front"
+        if re.match(r"^(lever_axis|axle_front|axle_rear)_\d$", name):
+            name = re.sub(r"_\d$", "", name)
         groups.setdefault(name, []).append(len(points))
         points.append(to_p3d(e.matrix_world.translation))
     taggs = b""
@@ -240,10 +285,11 @@ def export_model(src_dir, out_dir, name, mass, shadow):
     # геометрия, память — из основного файла (открываем заново: объекты прошлого файла выгружены)
     bpy.ops.wm.open_mainfile(filepath=path)
     _, geometry, memory = scene_parts()
+    prx = proxy_triangles(scene_proxies())
     if geometry:
         lods.append(components_lod(geometry, 1e13, mass))
-        lods.append(components_lod(geometry, 6e15))
-        lods.append(components_lod(geometry, 7e15))
+        lods.append(components_lod(geometry, 6e15, proxies=prx))
+        lods.append(components_lod(geometry, 7e15, proxies=prx))
         lods.append(components_lod(geometry, 3e15, roadway=True))
     else:
         xs, ys, zs = zip(*pts0)

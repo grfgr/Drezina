@@ -2,10 +2,10 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Motor", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
-		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects"};
+		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
 	};
 };
 
@@ -143,6 +143,321 @@ class CfgVehicles
 	class HouseNoDestruct;
 
 	// Дрезина (Sheffield hand car, ~1890). Двигается скриптом по рельсам, в инвентарь не берётся.
+	// ------------------------------------------------------------------ мотодрезина (машина DayZ)
+	// Садятся как в машину: водитель + 2 пассажира (сзади по бортам, ногами наружу).
+	// Мотор от мотоцикла: нужен бензин, свеча и аккумулятор, фары — лампочки H7.
+	// Колёс-запчастей нет: по рельсам машину ведёт скрипт (Drezina_Motor.c).
+	class CarScript;
+	class Drezina_Motor: CarScript
+	{
+		scope = 2;
+		displayName = "Мотодрезина";
+		descriptionShort = "Дрезина с мотоциклетным мотором. Заправь, вставь свечу и аккумулятор — и по рельсам.";
+		model = "\Drezina\data\motor_handcar.p3d";
+		attachments[] = {"CarBattery", "SparkPlug", "Reflector_1_1", "Reflector_2_1"};
+		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
+		hiddenSelectionsTextures[] = {"", "", "", "", "", "", "", "", ""};
+		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "", "", "", "", "", ""};
+		frontReflectorMatOn = "Drezina\data\textures\drezina_glass.rvmat";
+		frontReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		brakeReflectorMatOn = "Drezina\data\textures\drezina_glass.rvmat";
+		brakeReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		ReverseReflectorMatOn = "Drezina\data\textures\drezina_glass.rvmat";
+		ReverseReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		TailReflectorMatOn = "Drezina\data\textures\drezina_glass.rvmat";
+		TailReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		dashboardMatOn = "Drezina\data\textures\drezina_glass.rvmat";
+		dashboardMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		fuelCapacity = 20;
+		fuelConsumption = 3;
+
+		class Crew
+		{
+			class Driver
+			{
+				actionSel = "seat_driver";
+				proxyPos = "crewDriver";
+				getInPos = "pos_driver";
+				getInDir = "pos_driver_dir";
+				isDriver = 1;
+			};
+			class Cargo1
+			{
+				actionSel = "seat_cargo1";
+				proxyPos = "crewCargo1";
+				getInPos = "pos_cargo1";
+				getInDir = "pos_cargo1_dir";
+			};
+			class Cargo2
+			{
+				actionSel = "seat_cargo2";
+				proxyPos = "crewCargo2";
+				getInPos = "pos_cargo2";
+				getInDir = "pos_cargo2_dir";
+			};
+		};
+
+		class SimulationModule: SimulationModule
+		{
+			class Steering
+			{
+				maxSteeringAngle = 1;
+				increaseSpeed[] = {0, 10};
+				decreaseSpeed[] = {0, 10};
+				centeringSpeed[] = {0, 10};
+			};
+			class Throttle
+			{
+				reactionTime = 0.5;
+				defaultThrust = 0.85;
+				gentleThrust = 0.4;
+				turboCoef = 2;
+				gentleCoef = 0.75;
+			};
+			class Brake
+			{
+				pressureBySpeed[] = {0, 0.5, 40, 0.5};
+				reactionTime = 0.3;
+				driverless = 0.5;
+			};
+			class Aerodynamics
+			{
+				frontalArea = 1.5;
+				dragCoefficient = 0.8;
+			};
+			drive = "DRIVE_RWD";
+			class Engine
+			{
+				torqueCurve[] = {400, 0, 1100, 6, 2500, 10, 4500, 12, 5500, 10, 6000, 7, 7000, 0};
+				inertia = 0.04;
+				frictionTorque = 1;
+				rollingFriction = 0.1;
+				viscousFriction = 0.5;
+				rpmIdle = 1200;
+				rpmMin = 1400;
+				rpmClutch = 1500;
+				rpmRedline = 6000;
+			};
+			class Clutch
+			{
+				maxTorqueTransfer = 40;
+				uncoupleTime = 0.2;
+				coupleTime = 0.5;
+			};
+			class Gearbox
+			{
+				type = "GEARBOX_MANUAL";
+				reverse = 3.0;
+				ratios[] = {3.9, 2.4, 1.4};
+			};
+			class Axles: Axles
+			{
+				class Front: Front
+				{
+					maxBrakeTorque = 800;
+					maxHandbrakeTorque = 1500;
+					wheelHubMass = 10;
+					wheelHubRadius = 0.36;
+					class Differential
+					{
+						ratio = 4.0;
+						type = "DIFFERENTIAL_LOCKED";
+					};
+					class Suspension
+					{
+						stiffness = 30000;
+						compression = 2000;
+						damping = 6000;
+						travelMaxUp = 0.02;
+						travelMaxDown = 0.02;
+					};
+					class Wheels: Wheels
+					{
+						class Left: Left
+						{
+							animDamper = "";
+							inventorySlot = "";
+						};
+						class Right: Right
+						{
+							animDamper = "";
+							inventorySlot = "";
+						};
+					};
+				};
+				class Rear: Rear
+				{
+					maxBrakeTorque = 800;
+					maxHandbrakeTorque = 1500;
+					wheelHubMass = 10;
+					wheelHubRadius = 0.36;
+					class Differential
+					{
+						ratio = 4.0;
+						type = "DIFFERENTIAL_LOCKED";
+					};
+					class Suspension
+					{
+						stiffness = 30000;
+						compression = 2000;
+						damping = 6000;
+						travelMaxUp = 0.02;
+						travelMaxDown = 0.02;
+					};
+					class Wheels: Wheels
+					{
+						class Left: Left
+						{
+							animDamper = "";
+							inventorySlot = "";
+						};
+						class Right: Right
+						{
+							animDamper = "";
+							inventorySlot = "";
+						};
+					};
+				};
+			};
+		};
+
+		// сумка напротив водителя: чуть больше деревянного ящика
+		class Cargo
+		{
+			itemsCargoSize[] = {10, 6};
+			allowOwnedCargoManipulation = 1;
+			openable = 0;
+		};
+
+		class AnimationSources: AnimationSources
+		{
+			class drezina_wheels
+			{
+				source = "user";
+				animPeriod = 0.001;
+				initPhase = 0;
+			};
+		};
+
+		// звук мотора — ванильный мотоцикл (Motorbike_01)
+		class Sounds
+		{
+			thrust = 0.6;
+			thrustTurbo = 1;
+			thrustGentle = 0.3;
+			thrustSmoothCoef = 0.02;
+			camposSmoothCoef = 0.03;
+			soundSetsFilter[] =
+			{
+				"Motorbike_01_Engine_Offload_Ext_Rpm1_SoundSet",
+				"Motorbike_01_Engine_Offload_Ext_Rpm2_SoundSet",
+				"Motorbike_01_Engine_Offload_Ext_Rpm3_SoundSet",
+				"Motorbike_01_Engine_Offload_Ext_Rpm4_SoundSet",
+				"Motorbike_01_Engine_Offload_Ext_Rpm5_SoundSet",
+				"Motorbike_01_Engine_Offload_Ext_Rpm6_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm0_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm1_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm2_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm3_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm4_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm5_SoundSet",
+				"Motorbike_01_Engine_Ext_Rpm6_SoundSet",
+				"Motorbike_01_Engine_Ext_Broken_SoundSet"
+			};
+			soundSetsInt[] = {"Motorbike_01_Wind_SoundSet"};
+		};
+
+		class DamageSystem
+		{
+			class GlobalHealth
+			{
+				class Health
+				{
+					hitpoints = 3000;
+					healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+				};
+			};
+			class DamageZones
+			{
+				class Chassis
+				{
+					fatalInjuryCoef = -1;
+					componentNames[] = {"dmgZone_chassis"};
+					class Health
+					{
+						hitpoints = 3000;
+						transferToGlobalCoef = 0;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {};
+				};
+				class Engine
+				{
+					fatalInjuryCoef = 0.001;
+					memoryPoints[] = {"dmgZone_engine"};
+					componentNames[] = {"dmgZone_engine"};
+					class Health
+					{
+						hitpoints = 1000;
+						transferToGlobalCoef = 1;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {"SparkPlug", "CarBattery"};
+					inventorySlotsCoefs[] = {0.03, 0.03};
+				};
+				class FuelTank
+				{
+					fatalInjuryCoef = -1;
+					componentNames[] = {"dmgZone_fuelTank"};
+					class Health
+					{
+						hitpoints = 600;
+						transferToGlobalCoef = 0;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {};
+				};
+				class Reflector_1_1
+				{
+					fatalInjuryCoef = -1;
+					memoryPoints[] = {"dmgZone_lights_1_1"};
+					componentNames[] = {};
+					class Health
+					{
+						hitpoints = 10;
+						transferToGlobalCoef = 0;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {"Reflector_1_1"};
+					inventorySlotsCoefs[] = {1};
+				};
+				class Reflector_2_1: Reflector_1_1
+				{
+					memoryPoints[] = {"dmgZone_lights_2_1"};
+					inventorySlots[] = {"Reflector_2_1"};
+				};
+			};
+		};
+
+		class GUIInventoryAttachmentsProps
+		{
+			class Engine
+			{
+				name = "$STR_attachment_Engine0";
+				description = "";
+				icon = "set:dayz_inventory image:cat_vehicle_engine";
+				attachmentSlots[] = {"CarBattery", "SparkPlug"};
+			};
+			class Body
+			{
+				name = "$STR_attachment_Body0";
+				description = "";
+				icon = "set:dayz_inventory image:cat_vehicle_body";
+				attachmentSlots[] = {"Reflector_1_1", "Reflector_2_1"};
+			};
+		};
+	};
+
 	class Drezina_Handcar: Inventory_Base
 	{
 		scope = 2;

@@ -30,15 +30,34 @@ class ActionDrezinaReturn extends ActionInteractBase
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		if (!target || player.m_DrezinaHandcar || player.DrezinaBoardCooldown())
+		if (!target || player.m_DrezinaHandcar || player.IsInVehicle())
 			return false;
+		Drezina_Motor car = Drezina_Motor.Cast(target.GetObject());
+		if (car)
+			return car.CanBeReturned() && NearDispenser(car);
 		Drezina_Handcar hc = Drezina_Handcar.Cast(target.GetObject());
 		return hc && !hc.HasDriver() && hc.m_SyncSpeed < 0.3 && NearDispenser(hc);
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
-		Drezina_Handcar hc = Drezina_Handcar.Cast(action_data.m_Target.GetObject());
+		Object obj = action_data.m_Target.GetObject();
+		Drezina_Motor car = Drezina_Motor.Cast(obj);
+		if (car)
+		{
+			if (!car.CargoEmpty())
+			{
+				DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала заберите вещи из сумки мотодрезины.");
+				return;
+			}
+			if (car.CanBeReturned() && NearDispenser(car))
+			{
+				Print("[Drezina] мотодрезина сдана");
+				GetGame().ObjectDelete(car);
+			}
+			return;
+		}
+		Drezina_Handcar hc = Drezina_Handcar.Cast(obj);
 		if (hc && !hc.HasDriver() && hc.m_Speed < 0.3 && NearDispenser(hc))
 		{
 			Print("[Drezina] дрезина сдана");
