@@ -29,12 +29,13 @@ modded class PlayerBase
 	{
 		bool riding = m_DrezinaHandcar != null;
 
-		// обычное управление (ходьба, удары, оружие) на время езды выключено;
-		// клавиши дрезины читаются отдельно (DrezinaClientInput)
-		if (riding != m_DrezinaInputOff && GetInputController())
+		// управление персонажем не отключаем (иначе не работает обзор мышью):
+		// ходьбу игнорирует команда езды, удары и падения на паузе (ниже).
+		// Если старая версия мода успела отключить ввод — включаем обратно.
+		if (m_DrezinaInputOff && GetInputController())
 		{
-			GetInputController().SetDisabled(riding);
-			m_DrezinaInputOff = riding;
+			GetInputController().SetDisabled(false);
+			m_DrezinaInputOff = false;
 		}
 
 		if (riding && IsAlive())

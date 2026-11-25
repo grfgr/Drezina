@@ -9,6 +9,7 @@ class DrezinaRideCommand extends HumanCommandScript
 	PlayerBase m_Player;
 	Drezina_Handcar m_Handcar;
 	float m_LogTimer;
+	bool m_Faced;
 
 	void DrezinaRideCommand(PlayerBase player, Drezina_Handcar handcar)
 	{
@@ -82,13 +83,18 @@ class DrezinaRideCommand extends HumanCommandScript
 			Print("[Drezina] ride server=" + GetGame().IsServer() + " seat " + seat + " phys " + got + " off " + vector.Distance(got, seat));
 		}
 
-		vector mat[3];
-		Math3D.YawPitchRollMatrix(Vector(yaw, 0, 0), mat);
-		float rot[4];
-		Math3D.MatrixToQuat(mat, rot);
-
 		PostPhys_SetPosition(seat);
-		PostPhys_SetRotation(rot);
+		// поворот задаём только при посадке (лицом по ходу), дальше игрок крутится сам:
+		// если ставить его каждый кадр, он борется с мышью — дрожь и «застывший» взгляд
+		if (!m_Faced)
+		{
+			m_Faced = true;
+			vector mat[3];
+			Math3D.YawPitchRollMatrix(Vector(yaw, 0, 0), mat);
+			float rot[4];
+			Math3D.MatrixToQuat(mat, rot);
+			PostPhys_SetRotation(rot);
+		}
 		return DrezinaConst.POSTPHYS_CONTINUE;
 	}
 }
