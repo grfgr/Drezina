@@ -330,6 +330,96 @@ def bag(m, out):
     out.append(cyl("bag_rope", 0.006, 0.5, (bx, by, DECK + 0.01), m["canvas"], ROT_X, 6))
 
 
+def rail_wheel(name, x, y, m):
+    """Колесо мотодрисины: бандаж с катаной до блеска поверхностью катания и ребордой, диск с 8
+    спицами-рёбрами, ступица с гайками, противовес, буксовая крышка. Selection/origin как у hz.wheel."""
+    R = hz.WHEEL_R
+    sx = 1 if x > 0 else -1
+    parts = []
+    # бандаж: поверхность катания (блестящая, накатанная о рельс) и реборда внутрь колеи
+    parts.append(hz.tube_x(name + "_tread", R, R - 0.035, 0.09, (x, y, R), m["steel"], 64))
+    parts.append(hz.tube_x(name + "_tyre_side", R - 0.004, R - 0.05, 0.1, (x + sx * 0.004, y, R), m["rust"], 64))
+    parts.append(hz.tube_x(name + "_flange", R + 0.03, R - 0.03, 0.022, (x - sx * 0.05, y, R), m["steel"], 64))
+    # обод и диск
+    parts.append(hz.tube_x(name + "_rim", R - 0.05, R - 0.075, 0.07, (x, y, R), m["paint"], 48))
+    for k in range(8):
+        a = k * 2 * math.pi / 8 + 0.2
+        r_mid = (R - 0.07 + 0.09) / 2
+        sp = box(f"{name}_spoke{k}", (0.03, 0.035, R - 0.14), (x, y + math.sin(a) * r_mid, R + math.cos(a) * r_mid), m["paint"], (-a, 0, 0))
+        parts.append(sp)
+        parts.append(box(f"{name}_rib{k}", (0.07, 0.012, R - 0.16), (x, y + math.sin(a) * r_mid, R + math.cos(a) * r_mid), m["paint"], (-a, 0, 0)))
+    # противовес между двумя спицами
+    parts.append(box(name + "_weight", (0.06, 0.16, 0.06), (x, y - math.sin(0.6) * (R - 0.12), R - math.cos(0.6) * (R - 0.12)), m["paint"], (0.6, 0, 0)))
+    # ступица, фланец, гайки по кругу, колпак
+    parts.append(cyl(name + "_hub", 0.09, 0.14, (x, y, R), m["paint"], ROT_X, 32))
+    parts.append(cyl(name + "_hubflange", 0.11, 0.02, (x + sx * 0.06, y, R), m["steel"], ROT_X, 32))
+    for k in range(8):
+        a = k * 2 * math.pi / 8
+        parts.append(cyl(f"{name}_nut{k}", 0.012, 0.03, (x + sx * 0.075, y + math.sin(a) * 0.08, R + math.cos(a) * 0.08), m["steel"], ROT_X, 6))
+    parts.append(cyl(name + "_cap", 0.05, 0.05, (x + sx * 0.09, y, R), m["steel"], ROT_X, 24))
+    parts.append(cyl(name + "_capnut", 0.02, 0.06, (x + sx * 0.1, y, R), m["steel"], ROT_X, 6))
+    o = join(parts, name)
+    set_origin(o, (x, y, R))
+    uv_cube(o, 0.5)
+    smooth(o)
+    selection(o, name)
+    return o
+
+
+def brakes_and_guards(m, out):
+    """Колодочный тормоз на каждое колесо (тяга к правому рычагу), крылья-грязевики над колёсами,
+    заклёпочные накладки и раскосы рамы, песочница."""
+    import bmesh
+    R = hz.WHEEL_R
+    for ay in (hz.AXLE_Y, -hz.AXLE_Y):
+        inner = -1 if ay > 0 else 1                      # колодка с внутренней стороны базы
+        by = ay + inner * (R + 0.03)
+        for sx in (-1, 1):
+            x = sx * hz.HALF
+            out.append(box(f"brake_shoe{ay}{sx}", (0.08, 0.04, 0.22), (x, by, R), m["rust"]))
+            out.append(box(f"brake_block{ay}{sx}", (0.075, 0.015, 0.2), (x, by - inner * 0.02, R), m["steel"]))
+            rod(f"brake_hanger{ay}{sx}", (x, by, R + 0.1), (sx * (hz.SILL_X + 0.03), by + inner * 0.02, DECK - 0.12), 0.01, m["rust"], out)
+        # поперечная балка, соединяющая колодки
+        rod(f"brake_beam{ay}", (-hz.HALF, by + inner * 0.03, R - 0.02), (hz.HALF, by + inner * 0.03, R - 0.02), 0.016, m["rust"], out)
+    # продольная тяга от балок к рычагу тормоза
+    rod("brake_rod", (0.1, -hz.AXLE_Y + R + 0.06, R - 0.02), (0.1, hz.AXLE_Y - R - 0.06, R - 0.02), 0.009, m["steel"], out)
+    rod("brake_rod_up", (0.1, -0.12 + 0.66, R - 0.02), (0.17, -0.12 + 0.66, DECK + 0.08), 0.009, m["steel"], out)
+    # крылья над колёсами: дуга из листа с отбортовкой и кронштейнами
+    for ay in (hz.AXLE_Y, -hz.AXLE_Y):
+        for sx in (-1, 1):
+            x = sx * (hz.HALF + 0.01)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=R + 0.07, depth=0.16, location=(x, ay, R), rotation=(0, math.radians(90), 0))
+            g = bpy.context.active_object
+            g.name = f"fender{ay}{sx}"
+            bm = bmesh.new()
+            bm.from_mesh(g.data)
+            # оставить верхнюю дугу (локальная X после поворота — это мировая -Z)
+            kill = [v for v in bm.verts if v.co.x > -(R + 0.07) * 0.35]
+            bmesh.ops.delete(bm, geom=kill, context="VERTS")
+            caps = [f for f in bm.faces if abs(f.normal.z) > 0.9]
+            bmesh.ops.delete(bm, geom=caps, context="FACES")
+            bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=0.004)
+            bm.to_mesh(g.data)
+            bm.free()
+            g.data.materials.append(m["paint"])
+            hz.dent(g, 0.004, cuts=1, seed=int(ay * 10 + sx))
+            out.append(g)
+            for dy in (-0.18, 0.18):
+                rod(f"fender_bracket{ay}{sx}{dy}", (x, ay + dy, R + 0.33), (sx * hz.SILL_X, ay + dy, DECK - 0.1), 0.008, m["rust"], out)
+    # раскосы рамы и заклёпочные накладки на углах
+    for sx in (-1, 1):
+        rod(f"frame_diag{sx}", (sx * hz.SILL_X, -0.95, DECK - 0.17), (sx * hz.SILL_X * 0.3, 0.95, DECK - 0.17), 0.012, m["rust"], out)
+        for y in (-0.9, -0.3, 0.3, 0.9):
+            out.append(box(f"splice{sx}{y}", (0.008, 0.12, 0.13), (sx * (hz.SILL_X + 0.016), y, DECK - 0.12), m["rust"]))
+            for dz in (-0.04, 0.04):
+                for dy in (-0.04, 0.04):
+                    out.append(hz.bolt(f"rv{sx}{y}{dz}{dy}", (sx * (hz.SILL_X + 0.02), y + dy, DECK - 0.12 + dz), "x" if sx > 0 else "-x", m["steel"], 0.009))
+    # песочница с трубкой к рельсу перед передними колёсами
+    out.append(box("sandbox", (0.16, 0.12, 0.14), (-0.5, 1.02, DECK + 0.07), m["paint"]))
+    out.append(box("sandbox_lid", (0.17, 0.13, 0.015), (-0.5, 1.02, DECK + 0.145), m["rust"], (math.radians(4), 0, 0)))
+    rod("sand_pipe", (-0.5, 1.02, DECK), (-hz.HALF, hz.AXLE_Y + R + 0.03, 0.06), 0.012, m["rust"], out)
+
+
 def lamps(m, out, sel_parts):
     """Две фары спереди (лампочки H7 в слотах Reflector_1_1 / Reflector_2_1) и красный фонарь сзади."""
     for sx, sel in ((-1, "light_left"), (1, "light_right")):
@@ -359,6 +449,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     hz.layer2_running_gear(m, body)
     hz.layer2_couplers(m, body)
     hz.layer3_wear(m, body)
+    brakes_and_guards(m, body)
     engine(m, props)
     driver_place(m, props)
     passenger_benches(m, props)
@@ -382,7 +473,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     for name, x, y in (("wheel_1_1", -hz.HALF, hz.AXLE_Y), ("wheel_2_1", hz.HALF, hz.AXLE_Y),
                        ("wheel_1_2", -hz.HALF, -hz.AXLE_Y), ("wheel_2_2", hz.HALF, -hz.AXLE_Y)):
-        hz.wheel(name, x, y, m)
+        rail_wheel(name, x, y, m)
 
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
