@@ -13,6 +13,7 @@ class Drezina_Motor extends CarScript
 	static const float BRAKE_DECEL = 5.0;
 	static const float ROLL_DECEL = 0.25;    // накат без газа
 	static const float HANDBRAKE_DECEL = 7.0;
+	static const float HOVER = 0.05;         // физические колёса не касаются рельсов: нет сил подвески — нет дрожи
 
 	int m_TrackId = -1;
 	int m_Face = 1;              // +1 — нос машины смотрит в сторону роста дистанции пути
@@ -165,6 +166,28 @@ class Drezina_Motor extends CarScript
 		GetInventory().CreateAttachment("HatchbackWheel");
 	}
 
+	// без «Толкать» (толчок физикой дёргает машину, а по рельсам её всё равно держит скрипт)
+	override void SetActions()
+	{
+		AddAction(ActionGetInTransport);
+		AddAction(ActionSwitchLights);
+		AddAction(ActionVehicleHornShort);
+		AddAction(ActionVehicleHornLong);
+	}
+
+	// почему не заводится — в лог
+	override bool OnBeforeEngineStart()
+	{
+		bool ok = super.OnBeforeEngineStart();
+		int state = CheckOperationalRequirements();
+		string bat = "нет";
+		ItemBase b = GetBattery();
+		if (b && b.GetCompEM())
+			bat = b.GetCompEM().GetEnergy().ToString() + "/" + b.GetCompEM().GetEnergyMax().ToString();
+		Print("[Drezina] motor: запуск ok=" + ok + " state=" + state + " (1 сломан, 2 нет бензина, 4 нет свечи, 8 нет аккумулятора) бензин=" + GetFluidFraction(CarFluid.FUEL) + " аккумулятор=" + bat + " свеча=" + FindAttachmentBySlotName("SparkPlug"));
+		return ok;
+	}
+
 	// ------------------------------------------------------------------ путь
 
 	DrezinaTrack GetTrack()
@@ -217,7 +240,7 @@ class Drezina_Motor extends CarScript
 		vector fwd = dir * faceSign;
 		vector right = (vector.Up * fwd).Normalized();
 		vector up = fwd * right;
-		p[1] = p[1] + DrezinaSettings.Get().RailHeightOffset;
+		p[1] = p[1] + DrezinaSettings.Get().RailHeightOffset + HOVER;
 		mat[0] = right;
 		mat[1] = up;
 		mat[2] = fwd;

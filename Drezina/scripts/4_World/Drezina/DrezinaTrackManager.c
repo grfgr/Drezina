@@ -301,11 +301,12 @@ class DrezinaTrackManager extends Managed
 
 		DrezinaSettings st = DrezinaSettings.Get();
 		float startDist = st.HandcarClearance * 0.5 + 1.5;
-		int face = 1;
+		// сторона носа: в игре модель оказалась развёрнутой относительно пути — знак подобран по проверке
+		int face = -1;
 		if (!atStart)
 		{
 			startDist = t.GetLength() - startDist;
-			face = -1;
+			face = 1;
 		}
 		startDist = Math.Clamp(startDist, 0, t.GetLength());
 
@@ -343,7 +344,9 @@ class DrezinaTrackManager extends Managed
 		car.ServerFitWheels();
 		car.ServerPlaceOnTrack(t.GetId(), startDist, face);
 		car.GetInventory().CreateAttachment("SparkPlug");
-		car.GetInventory().CreateAttachment("CarBattery");
+		ItemBase battery = ItemBase.Cast(car.GetInventory().CreateAttachment("CarBattery"));
+		if (battery && battery.GetCompEM())
+			battery.GetCompEM().SetEnergy(battery.GetCompEM().GetEnergyMax());
 		car.GetInventory().CreateAttachment("HeadlightH7");
 		car.GetInventory().CreateAttachment("HeadlightH7");
 		Print("[Drezina] take: мотодрезина создана на " + pos);
