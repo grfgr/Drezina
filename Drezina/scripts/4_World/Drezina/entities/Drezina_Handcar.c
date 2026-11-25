@@ -15,6 +15,7 @@ class Drezina_Handcar extends ItemBase
 	float m_SyncSpeed;
 	int   m_Dir = 1;        // 1 — по росту дистанции, -1 — обратно
 	bool  m_Pumping;
+	bool  m_Braking;
 	int   m_DriverLow;
 	int   m_DriverHigh;
 
@@ -33,6 +34,17 @@ class Drezina_Handcar extends ItemBase
 	float m_WheelPhase;
 	float m_PredDist;       // последняя серверная дистанция, продвинутая вперёд по скорости
 
+	// --- только клиент (звук)
+	static const float RAIL_JOINT_STEP = 12.5;  // стыки рельсов через 12.5 м, как на настоящей дороге
+	static const float AXLE_SPACING    = 1.24;  // между осями дрезины
+	Drezina_LanternLight m_Lantern;
+	EffectSound m_SndRoll;
+	EffectSound m_SndBrake;
+	float m_JointAccum;
+	float m_SecondClackIn = -1;
+	float m_PrevLeverCos = 1;
+	float m_RandomCreakTimer;
+
 	void Drezina_Handcar()
 	{
 		RegisterNetSyncVariableInt("m_TrackId");
@@ -40,6 +52,7 @@ class Drezina_Handcar extends ItemBase
 		RegisterNetSyncVariableFloat("m_SyncSpeed", 0, 100, 2);
 		RegisterNetSyncVariableInt("m_Dir", -1, 1);
 		RegisterNetSyncVariableBool("m_Pumping");
+		RegisterNetSyncVariableBool("m_Braking");
 		RegisterNetSyncVariableInt("m_DriverLow");
 		RegisterNetSyncVariableInt("m_DriverHigh");
 
@@ -56,6 +69,12 @@ class Drezina_Handcar extends ItemBase
 	override void EEDelete(EntityAI parent)
 	{
 		super.EEDelete(parent);
+		if (m_Lantern)
+			m_Lantern.Destroy();
+		StopLoop(m_SndRoll);
+		StopLoop(m_SndBrake);
+		m_SndRoll = null;
+		m_SndBrake = null;
 		if (m_Driver && m_Driver.m_DrezinaHandcar == this)
 			m_Driver.m_DrezinaHandcar = null;
 		DrezinaTrackManager.Get().UnregisterHandcar(this);
@@ -125,6 +144,7 @@ class Drezina_Handcar extends ItemBase
 		m_DriverHigh = 0;
 		m_Throttle = 0;
 		m_Pumping = false;
+		m_Braking = false;
 		SetSynchDirty();
 	}
 
@@ -228,14 +248,16 @@ class Drezina_Handcar extends ItemBase
 		m_Dist = newDist;
 
 		bool pumping = m_Throttle > 0;
+		bool braking = m_Throttle < 0 && m_Speed > 0.3;
 		ApplyTransform();
 
 		// синхронизация ~10 раз в секунду или при смене состояния
 		m_SyncTimer += dt;
-		if (m_SyncTimer >= 0.1 || pumping != m_Pumping)
+		if (m_SyncTimer >= 0.1 || pumping != m_Pumping || braking != m_Braking)
 		{
 			m_SyncTimer = 0;
 			m_Pumping = pumping;
+			m_Braking = braking;
 			m_SyncDist = m_Dist;
 			m_SyncSpeed = m_Speed;
 			SetSynchDirty();
@@ -304,6 +326,111 @@ class Drezina_Handcar extends ItemBase
 			m_LeverT -= Math.PI2;
 		if (leverRate > 0.01)
 			SetAnimationPhase("drezina_lever", 0.5 + 0.5 * Math.Sin(m_LeverT));
+
+		UpdateSounds(dt, leverRate);
+		UpdateLantern();
+	}
+
+	// Керосиновый фонарь на штанге горит, пока на дрезине есть водитель.
+	void UpdateLantern()
+	{
+		if (HasDriver() && !m_Lantern)
+		{
+			m_Lantern = Drezina_LanternLight.Cast(ScriptedLightBase.CreateLight(Drezina_LanternLight, GetPosition()));
+			if (m_Lantern)
+				m_Lantern.AttachOnMemoryPoint(this, "lamp");
+		}
+		else if (!HasDriver() && m_Lantern)
+		{
+			m_Lantern.Destroy();
+			m_Lantern = null;
+		}
+	}
+
+	// ------------------------------------------------------------------ звук (клиент)
+
+	void UpdateSounds(float dt, float leverRate)
+	{
+		// гул качения: громкость по скорости
+		if (m_Speed > 0.3)
+		{
+			if (!m_SndRoll)
+				m_SndRoll = SEffectManager.PlaySoundOnObject("Drezina_Roll_SoundSet", this, 0.4, 0.6, true);
+			if (m_SndRoll)
+				m_SndRoll.SetSoundVolume(Math.Clamp(m_Speed / 8.0, 0.15, 1.0));
+		}
+		else if (m_SndRoll)
+		{
+			StopLoop(m_SndRoll);
+			m_SndRoll = null;
+		}
+
+		// «та-так» на стыках: удар передней оси, через AXLE_SPACING — задней
+		if (m_Speed > 0.8)
+		{
+			m_JointAccum += m_Speed * dt;
+			if (m_JointAccum >= RAIL_JOINT_STEP)
+			{
+				m_JointAccum -= RAIL_JOINT_STEP;
+				PlayOneShot("Drezina_Clack_SoundSet");
+				m_SecondClackIn = AXLE_SPACING / m_Speed;
+			}
+		}
+		if (m_SecondClackIn >= 0)
+		{
+			m_SecondClackIn -= dt;
+			if (m_SecondClackIn < 0)
+				PlayOneShot("Drezina_Clack_SoundSet");
+		}
+
+		// скрип коромысла в крайних точках хода, иногда — стук рычага
+		float leverCos = Math.Cos(m_LeverT);
+		if (leverRate > 0.5 && (leverCos >= 0) != (m_PrevLeverCos >= 0))
+		{
+			if (Math.RandomFloat01() < 0.75)
+				PlayOneShot("Drezina_Creak_SoundSet");
+			if (m_Pumping && Math.RandomFloat01() < 0.35)
+				PlayOneShot("Drezina_Knock_SoundSet");
+		}
+		m_PrevLeverCos = leverCos;
+
+		// старая рама поскрипывает и накатом
+		if (m_Speed > 1.0 && !m_Pumping)
+		{
+			m_RandomCreakTimer -= dt;
+			if (m_RandomCreakTimer <= 0)
+			{
+				m_RandomCreakTimer = Math.RandomFloatInclusive(2.5, 7.0);
+				PlayOneShot("Drezina_Creak_SoundSet");
+			}
+		}
+
+		// визг колодок
+		if (m_Braking && m_Speed > 0.3)
+		{
+			if (!m_SndBrake)
+				m_SndBrake = SEffectManager.PlaySoundOnObject("Drezina_Brake_SoundSet", this, 0.1, 0.25, true);
+		}
+		else if (m_SndBrake)
+		{
+			StopLoop(m_SndBrake);
+			m_SndBrake = null;
+		}
+	}
+
+	void PlayOneShot(string soundSet)
+	{
+		EffectSound snd = SEffectManager.PlaySoundOnObject(soundSet, this);
+		if (snd)
+			snd.SetAutodestroy(true);
+	}
+
+	static void StopLoop(EffectSound snd)
+	{
+		if (!snd)
+			return;
+		snd.SetAutodestroy(true);
+		snd.SoundStop();
 	}
 
 	// ------------------------------------------------------------------ общее
@@ -349,5 +476,22 @@ class Drezina_Handcar extends ItemBase
 	static string HelpText()
 	{
 		return "W — качать рычаг, S — тормоз, R — сменить направление (на месте), F — сойти";
+	}
+}
+
+// Тёплый мерцающий свет фонаря дрезины.
+class Drezina_LanternLight extends PointLightBase
+{
+	void Drezina_LanternLight()
+	{
+		SetVisibleDuringDaylight(false);
+		SetRadiusTo(9);
+		SetBrightnessTo(2.2);
+		SetCastShadow(true);
+		SetFlareVisible(false);
+		SetDiffuseColor(1.0, 0.62, 0.28);
+		SetAmbientColor(1.0, 0.62, 0.28);
+		SetFlickerAmplitude(0.35);
+		SetFlickerSpeed(4.0);
 	}
 }

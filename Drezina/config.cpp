@@ -5,7 +5,7 @@ class CfgPatches
 		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
-		requiredAddons[] = {"DZ_Data", "DZ_Scripts"};
+		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects"};
 	};
 };
 
@@ -37,6 +37,79 @@ class CfgMods
 				files[] = {"Drezina/scripts/5_Mission"};
 			};
 		};
+	};
+};
+
+// ------------------------------------------------------------------ звуки
+// samples[] — пути без расширения (.ogg). Несколько сэмплов в шейдере выбираются случайно.
+class CfgSoundShaders
+{
+	class Drezina_Roll_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\roll_loop", 1}};
+		volume = 1.0;
+		range = 70;
+	};
+	class Drezina_Clack_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\clack_1", 1}, {"Drezina\sounds\clack_2", 1}, {"Drezina\sounds\clack_3", 1}};
+		volume = 1.0;
+		range = 90;
+	};
+	class Drezina_Creak_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\creak_1", 1}, {"Drezina\sounds\creak_2", 1}, {"Drezina\sounds\creak_3", 1}, {"Drezina\sounds\creak_4", 1}};
+		volume = 0.8;
+		range = 35;
+	};
+	class Drezina_Knock_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\knock_1", 1}, {"Drezina\sounds\knock_2", 1}};
+		volume = 0.7;
+		range = 30;
+	};
+	class Drezina_Brake_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\brake_loop", 1}};
+		volume = 0.8;
+		range = 80;
+	};
+};
+
+class CfgSoundSets
+{
+	class Drezina_Base_SoundSet
+	{
+		sound3DProcessingType = "character3DProcessingType";
+		volumeCurve = "characterAttenuationCurve";
+		spatial = 1;
+		doppler = 0;
+		loop = 0;
+	};
+	class Drezina_Roll_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Roll_SoundShader"};
+		loop = 1;
+	};
+	class Drezina_Clack_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Clack_SoundShader"};
+		loop = 0;
+	};
+	class Drezina_Creak_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Creak_SoundShader"};
+		loop = 0;
+	};
+	class Drezina_Knock_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Knock_SoundShader"};
+		loop = 0;
+	};
+	class Drezina_Brake_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Brake_SoundShader"};
+		loop = 1;
 	};
 };
 

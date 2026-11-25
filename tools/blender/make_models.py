@@ -487,7 +487,11 @@ def main():
     else:
         argv = argv[1:]
     outdir = os.path.abspath(argv[0] if argv else "build_models")
-    build_handcar(outdir)
+    # дрезина «из зоны» (многослойная, с текстурами); старая простая версия — build_handcar()
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import handcar_zone
+    tex_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Drezina", "data", "textures")
+    handcar_zone.build(outdir, os.path.abspath(tex_dir), save, reset_scene)
     build_rail(outdir)
     build_dispenser(outdir)
     build_rail10(outdir)
