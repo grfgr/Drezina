@@ -272,7 +272,10 @@ class Drezina_Trailer extends CarScript
 		vector mat[4];
 		Drezina_Motor.TrackTransformFace(t, d, face, mat);
 		SetTransform(mat);
-		SetVelocity(this, vel);
+		// без скорости и с усыплённой физикой: иначе физика между кадрами сдвигала прицеп ещё вперёд,
+		// а клиент вдобавок досчитывал движение по скорости — прицеп «обгонял» дрезину
+		SetVelocity(this, vector.Zero);
+		dBodyActive(this, ActiveState.INACTIVE);
 	}
 
 	void Follow(float dt)
