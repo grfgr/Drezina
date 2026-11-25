@@ -405,8 +405,18 @@ class Drezina_Handcar extends ItemBase
 			// с сервером сверяемся мягко: тянем, только если разошлись больше чем на 1 м
 			m_PredDist = Math.Clamp(m_PredDist + m_PredSpeed * m_Dir * dt, 0, t.GetLength());
 			float err = m_PredDist - m_Dist;
-			if (Math.AbsFloat(err) > 1.0)
+			if (m_LocalThrottle == 0 && m_PredSpeed < 0.05 && m_Speed < 0.3)
+			{
+				// стоим: точно встаём туда же, где дрезина на сервере, иначе сервер тянет
+				// персонажа к своей точке, а мы к своей — отсюда дрожь на месте
+				m_Dist += err * Math.Clamp(dt * 8.0, 0, 1);
+				if (m_PredSpeed < 0.05)
+					m_Speed = m_Speed * Math.Clamp(1 - dt * 4.0, 0, 1);
+			}
+			else if (Math.AbsFloat(err) > 1.0)
 				m_Dist += err * Math.Clamp(dt * 2.0, 0, 1);
+			else
+				m_Dist += err * Math.Clamp(dt * 0.7, 0, 1);
 			ApplyTransform();
 			return;
 		}

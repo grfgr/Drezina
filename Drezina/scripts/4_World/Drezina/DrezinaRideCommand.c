@@ -10,6 +10,7 @@ class DrezinaRideCommand extends HumanCommandScript
 	Drezina_Handcar m_Handcar;
 	float m_LogTimer;
 	bool m_Faced;
+	float m_StuckTime;
 
 	void DrezinaRideCommand(PlayerBase player, Drezina_Handcar handcar)
 	{
@@ -81,6 +82,20 @@ class DrezinaRideCommand extends HumanCommandScript
 			vector got;
 			PostPhys_GetPosition(got);
 			Print("[Drezina] ride server=" + GetGame().IsServer() + " seat " + seat + " phys " + got + " off " + vector.Distance(got, seat));
+		}
+
+		// застряли (физика не пускает на платформу) — через 0.3 с ставим жёстко
+		vector cur;
+		PostPhys_GetPosition(cur);
+		if (vector.Distance(cur, seat) > 0.4)
+			m_StuckTime += pDt;
+		else
+			m_StuckTime = 0;
+		if (m_StuckTime > 0.3)
+		{
+			m_StuckTime = 0;
+			Print("[Drezina] ride: застрял на " + vector.Distance(cur, seat) + " м, ставлю на платформу");
+			m_Player.SetPosition(seat);
 		}
 
 		PostPhys_SetPosition(seat);
