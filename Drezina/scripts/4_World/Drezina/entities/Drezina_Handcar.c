@@ -80,6 +80,23 @@ class Drezina_Handcar extends ItemBase
 			DrezinaTrackManager.s_Instance.UnregisterHandcar(this);
 	}
 
+	override void EEInit()
+	{
+		super.EEInit();
+		NoCharacterCollision();
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(NoCharacterCollision, 500, false);
+	}
+
+	// персонаж не сталкивается с дрезиной (иначе физика выталкивает водителя, а дрезину трясёт)
+	void NoCharacterCollision()
+	{
+		if (dBodyIsSet(this))
+		{
+			dBodySetInteractionLayer(this, PhxInteractionLayers.ITEM_SMALL);
+			Print("[Drezina] handcar: коллизия с персонажем отключена");
+		}
+	}
+
 	override void EEDelete(EntityAI parent)
 	{
 		super.EEDelete(parent);

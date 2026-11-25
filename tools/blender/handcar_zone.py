@@ -807,7 +807,8 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     mem_point("mem_light_back_dir", (-0.45, -1.17 - 0.12 - 1.05, DECK_TOP - 0.06))
     mem_point("mem_light_bulb", (0, 0, PIVOT_Z - 0.3))
 
-    geo = box("geometry_deck", (1.34, 2.3, 0.30), (0, 0, DECK_TOP - 0.15), m["wood"])
+    # коллизия только рама под полом (верх на 30 см ниже пола) — водитель её не касается
+    geo = box("geometry_deck", (1.10, 2.1, 0.20), (0, 0, DECK_TOP - 0.40), m["wood"])
     geo.display_type = "WIRE"
 
     meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("geometry")]
