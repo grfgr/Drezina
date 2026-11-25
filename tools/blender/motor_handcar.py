@@ -110,20 +110,25 @@ def driver_place(m, out):
 
 
 def passenger_benches(m, out):
-    """Две лавки-ящика у заднего торца: пассажиры сидят по бортам, ногами наружу."""
-    for sx in (-1, 1):
-        x = sx * 0.42
-        out.append(box(f"bench{sx}", (0.42, 0.34, 0.04), (x, BENCH_Y, BENCH_H - 0.02), m["wood"]))
-        for dx in (-0.17, 0.17):
-            for dy in (-0.13, 0.13):
-                out.append(box(f"bench_leg{sx}{dx}{dy}", (0.04, 0.04, BENCH_H - DECK - 0.04), (x + dx, BENCH_Y + dy, (BENCH_H + DECK) / 2 - 0.02), m["rust"]))
-        # подножка за бортом, куда ставят ноги
-        out.append(box(f"step{sx}", (0.16, 0.36, 0.015), (sx * 0.95, BENCH_Y, DECK - 0.3), m["steel"]))
-        out.append(box(f"step_arm{sx}", (0.3, 0.03, 0.03), (sx * 0.8, BENCH_Y, DECK - 0.17), m["rust"], (0, sx * math.radians(25), 0)))
-    # поручень между лавками (держаться спиной)
-    out.append(cyl("bench_rail", 0.016, 0.9, (0, BENCH_Y - 0.15, BENCH_H + 0.3), m["rust"], ROT_X))
-    for sx in (-0.4, 0.4):
-        out.append(cyl(f"bench_rail_post{sx}", 0.014, 0.32, (sx, BENCH_Y - 0.15, BENCH_H + 0.15), m["rust"]))
+    """Задний диван на двоих, как сиденье в машине: широкая лавка со спинкой и подлокотниками.
+    Пассажиры сидят лицом вперёд, ноги — на полу перед лавкой."""
+    w = 1.3
+    out.append(box("bench_seat", (w, 0.42, 0.05), (0, BENCH_Y, BENCH_H - 0.025), m["wood"]))
+    out.append(box("bench_cushion_l", (0.55, 0.38, 0.04), (-0.32, BENCH_Y + 0.01, BENCH_H + 0.015), m["canvas"]))
+    out.append(box("bench_cushion_r", (0.55, 0.38, 0.04), (0.32, BENCH_Y + 0.01, BENCH_H + 0.015), m["canvas"]))
+    for dx in (-0.6, 0.0, 0.6):
+        for dy in (-0.17, 0.17):
+            out.append(box(f"bench_leg{dx}{dy}", (0.05, 0.05, BENCH_H - DECK - 0.05), (dx, BENCH_Y + dy, (BENCH_H + DECK) / 2 - 0.025), m["rust"]))
+    # спинка из досок на стойках
+    for k, z in enumerate((0.18, 0.36)):
+        out.append(box(f"bench_back{k}", (w, 0.035, 0.12), (0, BENCH_Y - 0.2, BENCH_H + z), m["wood"], (math.radians(-8), 0, 0)))
+    for dx in (-0.62, 0.62):
+        out.append(box(f"bench_back_post{dx}", (0.04, 0.04, 0.5), (dx, BENCH_Y - 0.21, BENCH_H + 0.23), m["rust"]))
+        # подлокотник — труба
+        out.append(cyl(f"bench_arm{dx}", 0.016, 0.4, (dx, BENCH_Y, BENCH_H + 0.2), m["rust"], ROT_Y))
+        out.append(cyl(f"bench_arm_post{dx}", 0.014, 0.2, (dx, BENCH_Y + 0.18, BENCH_H + 0.1), m["rust"]))
+    # упор для ног пассажиров
+    out.append(box("bench_footrest", (w, 0.12, 0.03), (0, BENCH_Y + 0.62, DECK + 0.04), m["steel"], (math.radians(15), 0, 0)))
 
 
 def bag(m, out):
@@ -197,8 +202,8 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
     proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
-    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.42, BENCH_Y, BENCH_H), (0, 1, 0))
-    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.42, BENCH_Y, BENCH_H), (0, 1, 0))
+    proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
+    proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.
@@ -209,13 +214,13 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     proxy("proxy_wheel_4", W, "wheel_2_2_proxy", (hz.HALF, -hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
 
     # ---- точки (Memory)
-    mem_point("mem_pos_driver", (1.05, DRIVER_Y, 0.05))
-    mem_point("mem_pos_driver_dir", (0.4, DRIVER_Y, 0.05))
+    mem_point("mem_pos_driver", (-1.05, DRIVER_Y, 0.05))
+    mem_point("mem_pos_driver_dir", (-0.4, DRIVER_Y, 0.05))
     mem_point("mem_pos_cargo1", (-1.15, BENCH_Y, 0.05))
     mem_point("mem_pos_cargo1_dir", (-0.5, BENCH_Y, 0.05))
     mem_point("mem_pos_cargo2", (1.15, BENCH_Y, 0.05))
     mem_point("mem_pos_cargo2_dir", (0.5, BENCH_Y, 0.05))
-    mem_point("mem_seat_con_1_1", (0.95, DRIVER_Y, DECK))
+    mem_point("mem_seat_con_1_1", (-0.95, DRIVER_Y, DECK))
     mem_point("mem_seat_con_1_2", (-0.95, BENCH_Y, DECK))
     mem_point("mem_seat_con_2_2", (0.95, BENCH_Y, DECK))
     for name, x, y in (("wheel_1_1", -hz.HALF, hz.AXLE_Y), ("wheel_2_1", hz.HALF, hz.AXLE_Y),
@@ -247,8 +252,8 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     mem_point("mem_refill", (0.22, 0.8, DECK + 0.7))
     geo("geometry_bag", (0.46, 0.66, 0.38), (-0.36, 0.72, DECK + 0.19), "dmgZone_bag", m)
     geo("geometry_seat_driver", (0.42, 0.42, 0.5), (0, DRIVER_Y, DECK + 0.25), "seat_driver", m)
-    geo("geometry_seat_cargo1", (0.4, 0.36, 0.42), (-0.42, BENCH_Y, DECK + 0.21), "seat_cargo1", m)
-    geo("geometry_seat_cargo2", (0.4, 0.36, 0.42), (0.42, BENCH_Y, DECK + 0.21), "seat_cargo2", m)
+    geo("geometry_seat_cargo1", (0.55, 0.4, 0.42), (-0.32, BENCH_Y, DECK + 0.21), "seat_cargo1", m)
+    geo("geometry_seat_cargo2", (0.55, 0.4, 0.42), (0.32, BENCH_Y, DECK + 0.21), "seat_cargo2", m)
     for name, x, y in (("1_1", -hz.HALF, hz.AXLE_Y), ("2_1", hz.HALF, hz.AXLE_Y),
                        ("1_2", -hz.HALF, -hz.AXLE_Y), ("2_2", hz.HALF, -hz.AXLE_Y)):
         geo(f"geometry_hub_{name}", (0.1, 0.5, 0.5), (x, y, hz.WHEEL_R + 0.02), f"dmgZone_wheel_{name},wheel_{name}_damper_land", m)
