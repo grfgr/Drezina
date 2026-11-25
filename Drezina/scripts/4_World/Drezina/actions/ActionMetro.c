@@ -13,7 +13,11 @@ class ActionMetroDown extends ActionInteractBase
 	{
 		super.OnStartClient(action_data);
 		if (action_data.m_Target && action_data.m_Target.GetObject())
-			SEffectManager.PlaySoundAtPosition("Drezina_Door_SoundSet", action_data.m_Target.GetObject().GetPosition());
+		{
+			EffectSound snd = SEffectManager.PlaySoundOnObject("Drezina_Door_SoundSet", action_data.m_Target.GetObject());
+			if (snd)
+				snd.SetAutodestroy(true);
+		}
 	}
 
 	override void CreateConditionComponents()
@@ -49,7 +53,11 @@ class ActionMetroUp extends ActionInteractBase
 	{
 		super.OnStartClient(action_data);
 		if (action_data.m_Target && action_data.m_Target.GetObject())
-			SEffectManager.PlaySoundAtPosition("Drezina_Door_SoundSet", action_data.m_Target.GetObject().GetPosition());
+		{
+			EffectSound snd = SEffectManager.PlaySoundOnObject("Drezina_Door_SoundSet", action_data.m_Target.GetObject());
+			if (snd)
+				snd.SetAutodestroy(true);
+		}
 	}
 
 	override void CreateConditionComponents()
