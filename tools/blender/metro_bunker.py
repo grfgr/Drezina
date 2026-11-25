@@ -80,7 +80,8 @@ def uv_box(obj, tile=3.0):
     uv = bm.loops.layers.uv.verify()
     slots = [ms.material.name if ms.material else "" for ms in obj.material_slots]
     for f in bm.faces:
-        if f.material_index < len(slots) and slots[f.material_index].startswith(("metro_sign", "drezina_plate")):
+        if f.material_index < len(slots) and (slots[f.material_index].startswith(("metro_sign", "drezina_plate"))
+                                               or slots[f.material_index].endswith("_v")):
             continue   # таблички уже развёрнуты на всю текстуру
         n = f.normal
         ax = max(range(3), key=lambda i: abs(n[i]))
@@ -174,38 +175,97 @@ def profile_prism(name, w, wall_h, rise, depth, y, segs=16):
     return o
 
 
-def vault(prefix, w, wall_h, rise, length, y, wall_mat, vault_mat, t=WALL_T, segs=14):
-    """Стены (двухцветная краска) + эллиптический свод из плит."""
-    parts = []
-    for sx in (-1, 1):
-        parts.append(box(f"{prefix}_wall{sx}", (t, length, wall_h), (sx * (w / 2 + t / 2), y, wall_h / 2), wall_mat, round_edges=False))
-    a, b = w / 2 + t / 2, rise + t / 2
-    prev = (a, wall_h)
-    for i in range(1, segs + 1):
-        th = math.pi * i / segs
-        p = (math.cos(th) * a, wall_h + math.sin(th) * b)
-        mx, mz = (prev[0] + p[0]) / 2, (prev[1] + p[1]) / 2
-        ln = math.dist(prev, p) + 0.03
-        ang = math.atan2(p[1] - prev[1], p[0] - prev[0])
-        parts.append(box(f"{prefix}_v{i}", (ln, length, t), (mx, y, mz), vault_mat, (0, -ang, 0), round_edges=False))
-        prev = p
-    return parts
+def keep_uv(mat):
+    """Копия материала с суффиксом _v: uv_box не трогает её развёртку (своя, по длине дуги)."""
+    name = mat.name + "_v"
+    got = bpy.data.materials.get(name)
+    if got:
+        return got
+    c = mat.copy()
+    c.name = name
+    return c
 
 
-def rib(prefix, w, wall_h, rise, y, mat, depth=0.22, t=0.14, segs=14):
-    """Чугунный тюбинг-ребро по контуру свода (выступает внутрь)."""
-    parts = []
-    a, b = w / 2 - t / 2, rise - t / 2
-    for sx in (-1, 1):
-        parts.append(box(f"{prefix}_c{sx}", (t, depth, wall_h), (sx * a, y, wall_h / 2), mat))
-    prev = (a, wall_h)
-    for i in range(1, segs + 1):
-        th = math.pi * i / segs
-        p = (math.cos(th) * a, wall_h + math.sin(th) * b)
-        ln = math.dist(prev, p) + 0.02
-        ang = math.atan2(p[1] - prev[1], p[0] - prev[0])
-        parts.append(box(f"{prefix}_a{i}", (ln, depth, t), ((prev[0] + p[0]) / 2, y, (prev[1] + p[1]) / 2), mat, (0, -ang, 0)))
-        prev = p
+def arch_shell(name, a_in, b_in, t, wall_h, y, length, wall_mat, arc_mat, tile=3.0, segs=28):
+    """Цельная оболочка «стены + эллиптический свод» одним мешем.
+    Вершины общие по всей дуге, поэтому нормали плавные и свет фонаря ложится без полос;
+    UV идёт по длине дуги — текстура не тянется и не прыгает между гранями."""
+    wm, am = keep_uv(wall_mat), keep_uv(arc_mat)
+
+    def profile(a, b):
+        pts = [(-a, 0.0, True), (-a, wall_h, True)]
+        for i in range(1, segs):
+            th = math.pi - math.pi * i / segs
+            pts.append((math.cos(th) * a, wall_h + math.sin(th) * b, False))
+        pts += [(a, wall_h, True), (a, 0.0, True)]
+        return pts
+
+    inner, outer = profile(a_in, b_in), profile(a_in + t, b_in + t)
+    s_in = [0.0]
+    for i in range(1, len(inner)):
+        s_in.append(s_in[-1] + math.dist(inner[i - 1][:2], inner[i][:2]))
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    y0, y1 = y - length / 2, y + length / 2
+    vi = [(bm.verts.new((x, y0, z)), bm.verts.new((x, y1, z))) for x, z, _ in inner]
+    vo = [(bm.verts.new((x, y0, z)), bm.verts.new((x, y1, z))) for x, z, _ in outer]
+    uv = bm.loops.layers.uv.verify()
+    faces = []
+    n = len(inner)
+    for k in range(n - 1):
+        is_wall = inner[k][2] and inner[k + 1][2]
+        mi = 0 if is_wall else 1
+        # внутренняя поверхность (нормаль внутрь тоннеля)
+        f = bm.faces.new((vi[k][0], vi[k][1], vi[k + 1][1], vi[k + 1][0]))
+        f.material_index = mi
+        for l in f.loops:
+            j = vi.index(next(p for p in vi if l.vert in p))
+            yy = l.vert.co.y
+            l[uv].uv = (yy / tile, l.vert.co.z / tile) if is_wall else (yy / tile, s_in[j] / tile)
+        faces.append(f)
+        # внешняя поверхность
+        f = bm.faces.new((vo[k][0], vo[k + 1][0], vo[k + 1][1], vo[k][1]))
+        f.material_index = 1
+        for l in f.loops:
+            j = vo.index(next(p for p in vo if l.vert in p))
+            l[uv].uv = (l.vert.co.y / tile, s_in[j] / tile)
+    # торцы
+    for e in (0, 1):
+        for k in range(n - 1):
+            q = (vi[k][e], vo[k][e], vo[k + 1][e], vi[k + 1][e])
+            f = bm.faces.new(q if e == 1 else q[::-1])
+            f.material_index = 1
+            for l in f.loops:
+                l[uv].uv = (l.vert.co.x / tile, l.vert.co.z / tile)
+    # низ стен
+    for k in (0, n - 1):
+        f = bm.faces.new((vi[k][0], vo[k][0], vo[k][1], vi[k][1]) if k == 0 else (vi[k][0], vi[k][1], vo[k][1], vo[k][0]))
+        f.material_index = 0
+        for l in f.loops:
+            l[uv].uv = (l.vert.co.x / tile, l.vert.co.y / tile)
+    # замкнутое тело: нормали наружу от бетона = внутрь тоннеля на внутренней поверхности
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.normal_update()
+    bm.to_mesh(mesh)
+    bm.free()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(wm)
+    o.data.materials.append(am)
+    for p in o.data.polygons:
+        p.use_smooth = True
+    return o
+
+
+def vault(prefix, w, wall_h, rise, length, y, wall_mat, vault_mat, t=WALL_T, segs=28):
+    """Стены (двухцветная краска) + эллиптический свод — одной гладкой оболочкой."""
+    return [arch_shell(f"{prefix}_vault", w / 2, rise, t, wall_h, y, length, wall_mat, vault_mat, 3.0, segs)]
+
+
+def rib(prefix, w, wall_h, rise, y, mat, depth=0.22, t=0.14, segs=28):
+    """Чугунный тюбинг-ребро по контуру свода (выступает внутрь) — цельное кольцо."""
+    parts = [arch_shell(f"{prefix}_ring", w / 2 - t, rise - t, t, wall_h, y, depth, mat, mat, 1.5, segs)]
+    a = w / 2 - t / 2
     # болты на стыке сегментов
     for sx in (-1, 1):
         for z in (0.6, 1.4, 2.0):
@@ -494,8 +554,15 @@ def build_stairs(outdir, save_fn, reset_fn):
     p.append(box("divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2), m["concrete"], round_edges=False))
     p.append(cyl("top_rail", 0.022, run, (0.08, 0, STAIR_TOP + 1.0), m["rust"], (math.radians(90), 0, 0)))
     p.append(cyl("top_rail_mid", 0.016, run, (0.08, 0, STAIR_TOP + 0.5), m["rust"], (math.radians(90), 0, 0)))
+    # стойки опираются на верх разделительной стены (раньше висели в воздухе от 9.6 до 10.6)
+    div_top = STAIR_TOP - LEVEL * 0.5
+    post_len = STAIR_TOP + 1.0 - div_top + 0.02
     for k in range(4):
-        p.append(cyl(f"top_rail_post{k}", 0.018, 1.0, (0.08, -run / 2 + k * run / 3, STAIR_TOP + 0.5), m["rust"]))
+        yk = -run / 2 + 0.05 + k * (run - 0.1) / 3
+        p.append(cyl(f"top_rail_post{k}", 0.02, post_len, (0.08, yk, div_top + post_len / 2 - 0.02), m["rust"]))
+        p.append(box(f"top_rail_foot{k}", (0.15, 0.12, 0.012), (0.04, yk, div_top + 0.006), m["steel"], round_edges=False))
+        p.append(hz.bolt(f"top_rail_bolt{k}", (0.04, yk + 0.04, div_top + 0.012), "z", m["steel"], 0.012))
+    p.append(cyl("top_rail_low", 0.016, run, (0.08, 0, div_top + 0.55), m["rust"], (math.radians(90), 0, 0)))
     # трубы и кабели в шахте, номера уровней
     p += pipes_along("vpipe", SH_X - 0.1, [SH_H - 0.4], 2 * SH_Y, 0, m, [0.06])
     p.append(cyl("riser", 0.08, SH_H, (SH_X - 0.15, -SH_Y + 0.15, SH_H / 2), m["rust"]))
@@ -518,7 +585,7 @@ def build_stairs(outdir, save_fn, reset_fn):
         geo(f"geometry_front_side{sx}", (0.8, 0.4, 2.4), (sx * 1.2, SH_Y + 0.2, 1.2))
     geo("geometry_floor", (2 * SH_X, 2 * SH_Y, 0.3), (0, 0, -0.15))
     geo("geometry_divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2))
-    geo("geometry_top_rail", (0.12, run, 1.1), (0.08, 0, STAIR_TOP + 0.55))
+    geo("geometry_top_rail", (0.12, run, STAIR_TOP + 1.05 - (STAIR_TOP - LEVEL * 0.5)), (0.08, 0, (STAIR_TOP + 1.05 + STAIR_TOP - LEVEL * 0.5) / 2))
     for z, yy in ((STAIR_TOP, SH_Y - 0.5), (LEVEL * 2, SH_Y - 0.5), (LEVEL * 3, -SH_Y + 0.5), (LEVEL, -SH_Y + 0.5)):
         geo(f"geometry_landing{z}", (2 * SH_X, 1.0, 0.2), (0, yy, z - 0.1))
     for f in range(FLIGHTS):
@@ -812,11 +879,11 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m"):
     p.append(cyl("wall_handrail", 0.022, pipe_len, (-TUN_W / 2 + 0.08, 0, walk_h + 0.95), m["rust"], (math.radians(90), 0, 0)))
     # водоотводной лоток вдоль правой стены
     p.append(box("drain", (0.25, floor_len, 0.03), (TUN_W / 2 - 0.3, 0, 0.015), m["steel"], round_edges=False))
+    for y in ((0.0,) if short else (-4.0, 0.0, 4.0)):      # кронштейны поручня (и на коротких кусках)
+        p.append(box(f"handrail_bracket{y}", (0.1, 0.03, 0.03), (-TUN_W / 2 + 0.04, y, walk_h + 0.95), m["rust"]))
     if not short:
         p += debris("deb", (2.2, rnd.uniform(-3, 3)), 3, 0.5, m)
-        # кронштейны поручня и отметка пикета на стене
-        for y in (-4.0, 0.0, 4.0):
-            p.append(box(f"handrail_bracket{y}", (0.1, 0.03, 0.03), (-TUN_W / 2 + 0.04, y, walk_h + 0.95), m["rust"]))
+        # отметка пикета на стене
         p.append(box("picket", (0.02, 0.3, 0.2), (-TUN_W / 2 + 0.01, 2.5, walk_h + 1.5), m["sign_in"]))
     finish(p, name)
     geo("geometry_walkway", (walk_w, floor_len, walk_h), (wx, 0, walk_h / 2))

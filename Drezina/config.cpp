@@ -72,7 +72,7 @@ class CfgSoundShaders
 	};
 	class Drezina_Door_SoundShader
 	{
-		samples[] = {{"Drezina\sounds\door_open", 1}};
+		samples[] = {{"\DZ\sounds\environment\buildings\doors\MetalValve\doorMetalValveOpen_1", 1}, {"\DZ\sounds\environment\buildings\doors\MetalValve\doorMetalValveOpen_2", 1}};
 		volume = 1.0;
 		range = 40;
 	};
