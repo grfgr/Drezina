@@ -147,7 +147,11 @@ class CfgVehicles
 	// Садятся как в машину: водитель + 2 пассажира (сзади по бортам, ногами наружу).
 	// Мотор от мотоцикла: нужен бензин, свеча и аккумулятор, фары — лампочки H7.
 	// Колёс-запчастей нет: по рельсам машину ведёт скрипт (Drezina_Motor.c).
-	class CarScript;
+	class Car;
+	class CarScript: Car
+	{
+		class AnimationSources;
+	};
 	class Drezina_Motor: CarScript
 	{
 		scope = 2;
@@ -197,7 +201,7 @@ class CfgVehicles
 			};
 		};
 
-		class SimulationModule: SimulationModule
+		class SimulationModule
 		{
 			class Steering
 			{
@@ -250,9 +254,9 @@ class CfgVehicles
 				reverse = 3.0;
 				ratios[] = {3.9, 2.4, 1.4};
 			};
-			class Axles: Axles
+			class Axles
 			{
-				class Front: Front
+				class Front
 				{
 					maxBrakeTorque = 800;
 					maxHandbrakeTorque = 1500;
@@ -271,21 +275,27 @@ class CfgVehicles
 						travelMaxUp = 0.02;
 						travelMaxDown = 0.02;
 					};
-					class Wheels: Wheels
+					class Wheels
 					{
-						class Left: Left
+						class Left
 						{
-							animDamper = "";
 							inventorySlot = "";
+							animTurn = "turnfrontleft";
+							animRotation = "wheelfrontleft";
+							animDamper = "";
+							wheelHub = "wheel_1_1_damper_land";
 						};
-						class Right: Right
+						class Right
 						{
-							animDamper = "";
 							inventorySlot = "";
+							animTurn = "turnfrontright";
+							animRotation = "wheelfrontright";
+							animDamper = "";
+							wheelHub = "wheel_2_1_damper_land";
 						};
 					};
 				};
-				class Rear: Rear
+				class Rear
 				{
 					maxBrakeTorque = 800;
 					maxHandbrakeTorque = 1500;
@@ -304,17 +314,23 @@ class CfgVehicles
 						travelMaxUp = 0.02;
 						travelMaxDown = 0.02;
 					};
-					class Wheels: Wheels
+					class Wheels
 					{
-						class Left: Left
+						class Left
 						{
-							animDamper = "";
 							inventorySlot = "";
+							animTurn = "turnbackleft";
+							animRotation = "wheelbackleft";
+							animDamper = "";
+							wheelHub = "wheel_1_2_damper_land";
 						};
-						class Right: Right
+						class Right
 						{
-							animDamper = "";
 							inventorySlot = "";
+							animTurn = "turnbackright";
+							animRotation = "wheelbackright";
+							animDamper = "";
+							wheelHub = "wheel_2_2_damper_land";
 						};
 					};
 				};
