@@ -41,6 +41,15 @@ def col(*rgb):
     return np.array(rgb, dtype=np.float32) / 255.0
 
 
+def vanilla_grade(c, blur=0.9):
+    """Под ванильные текстуры DayZ: приглушённые цвета, мягкий контраст, без пёстрого «шума»."""
+    lum = c.mean(axis=2, keepdims=True)
+    c = c * 0.55 + lum * 0.45                       # меньше насыщенности
+    c = (c - 0.5) * 0.75 + 0.5 - 0.04              # мягче контраст, чуть темнее
+    img = Image.fromarray((np.clip(c, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur))
+    return np.asarray(img, dtype=np.float32) / 255.0
+
+
 def save(arr, path):
     Image.fromarray((np.clip(arr, 0, 1) * 255).astype(np.uint8)).save(path)
 
@@ -58,9 +67,9 @@ def rust_tex(size):
     n1 = noise(size, 64, 6)
     n2 = noise(size, 12, 4)
     pits = (noise(size, 4, 2) > 0.78).astype(np.float32)
-    c = lerp(col(92, 45, 22), col(160, 78, 34), n1)
-    c = lerp(c, col(60, 32, 18), n2 * 0.6)
-    c = lerp(c, col(190, 110, 50), np.clip(n1 - 0.65, 0, 1) * 2)
+    c = lerp(col(70, 42, 26), col(118, 66, 36), n1)
+    c = lerp(c, col(50, 32, 22), n2 * 0.6)
+    c = lerp(c, col(138, 84, 46), np.clip(n1 - 0.7, 0, 1) * 1.5)
     c *= (1 - pits[..., None] * 0.35)
     return c
 
@@ -71,12 +80,12 @@ def paint_tex(size, paint_rgb):
     paint = lerp(col(*paint_rgb), col(*paint_rgb) * 0.75, noise(size, 48, 5))
     paint = lerp(paint, col(150, 150, 130), noise(size, 128, 3) * 0.25)       # выгорела
     chip = noise(size, 30, 6, 0.55)
-    chip_mask = np.clip((chip - 0.62) * 9, 0, 1)                              # облупилось
-    edge = np.clip((chip - 0.58) * 9, 0, 1) - chip_mask                       # тёмный край скола
+    chip_mask = np.clip((chip - 0.71) * 9, 0, 1)                              # облупилось (редко, как у ванильных машин)
+    edge = np.clip((chip - 0.67) * 9, 0, 1) - chip_mask                       # тёмный край скола
     c = lerp(paint, rust, chip_mask)
     c *= (1 - np.clip(edge, 0, 1)[..., None] * 0.35)
-    c = lerp(c, col(110, 55, 25), np.clip(streaks(size), 0, 1))
-    c = lerp(c, col(45, 40, 32), noise(size, 90, 4) ** 3 * 0.6)              # грязь
+    c = lerp(c, col(90, 55, 32), np.clip(streaks(size), 0, 1) * 0.5)
+    c = lerp(c, col(45, 40, 32), noise(size, 180, 3) ** 2 * 0.5)             # крупные пятна грязи, как на ванильных машинах
     return c
 
 
@@ -381,15 +390,15 @@ RVMAT_PARAMS = {
 
 # материалы, для которых делаем карты нормалей и блеска (_nohq, _smdi): сила рельефа, блеск металла
 DETAIL_MAPS = {
-    "drezina_paint_green": (2.0, 0.55),
-    "drezina_paint_blue": (2.0, 0.55),
-    "drezina_rust": (4.0, 0.15),
-    "drezina_wood": (5.0, 0.1),
-    "drezina_steel": (2.5, 0.8),
-    "drezina_tape": (1.5, 0.3),
-    "drezina_canvas": (3.0, 0.05),
-    "drezina_leather": (3.0, 0.25),
-    "drezina_plate": (2.0, 0.5),
+    "drezina_paint_green": (0.8, 0.35),
+    "drezina_paint_blue": (0.8, 0.35),
+    "drezina_rust": (1.6, 0.08),
+    "drezina_wood": (2.2, 0.06),
+    "drezina_steel": (1.0, 0.5),
+    "drezina_tape": (0.6, 0.2),
+    "drezina_canvas": (1.2, 0.03),
+    "drezina_leather": (1.2, 0.15),
+    "drezina_plate": (0.8, 0.3),
 }
 
 
@@ -420,7 +429,7 @@ def write_rvmats(out):
             tex = "Drezina\\data\\textures\\" + name
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
-            text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.9, 0.9, 0.9, 1};")
+            text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.35, 0.35, 0.35, 1};")
         with open(os.path.join(out, name + ".rvmat"), "w") as f:
             f.write(text)
 
@@ -430,14 +439,14 @@ def main():
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 1024
     big = size * 2          # основные материалы дрезины — 2048, чтобы вблизи не мылило
     os.makedirs(out, exist_ok=True)
-    save(paint_tex(big, (66, 86, 60)), os.path.join(out, "drezina_paint_green_co.png"))
-    save(paint_tex(big, (60, 82, 104)), os.path.join(out, "drezina_paint_blue_co.png"))
-    save(rust_tex(big), os.path.join(out, "drezina_rust_co.png"))
-    save(wood_tex(big), os.path.join(out, "drezina_wood_co.png"))
-    save(steel_tex(big), os.path.join(out, "drezina_steel_co.png"))
-    save(tape_tex(size // 2), os.path.join(out, "drezina_tape_co.png"))
-    save(canvas_tex(size), os.path.join(out, "drezina_canvas_co.png"))
-    save(leather_tex(size // 2), os.path.join(out, "drezina_leather_co.png"))
+    save(vanilla_grade(paint_tex(big, (78, 88, 62))), os.path.join(out, "drezina_paint_green_co.png"))
+    save(vanilla_grade(paint_tex(big, (70, 84, 96))), os.path.join(out, "drezina_paint_blue_co.png"))
+    save(vanilla_grade(rust_tex(big)), os.path.join(out, "drezina_rust_co.png"))
+    save(vanilla_grade(wood_tex(big)), os.path.join(out, "drezina_wood_co.png"))
+    save(vanilla_grade(steel_tex(big)), os.path.join(out, "drezina_steel_co.png"))
+    save(vanilla_grade(tape_tex(size // 2)), os.path.join(out, "drezina_tape_co.png"))
+    save(vanilla_grade(canvas_tex(size)), os.path.join(out, "drezina_canvas_co.png"))
+    save(vanilla_grade(leather_tex(size // 2)), os.path.join(out, "drezina_leather_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
     save(concrete_tex(size), os.path.join(out, "metro_concrete_co.png"))

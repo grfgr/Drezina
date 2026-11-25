@@ -38,6 +38,10 @@ class Drezina_Motor extends CarScript
 		m_EngineStop = "Motorbike_01_engine_stop_SoundSet";
 		m_EngineStopFuel = "Motorbike_01_engine_stop_fuel_SoundSet";
 
+		// фары: свет как у ванильного мотоцикла (у базового профиля машины нет яркости)
+		m_LightsComponent.RegisterLight("Front", new VehicleLightData(new Motorbike_01LightProfileFront()));
+		m_LightsComponent.RegisterLight("Rear", new VehicleLightData(new Motorbike_01LightProfileRear()));
+
 		// мотор справа впереди (координаты модели: x вправо, y вверх, z вперёд)
 		SetEnginePos("0.22 0.82 0.72");
 		s_All.Insert(this);

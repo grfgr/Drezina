@@ -192,6 +192,8 @@ def driver_place(m, out):
     pan = sphere("seat_pan", 1, (0, DRIVER_Y, SEAT_H - 0.03), m["paint2"], (0.22, 0.2, 0.04), (24, 12))
     out.append(pan)
     out.append(box("seat_back", (0.36, 0.04, 0.22), (0, DRIVER_Y - 0.19, SEAT_H + 0.12), m["paint2"], (math.radians(-12), 0, 0)))
+    for sx in (-0.12, 0.12):                    # стойки спинки к сиденью
+        rod(f"seat_back_strut{sx}", (sx, DRIVER_Y - 0.12, SEAT_H - 0.05), (sx, DRIVER_Y - 0.2, SEAT_H + 0.06), 0.012, m["steel"], out)
     # два рычага управления (газ слева, тормоз справа) — рукоятки там, где руки водителя
     # в анимации машины (руль Нивы): ~0.4 м перед сиденьем, ~0.4 м над подушкой, ±0.17 м от оси
     for sx, name in ((-1, "lever_throttle"), (1, "lever_brake")):
@@ -424,20 +426,17 @@ def details(m, out):
     """Мелочи жизни: канистра на спинке дивана, ящик с инструментом под диваном, керосиновый фонарь на
     штанге, провода к фарам, лопата и лом в держателях, моток верёвки, аптечка-жестянка, тряпка на рычаге."""
     # канистра 20 л (как вермахтовская/советская): штамповка крестом, три ручки, крышка с рычагом
-    cx, cy, cz = -0.38, BENCH_Y - 0.3, BENCH_H + 0.1
-    can = box("jerrycan", (0.16, 0.34, 0.46), (cx, cy, cz), m["paint"])
+    cx, cy, cz = -0.42, -0.5, DECK + 0.08
+    can = box("jerrycan", (0.34, 0.46, 0.16), (cx, cy, cz), m["paint"])
     hz.dent(can, 0.003, cuts=2, seed=5)
     out.append(can)
-    for sx in (-1, 1):
-        out.append(box(f"jc_x1{sx}", (0.006, 0.3, 0.02), (cx + sx * 0.082, cy, cz), m["paint"], (math.radians(52), 0, 0)))
-        out.append(box(f"jc_x2{sx}", (0.006, 0.3, 0.02), (cx + sx * 0.082, cy, cz), m["paint"], (math.radians(-52), 0, 0)))
-        out.append(box(f"jc_rim{sx}", (0.012, 0.35, 0.47), (cx + sx * 0.07, cy, cz), m["paint"]))
-    for k, dy in enumerate((-0.08, 0.0, 0.08)):
-        out.append(box(f"jc_handle{k}", (0.02, 0.02, 0.05), (cx, cy + dy, cz + 0.255), m["steel"]))
-    out.append(cyl("jc_spout", 0.025, 0.03, (cx, cy + 0.13, cz + 0.24), m["steel"], (0, 0, 0), 16))
-    out.append(box("jc_lever", (0.02, 0.06, 0.012), (cx, cy + 0.1, cz + 0.265), m["steel"]))
-    out.append(box("jc_strap", (0.17, 0.02, 0.004), (cx, cy + 0.17, cz), m["leather"]))
-    out.append(box("jc_strap2", (0.17, 0.02, 0.004), (cx, cy - 0.17, cz), m["leather"]))
+    for sz in (-1, 1):                         # лежит на боку: штамповка крестом сверху и снизу
+        out.append(box(f"jc_x1{sz}", (0.3, 0.02, 0.006), (cx, cy, cz + sz * 0.082), m["paint"], (0, 0, math.radians(52))))
+        out.append(box(f"jc_x2{sz}", (0.3, 0.02, 0.006), (cx, cy, cz + sz * 0.082), m["paint"], (0, 0, math.radians(-52))))
+    for k, dx in enumerate((-0.08, 0.0, 0.08)):
+        out.append(box(f"jc_handle{k}", (0.02, 0.05, 0.02), (cx + dx, cy + 0.255, cz), m["steel"]))
+    out.append(cyl("jc_spout", 0.025, 0.03, (cx + 0.13, cy + 0.24, cz), m["steel"], ROT_Y, 16))
+    out.append(box("jc_strap", (0.02, 0.47, 0.17), (cx - 0.12, cy, cz), m["leather"]))
     # ящик с инструментом под диваном
     tx, ty, tz = 0.3, BENCH_Y + 0.02, DECK + 0.1
     out.append(box("toolbox_m", (0.4, 0.2, 0.18), (tx, ty, tz), m["paint2"]))
@@ -447,8 +446,8 @@ def details(m, out):
     # гаечный ключ и молоток, брошенные на полу
     out.append(box("wrench", (0.02, 0.26, 0.008), (0.15, 0.25, DECK + 0.006), m["steel"], (0, 0, math.radians(30))))
     out.append(cyl("wrench_head", 0.03, 0.01, (0.08, 0.36, DECK + 0.006), m["steel"], (0, 0, 0), 6))
-    out.append(cyl("hammer_handle", 0.012, 0.3, (-0.2, -0.45, DECK + 0.014), m["wood"], (0, math.radians(90), math.radians(20)), 10))
-    out.append(box("hammer_head", (0.03, 0.11, 0.03), (-0.06, -0.4, DECK + 0.02), m["steel"], (0, 0, math.radians(20))))
+    out.append(cyl("hammer_handle", 0.012, 0.3, (0.1, -0.78, DECK + 0.014), m["wood"], (0, math.radians(90), math.radians(20)), 10))
+    out.append(box("hammer_head", (0.03, 0.11, 0.03), (0.24, -0.73, DECK + 0.02), m["steel"], (0, 0, math.radians(20))))
     # керосиновый фонарь «летучая мышь» на штанге у правого переднего угла
     lx, ly = hz.SILL_X + 0.04, 1.08
     rod("lantern_pole", (lx, ly, DECK - 0.1), (lx, ly, DECK + 1.1), 0.014, m["rust"], out)
@@ -479,8 +478,8 @@ def details(m, out):
     for y in (-0.5, 0.2):
         out.append(box(f"tool_clip{y}", (0.05, 0.03, 0.06), (sx + 0.005, y, DECK), m["steel"]))
     # моток верёвки на крыле и аптечка-жестянка на спинке водителя
-    out.append(torus("rope_coil", 0.1, 0.014, (-hz.HALF, -hz.AXLE_Y, hz.WHEEL_R + 0.44), m["canvas"], (0, math.radians(80), 0), (24, 8)))
-    out.append(torus("rope_coil2", 0.085, 0.012, (-hz.HALF + 0.005, -hz.AXLE_Y, hz.WHEEL_R + 0.45), m["canvas"], (0, math.radians(80), 0.3), (24, 8)))
+    out.append(torus("rope_coil", 0.1, 0.014, (0.4, -0.45, DECK + 0.015), m["canvas"], (0, 0, 0), (24, 8)))
+    out.append(torus("rope_coil2", 0.085, 0.012, (0.41, -0.44, DECK + 0.04), m["canvas"], (0.08, 0.05, 0), (24, 8)))
     out.append(box("medkit", (0.16, 0.05, 0.11), (0, -0.12 - 0.22, SEAT_H + 0.1), m["plate"], (math.radians(-12), 0, 0)))
     # тряпка на рукоятке тормоза
     out.append(box("rag", (0.05, 0.012, 0.14), (0.2, -0.12 + 0.38, SEAT_H + 0.33), m["canvas"], (math.radians(10), 0, math.radians(15))))
@@ -513,7 +512,11 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     hz.layer1_frame(m, body)
     hz.layer1_deck(m, wood, metal)
     hz.layer2_running_gear(m, body)
-    hz.layer2_couplers(m, body)
+    for sy in (-1, 1):                       # сцепки без болтающейся цепи
+        yy = sy * 1.17
+        body.append(box(f"buffer_plate{sy}", (0.2, 0.012, 0.14), (0, yy, DECK - 0.12), m["steel"]))
+        body.append(box(f"hook{sy}", (0.03, 0.12, 0.03), (0, yy + sy * 0.06, DECK - 0.15), m["steel"]))
+        body.append(box(f"hook_tip{sy}", (0.03, 0.03, 0.06), (0, yy + sy * 0.11, DECK - 0.13), m["steel"]))
     hz.layer3_wear(m, body)
     brakes_and_guards(m, body)
     details(m, props)

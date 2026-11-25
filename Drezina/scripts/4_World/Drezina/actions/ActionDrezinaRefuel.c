@@ -1,10 +1,20 @@
-// «Заправить мотодрезину»: канистра (или любая ёмкость) с бензином в руках, смотреть на мотодрезину.
-// Переливает сразу всё, что влезет в бак.
-class ActionDrezinaRefuel extends ActionInteractBase
+// «Заправить мотодрезину»: канистра (или любая ёмкость) с бензином в руках, смотреть на мотодрезину,
+// зажать ЛКМ (как ванильная заправка машины). Переливает сразу всё, что влезет в бак.
+class ActionDrezinaRefuelCB : ActionContinuousBaseCB
+{
+	override void CreateActionComponent()
+	{
+		m_ActionData.m_ActionComponent = new CAContinuousTime(3.0);
+	}
+}
+
+class ActionDrezinaRefuel : ActionContinuousBase
 {
 	void ActionDrezinaRefuel()
 	{
-		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_INTERACTONCE;
+		m_CallbackClass = ActionDrezinaRefuelCB;
+		m_CommandUID = DayZPlayerConstants.CMD_ACTIONFB_INTERACT;
+		m_FullBody = true;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
 		m_Text = "Заправить мотодрезину";
 	}
@@ -35,7 +45,7 @@ class ActionDrezinaRefuel extends ActionInteractBase
 		return car && car.GetFluidFraction(CarFluid.FUEL) < 0.99;
 	}
 
-	override void OnExecuteServer(ActionData action_data)
+	override void OnFinishProgressServer(ActionData action_data)
 	{
 		ItemBase item = action_data.m_MainItem;
 		Drezina_Motor car = Drezina_Motor.Cast(action_data.m_Target.GetObject());
