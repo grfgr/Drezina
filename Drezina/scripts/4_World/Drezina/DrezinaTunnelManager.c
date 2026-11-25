@@ -1445,7 +1445,7 @@ class DrezinaTunnelManager
 		}
 		else if (cmd == "test")
 		{
-			// /metro test tunnel | curve | stairs [шаг_вниз] [шаг_вперёд] [блоков] | entrance | hall | clear
+			// /metro test tunnel | curve [вперёд вбок угол] | stairs [шаг_вниз шаг_вперёд блоков] | corridor | entrance | hall | clear
 			string what = "tunnel";
 			if (args.Count() >= 3)
 				what = args[2];
@@ -1570,8 +1570,10 @@ class DrezinaTunnelManager
 	// Storage_Big — зал 15.5 x 20.9 м (торцы по оси Z: -10.45 / +10.42).
 
 	static const float V_STRAIGHT = 10.0;
-	static const float V_CURVE_ANG = 30.0;
-	static const float V_CURVE_R = 18.47;
+	// параметры поворота (подбираются тестом /metro test curve <вперёд> <вбок> <угол>)
+	float m_CurveFwd = 9.235;
+	float m_CurveSide = 2.475;
+	float m_CurveAng = 30.0;
 	static const float V_HALL_BACK = 10.45;
 	static const float V_HALL_FRONT = 10.42;
 
@@ -1599,7 +1601,7 @@ class DrezinaTunnelManager
 			cur = cur + h * V_STRAIGHT;
 			return;
 		}
-		float a = V_CURVE_ANG * Math.DEG2RAD;
+		float a = m_CurveAng * Math.DEG2RAD;
 		float sg = 1;
 		string type = "Land_Underground_Tunnel_Single_Right";
 		if (kind == "L")
@@ -1610,7 +1612,7 @@ class DrezinaTunnelManager
 		Object c1 = DrezinaTrackManager.SpawnStatic(type, cur, h);
 		if (c1)
 			outObjs.Insert(c1);
-		cur = cur + h * (V_CURVE_R * Math.Sin(a)) + side * (sg * V_CURVE_R * (1 - Math.Cos(a)));
+		cur = cur + h * m_CurveFwd + side * (sg * m_CurveSide);
 		h = (h * Math.Cos(a) + side * (sg * Math.Sin(a))).Normalized();
 	}
 
@@ -1634,8 +1636,15 @@ class DrezinaTunnelManager
 		base[1] = GetGame().SurfaceY(base[0], base[2]) + 25.0;
 		int before = m_TestObjects.Count();
 
+		if (what == "curve" && nums.Count() >= 3)
+		{
+			m_CurveFwd = nums[0].ToFloat();
+			m_CurveSide = nums[1].ToFloat();
+			m_CurveAng = nums[2].ToFloat();
+		}
 		if (what == "tunnel" || what == "curve")
 		{
+			DrezinaTrackManager.Notify(sender, "Поворот: вперёд " + m_CurveFwd + ", вбок " + m_CurveSide + ", угол " + m_CurveAng);
 			// зал — 2 прямых — поворот влево — 2 прямых — поворот вправо — 2 прямых — зал
 			vector cur = base;
 			if (what == "tunnel")
@@ -1674,6 +1683,23 @@ class DrezinaTunnelManager
 			vector ep = here + h * 25.0;
 			ep[1] = GetGame().SurfaceY(ep[0], ep[2]);
 			TestSpawn("Land_Underground_Entrance", ep, h);
+		}
+		else if (what == "corridor")
+		{
+			// коридор с двумя путями -> коннектор -> тоннель (и то же с Connector_Inv рядом, в 30 м правее)
+			for (int v = 0; v < 2; v++)
+			{
+				vector cb = base + Side(h) * (30.0 * v);
+				string conn = "Land_Underground_Corridor_Connector";
+				if (v == 1)
+					conn = "Land_Underground_Corridor_Connector_Inv";
+				TestSpawn("Land_Underground_Corridor_Main_Both", cb, h);
+				vector ce = cb + h * 11.25;
+				TestSpawn(conn, ce + h * 6.65, h);
+				vector te = ce + h * (6.65 + 6.83);
+				TestSpawn("Land_Underground_Tunnel_Single", te + h * 5.0, h);
+				TestSpawn("Land_Underground_Tunnel_Single", te + h * 15.0, h);
+			}
 		}
 		else if (what == "hall")
 		{
