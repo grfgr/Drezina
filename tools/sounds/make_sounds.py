@@ -6,6 +6,8 @@
   creak_1..4.ogg       скрип коромысла/шарнира (старое железо + сухое дерево)
   knock_1..2.ogg       глухой стук рычага в крайнем положении
   brake_loop.ogg       визг колодок при торможении, петля 2 с
+  door_open.ogg        тяжёлая гермодверь: лязг засовов, протяжный скрежет петель, глухой удар
+  dynamo_loop.ogg      подвывание велосипедной динамо-машины на колесе, петля
 
 Запуск:  python tools/sounds/make_sounds.py Drezina/sounds
 """
@@ -167,6 +169,49 @@ def brake_loop():
     return normalize(make_loop(x, 0.3), 0.55)
 
 
+def door_open():
+    sec = 3.2
+    t = t_axis(sec)
+    n = len(t)
+    x = np.zeros(n)
+    # два лязга засовов
+    for t0 in (0.05, 0.32):
+        i0 = int(t0 * SR)
+        hit = modes(0.6, [210, 640, 1320, 2650], [0.12, 0.08, 0.05, 0.03], [1, 0.6, 0.4, 0.2], attack=0.001)
+        x[i0:i0 + len(hit)] += hit[: n - i0] * 0.8
+    # скрип петель: stick-slip с плавно падающей частотой
+    s0, s1 = int(0.7 * SR), int(2.6 * SR)
+    seg = np.zeros(s1 - s0)
+    tt = np.arange(len(seg)) / SR
+    rate = 55 - 30 * tt / tt[-1] + 6 * np.sin(2 * np.pi * 1.3 * tt)
+    ph = np.cumsum(rate / SR)
+    idx = np.nonzero(np.diff(np.floor(ph)) > 0)[0]
+    seg[idx] = rng.uniform(0.5, 1.0, len(idx))
+    groan = bandpass(seg, 190, 8) * 1.4 + bandpass(seg, 470, 14) + bandpass(seg, 1040, 20) * 0.5
+    groan *= np.sin(np.pi * tt / tt[-1]) ** 0.6
+    groan += bandpass(rng.standard_normal(len(seg)), 300, 0.8) * 0.12      # трение металла
+    x[s0:s1] += groan
+    # глухой удар двери об упор + гул полотна
+    i0 = int(2.65 * SR)
+    thud = modes(0.55, [48, 96, 230, 520], [0.18, 0.1, 0.06, 0.04], [1, 0.7, 0.35, 0.2], attack=0.002)
+    x[i0:i0 + len(thud)] += thud[: n - i0] * 1.2
+    return normalize(fade(x, 0.002, 0.1), 0.9)
+
+
+def dynamo_loop():
+    sec = 2.2
+    t = t_axis(sec)
+    f = 340
+    wob = 1 + 0.03 * np.sin(2 * np.pi * 4.4 * t)                          # неровный ролик
+    ph = np.cumsum(f * wob / SR) * 2 * np.pi
+    tone = np.sin(ph) * 0.5 + np.sin(2 * ph) * 0.25 + np.sin(3 * ph) * 0.12
+    rub = bandpass(rng.standard_normal(len(t)), 2400, 2.0) * 0.35          # ролик по бандажу
+    tick = np.zeros(len(t))
+    tick[(np.arange(len(t)) % int(SR / 22)) == 0] = 1.0                   # щелчки щёток
+    ticks = bandpass(tick, 3800, 12) * 0.4
+    return normalize(make_loop(tone + rub + ticks, 0.3), 0.6)
+
+
 def main():
     out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "Drezina/sounds")
     os.makedirs(out, exist_ok=True)
@@ -178,6 +223,8 @@ def main():
     for v in (1, 2):
         write_ogg(os.path.join(out, f"knock_{v}.ogg"), knock(v))
     write_ogg(os.path.join(out, "brake_loop.ogg"), brake_loop())
+    write_ogg(os.path.join(out, "door_open.ogg"), door_open())
+    write_ogg(os.path.join(out, "dynamo_loop.ogg"), dynamo_loop())
     print("[Drezina] sounds written to", out)
 
 

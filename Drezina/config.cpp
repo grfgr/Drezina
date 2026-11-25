@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel2", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects"};
@@ -68,6 +68,18 @@ class CfgSoundShaders
 		volume = 0.7;
 		range = 30;
 	};
+	class Drezina_Door_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\door_open", 1}};
+		volume = 1.0;
+		range = 40;
+	};
+	class Drezina_Dynamo_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\dynamo_loop", 1}};
+		volume = 0.6;
+		range = 25;
+	};
 	class Drezina_Brake_SoundShader
 	{
 		samples[] = {{"Drezina\sounds\brake_loop", 1}};
@@ -105,6 +117,16 @@ class CfgSoundSets
 	{
 		soundShaders[] = {"Drezina_Knock_SoundShader"};
 		loop = 0;
+	};
+	class Drezina_Door_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Door_SoundShader"};
+		loop = 0;
+	};
+	class Drezina_Dynamo_SoundSet: Drezina_Base_SoundSet
+	{
+		soundShaders[] = {"Drezina_Dynamo_SoundShader"};
+		loop = 1;
 	};
 	class Drezina_Brake_SoundSet: Drezina_Base_SoundSet
 	{
@@ -201,27 +223,35 @@ class CfgVehicles
 		model = "\Drezina\data\metro_station.p3d";
 	};
 
-	// Павильон-спуск на поверхности.
+	// Голова бункера на поверхности: бетонный блок в насыпи, гермодверь в жёлто-чёрной коробке.
 	class Drezina_MetroHatch: HouseNoDestruct
 	{
 		scope = 1;
-		displayName = "Вход в метро";
-		model = "\Drezina\data\metro_hatch.p3d";
+		displayName = "Вход в бункер";
+		model = "\Drezina\data\bunker_entrance.p3d";
 	};
 
-	// Лестница наверх на станции.
+	// Гермодверь изнутри, на верхней площадке лестницы.
 	class Drezina_MetroLadder: HouseNoDestruct
 	{
 		scope = 1;
-		displayName = "Выход наверх";
-		model = "\Drezina\data\metro_ladder.p3d";
+		displayName = "Выход наружу";
+		model = "\Drezina\data\bunker_inner_door.p3d";
 	};
 
-	// Светильник под сводом (свет создаётся скриптом на клиенте).
-	class Drezina_TunnelLamp: HouseNoDestruct
+	// Лестничная шахта: 4 марша вниз, 9.6 м.
+	class Drezina_BunkerStairs: HouseNoDestruct
 	{
 		scope = 1;
-		displayName = "Светильник";
-		model = "\Drezina\data\tunnel_lamp.p3d";
+		displayName = "Лестница";
+		model = "\Drezina\data\bunker_stairs.p3d";
+	};
+
+	// Коридор от лестницы к станции, 8 м.
+	class Drezina_BunkerCorridor: HouseNoDestruct
+	{
+		scope = 1;
+		displayName = "Коридор";
+		model = "\Drezina\data\bunker_corridor.p3d";
 	};
 };

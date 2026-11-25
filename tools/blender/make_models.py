@@ -495,12 +495,9 @@ def main():
     build_rail(outdir)
     build_dispenser(outdir)
     build_rail10(outdir)
-    build_tunnel(outdir)
-    build_tunnel(outdir, 2.4, "tunnel_2m")
-    build_station(outdir)
-    build_hatch(outdir)
-    build_ladder(outdir)
-    build_lamp(outdir)
+    # метро в стиле бункера: вход, дверь изнутри, лестница, коридор, станция, тоннели
+    import metro_bunker
+    metro_bunker.build_all(outdir, os.path.abspath(tex_dir), save, reset_scene)
     print("[Drezina] models written to", outdir)
 
 

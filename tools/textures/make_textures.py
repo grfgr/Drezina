@@ -153,6 +153,94 @@ def lamp_glass_tex(size):
     return lerp(col(170, 140, 70), col(90, 70, 40), n * 0.8)
 
 
+# ----------------------------------------------------------------------------- бункер / метро
+
+def concrete_tex(size, base=(118, 116, 108)):
+    """Бетон: опалубочные швы, раковины, сырые пятна, потёки."""
+    c = lerp(col(*base) * 0.8, col(*base), noise(size, 40, 6))
+    c = lerp(c, col(60, 60, 56), np.clip(noise(size, 100, 4) - 0.55, 0, 1) * 1.6)        # сырость
+    pores = (noise(size, 3, 2) > 0.82).astype(np.float32)
+    c *= (1 - pores[..., None] * 0.25)
+    # швы опалубки каждые 1/3 тайла
+    y = np.arange(size)
+    seam = ((y % (size // 3)) < 3).astype(np.float32)
+    c *= (1 - seam[:, None, None] * 0.25)
+    c = lerp(c, col(70, 52, 35), np.clip(streaks(size, 0.5), 0, 1) * 0.5)                # ржавые потёки
+    c = lerp(c, col(30, 30, 28), noise(size, 70, 5) ** 4 * 0.8)                           # копоть
+    return c
+
+
+def wall_two_tone_tex(size):
+    """Стена 3 x 3 м: снизу советская зелёная масляная краска до 1.4 м, сверху побелка, всё облезло.
+    Низ текстуры = пол (UV v=0)."""
+    conc = concrete_tex(size)
+    green = lerp(col(54, 84, 66), col(40, 64, 50), noise(size, 50, 5))
+    white = lerp(col(178, 176, 164), col(150, 148, 136), noise(size, 60, 5))
+    rows = np.arange(size)[:, None] / size                    # 0 вверху, 1 внизу
+    band_top = 1 - 1.4 / 3.0
+    is_green = (rows > band_top).astype(np.float32) * np.ones((1, size))
+    paint = lerp(white, green, is_green)
+    line = (np.abs(rows - band_top) < 0.006).astype(np.float32) * np.ones((1, size))
+    paint = lerp(paint, col(30, 40, 32), line)
+    peel = np.clip((noise(size, 35, 6) - 0.6) * 7, 0, 1)
+    c = lerp(paint, conc, peel)
+    c = lerp(c, col(60, 55, 40), np.clip(streaks(size, 0.7, 0.5), 0, 1) * (1 - rows) * 0.8)   # потёки сверху
+    c = lerp(c, col(35, 32, 28), np.clip(rows - 0.85, 0, 1) * 4 * noise(size, 30, 4))         # грязь у пола
+    return c
+
+
+def hazard_tex(size):
+    """Жёлто-чёрные диагональные полосы, затёртые и ржавые."""
+    x = np.arange(size)
+    diag = ((x[None, :] + x[:, None]) // (size // 6)) % 2
+    c = np.where(diag[..., None] == 0, col(196, 156, 30), col(26, 24, 20))
+    wear = np.clip((noise(size, 30, 6) - 0.62) * 6, 0, 1)
+    c = lerp(c, rust_tex(size), wear)
+    return lerp(c, col(40, 35, 28), noise(size, 80, 4) ** 3 * 0.6)
+
+
+def door_tex(size):
+    return paint_tex(size, (88, 98, 88))
+
+
+def tubing_tex(size):
+    """Чугунные тюбинги: тёмный металл, ржавчина, известковые потёки."""
+    c = lerp(col(40, 40, 40), col(66, 64, 60), noise(size, 30, 5))
+    c = lerp(c, rust_tex(size), np.clip(noise(size, 50, 5) - 0.45, 0, 1) * 1.8)
+    c = lerp(c, col(170, 165, 150), np.clip(streaks(size, 0.4, 0.4), 0, 1) * 0.6)
+    return c
+
+
+def dirt_tex(size):
+    c = lerp(col(58, 48, 34), col(84, 72, 52), noise(size, 30, 6))
+    c = lerp(c, col(60, 72, 40), np.clip(noise(size, 60, 4) - 0.5, 0, 1) * 1.5)          # мох/трава
+    return c
+
+
+def sign_tex(size, lines, bg=(150, 30, 25), fg=(225, 220, 205)):
+    w, h = size, size // 2
+    img = Image.new("RGB", (w, h), bg)
+    d = ImageDraw.Draw(img)
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    fs = h // (len(lines) + 1)
+    try:
+        font = ImageFont.truetype(font_path, fs)
+        while fs > 8 and max(d.textlength(t, font=font) for t in lines) > w * 0.88:
+            fs -= 2
+            font = ImageFont.truetype(font_path, fs)
+    except OSError:
+        font = ImageFont.load_default()
+    line_h = h / len(lines)
+    for i, t in enumerate(lines):
+        tw = d.textlength(t, font=font)
+        d.text(((w - tw) / 2, line_h * i + (line_h - fs) / 2 - fs * 0.1), t, font=font, fill=fg)
+    a = np.asarray(img, dtype=np.float32) / 255.0
+    wear = np.clip((noise(h, 20, 5)[:, :] - 0.6) * 5, 0, 1)
+    wear = np.asarray(Image.fromarray((wear * 255).astype(np.uint8)).resize((w, h)), dtype=np.float32) / 255.0
+    rust = np.asarray(Image.fromarray((rust_tex(h) * 255).astype(np.uint8)).resize((w, h)), dtype=np.float32) / 255.0
+    return lerp(a, rust, wear * 0.85)
+
+
 RVMAT = """ambient[] = {1, 1, 1, 1};
 diffuse[] = {1, 1, 1, 1};
 forcedDiffuse[] = {0, 0, 0, 0};
@@ -209,6 +297,14 @@ RVMAT_PARAMS = {
     "drezina_canvas": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_plate": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
     "drezina_glass": (0.6, 120, 0.0, 0.9, "1, 0.7, 0.3, 1"),
+    "metro_concrete": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
+    "metro_hazard": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_door": (0.15, 40, 0.4, 0.35, "0, 0, 0, 1"),
+    "metro_tubing": (0.15, 30, 0.6, 0.3, "0, 0, 0, 1"),
+    "metro_dirt": (0.02, 5, 0.0, 0.05, "0, 0, 0, 1"),
+    "metro_sign_entrance": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
+    "metro_sign_exit": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
 }
 
 
@@ -233,6 +329,14 @@ def main():
     save(canvas_tex(size // 2), os.path.join(out, "drezina_canvas_co.png"))
     save(plate_tex(size // 2), os.path.join(out, "drezina_plate_co.png"))
     save(lamp_glass_tex(size // 4), os.path.join(out, "drezina_glass_co.png"))
+    save(concrete_tex(size), os.path.join(out, "metro_concrete_co.png"))
+    save(wall_two_tone_tex(size), os.path.join(out, "metro_wall_co.png"))
+    save(hazard_tex(size // 2), os.path.join(out, "metro_hazard_co.png"))
+    save(door_tex(size), os.path.join(out, "metro_door_co.png"))
+    save(tubing_tex(size), os.path.join(out, "metro_tubing_co.png"))
+    save(dirt_tex(size // 2), os.path.join(out, "metro_dirt_co.png"))
+    save(sign_tex(size // 2, ["ОБЪЕКТ 17", "ВХОД ВОСПРЕЩЁН"]), os.path.join(out, "metro_sign_entrance_co.png"))
+    save(sign_tex(size // 2, ["ВЫХОД"], bg=(40, 110, 50)), os.path.join(out, "metro_sign_exit_co.png"))
     write_rvmats(out)
     print("[Drezina] textures written to", out)
 

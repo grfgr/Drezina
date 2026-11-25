@@ -13,6 +13,9 @@
   СЛОЙ 6 — быт путевого обходчика: маслёнка с носиком, ведро с песком, канистра, навесной замок на ящике,
             термос, моток верёвки на штанге фонаря, тряпка на поручне.
   СЛОЙ 7 — повреждения: вмятины на листовом металле, пулевые отверстия в кожухе и ящике, расщеп доски.
+  СЛОЙ 8 — самодельный свет «от генератора»: велосипедная динамо-машина трётся о заднее левое колесо,
+            провода на изоленте по раме к двум старым автомобильным фарам (вперёд и назад) и к голой
+            лампочке в проволочной клетке под стойкой. Свет включается скриптом, когда дрезина едет.
 
 Скругление: все бруски получают фаску (bevel), цилиндры — до 32 граней, всё сглаживается по углу
 (Smooth by Angle 35°), поэтому граней не видно, а плоскости остаются плоскими.
@@ -661,6 +664,72 @@ def layer7_damage(m, body_parts):
     return holes
 
 
+# ============================================================================ СЛОЙ 8: самодельный свет
+
+def headlamp(prefix, loc, facing, m, out):
+    """Старая автомобильная фара: корпус-полусфера, хромированный (ржавый) обод, стекло, кронштейн."""
+    x, y, z = loc
+    rot = (math.radians(-90 * facing), 0, 0)         # ось фары вдоль ±Y
+    out.append(sphere(f"{prefix}_body", 0.1, (x, y - facing * 0.03, z), m["paint"], (1, 0.75, 1), (24, 14)))
+    out.append(torus(f"{prefix}_rim", 0.095, 0.012, (x, y + facing * 0.035, z), m["steel"], ROT_Y, (32, 8)))
+    out.append(cyl(f"{prefix}_glass", 0.088, 0.012, (x, y + facing * 0.04, z), m["glass"], ROT_Y, 32))
+    out.append(box(f"{prefix}_bracket", (0.04, 0.12, 0.012), (x, y - facing * 0.08, z - 0.09), m["steel"]))
+    out.append(cyl(f"{prefix}_stem", 0.012, 0.09, (x, y - facing * 0.03, z - 0.06), m["steel"]))
+    out.append(cyl(f"{prefix}_tape", 0.016, 0.03, (x, y - facing * 0.03, z - 0.07), m["tape"]))
+
+
+def wire(prefix, pts, m, out, r=0.006):
+    """Провод по точкам + обмотки изолентой на изгибах."""
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        mid = [(a[k] + b[k]) / 2 for k in range(3)]
+        d = [b[k] - a[k] for k in range(3)]
+        ln = math.sqrt(sum(c * c for c in d))
+        if ln < 1e-4:
+            continue
+        o = cyl(f"{prefix}{i}", r, ln, mid, m["tape"], (0, 0, 0), 6)
+        # повернуть ось Z цилиндра вдоль d
+        import mathutils
+        o.rotation_mode = "QUATERNION"
+        o.rotation_quaternion = mathutils.Vector((0, 0, 1)).rotation_difference(mathutils.Vector(d).normalized())
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+        out.append(o)
+        out.append(cyl(f"{prefix}_wrap{i}", r * 2.2, 0.03, b, m["tape"], (0, 0, 0), 8))
+
+
+def layer8_lights(m, out):
+    # динамо-машина над протектором заднего левого колеса
+    dx, dy = -HALF, -AXLE_Y + 0.12
+    out.append(box("dyn_bracket", (0.22, 0.05, 0.012), (-SILL_X - 0.08, dy, DECK_TOP - 0.04), m["rust"]))
+    out.append(box("dyn_arm", (0.012, 0.05, 0.14), (dx + 0.03, dy, DECK_TOP - 0.1), m["rust"]))
+    out.append(cyl("dyn_body", 0.035, 0.11, (dx, dy, 2 * WHEEL_R + 0.09), m["paint2"]))
+    out.append(cyl("dyn_cap", 0.028, 0.02, (dx, dy, 2 * WHEEL_R + 0.155), m["steel"]))
+    out.append(cyl("dyn_roller", 0.016, 0.03, (dx, dy, 2 * WHEEL_R + 0.02), m["steel"], (0, 0, 0), 12))
+    out.append(box("dyn_spring", (0.008, 0.008, 0.08), (dx + 0.04, dy, 2 * WHEEL_R + 0.07), m["steel"], (0, math.radians(20), 0)))
+    # фары: передняя справа на торце, задняя слева
+    fl = (0.45, 1.17 + 0.12, DECK_TOP - 0.02)
+    bl = (-0.45, -1.17 - 0.12, DECK_TOP - 0.02)
+    headlamp("hl_front", fl, 1, m, out)
+    headlamp("hl_back", bl, -1, m, out)
+    # лампочка в клетке под осью коромысла
+    bz = PIVOT_Z - 0.3
+    out.append(cyl("bulb_socket", 0.018, 0.04, (0, 0.0, bz + 0.05), m["tape"]))
+    out.append(sphere("bulb_glass", 0.032, (0, 0.0, bz), m["glass"], (1, 1, 1.25), (16, 10)))
+    for k in range(4):
+        a = k * math.pi / 2
+        out.append(box(f"bulb_cage{k}", (0.004, 0.004, 0.11), (math.cos(a) * 0.045, math.sin(a) * 0.045, bz + 0.0), m["steel"]))
+    out.append(torus("bulb_cage_ring", 0.045, 0.003, (0, 0, bz - 0.05), m["steel"], (0, 0, 0), (16, 6)))
+    out.append(cyl("bulb_cord", 0.004, 0.24, (0, 0, bz + 0.19), m["tape"], (0, 0, 0), 6))
+    # провода от динамо по раме к фарам и вверх по стойке к лампочке
+    z = DECK_TOP - 0.06
+    wire("w_front", [(dx, dy, 2 * WHEEL_R + 0.1), (-SILL_X - 0.02, dy, z), (-SILL_X - 0.02, 1.12, z), (fl[0], 1.12, z), (fl[0], fl[1] - 0.1, fl[2])], m, out)
+    wire("w_back", [(-SILL_X - 0.02, dy, z), (-SILL_X - 0.02, -1.12, z), (bl[0], -1.12, z), (bl[0], bl[1] + 0.1, bl[2])], m, out)
+    wire("w_bulb", [(-SILL_X - 0.02, -0.42, z), (-0.17, -0.42, DECK_TOP + 0.02), (-0.17, -0.05, PIVOT_Z - 0.1), (0, 0, bz + 0.31)], m, out)
+
+
 # ============================================================================ коромысло (слой 2+3)
 
 def build_lever(m):
@@ -710,6 +779,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     layer5_fasteners(m, body_parts)             # СЛОЙ 5
     layer6_life(m, props)                       # СЛОЙ 6
     damage = layer7_damage(m, body_parts + props + metal)   # СЛОЙ 7
+    layer8_lights(m, props)                     # СЛОЙ 8
 
     body = join(body_parts + wood + metal + props + damage, "body")
     uv_cube(body, 0.8)                          # СЛОЙ 4
@@ -730,7 +800,12 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     mem_point("mem_axle_rear_1", (-HALF, -AXLE_Y, WHEEL_R))
     mem_point("mem_axle_rear_2", (HALF, -AXLE_Y, WHEEL_R))
     mem_point("mem_seat_driver", (0, -0.80, DECK_TOP))
-    mem_point("mem_lamp", (-SILL_X - 0.05, 1.22, DECK_TOP + 1.0))   # для света фонаря
+    # точки света (скрипт крепит к ним фары и лампочку)
+    mem_point("mem_light_front", (0.45, 1.17 + 0.12 + 0.05, DECK_TOP - 0.02))
+    mem_point("mem_light_front_dir", (0.45, 1.17 + 0.12 + 1.05, DECK_TOP - 0.06))
+    mem_point("mem_light_back", (-0.45, -1.17 - 0.12 - 0.05, DECK_TOP - 0.02))
+    mem_point("mem_light_back_dir", (-0.45, -1.17 - 0.12 - 1.05, DECK_TOP - 0.06))
+    mem_point("mem_light_bulb", (0, 0, PIVOT_Z - 0.3))
 
     geo = box("geometry_deck", (1.34, 2.3, 0.30), (0, 0, DECK_TOP - 0.15), m["wood"])
     geo.display_type = "WIRE"

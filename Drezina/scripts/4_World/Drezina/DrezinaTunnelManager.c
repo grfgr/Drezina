@@ -212,12 +212,37 @@ class DrezinaTunnelManager
 			inward = dirTrack * -1;
 	}
 
-	// После спуска: у лестницы на станции. Станции выдачи стоят справа от пути, лестница — слева.
+	// Бункер у конца тоннеля: за глухой стеной станции — коридор, за ним лестничная шахта.
+	// side = +X моделей (вправо, если смотреть в тоннель).
+	void GetBunkerFrame(DrezinaTunnelData t, int end, out vector endPos, out vector inward, out vector side)
+	{
+		vector dirT;
+		GetEnd(t, end, endPos, dirT, inward);
+		side = Side(inward);
+	}
+
+	vector GetCorridorPos(DrezinaTunnelData t, int end, out vector inward)
+	{
+		vector e, side;
+		GetBunkerFrame(t, end, e, inward, side);
+		return e - inward * (DrezinaConst.STATION_BACK + DrezinaConst.CORRIDOR_LEN * 0.5) + side * DrezinaConst.BUNKER_SIDE_X;
+	}
+
+	// Origin модели лестницы = пол шахты в центре.
+	vector GetStairsPos(DrezinaTunnelData t, int end, out vector inward)
+	{
+		vector e, side;
+		GetBunkerFrame(t, end, e, inward, side);
+		float back = DrezinaConst.STATION_BACK + DrezinaConst.CORRIDOR_LEN + DrezinaConst.BUNKER_WALL + DrezinaConst.STAIR_HALF_Y;
+		return e - inward * back + side * DrezinaConst.BUNKER_SIDE_X;
+	}
+
+	// После спуска: верхняя площадка лестницы, спиной к двери — дальше пешком 4 марша вниз.
 	vector GetStationSpawn(DrezinaTunnelData t, int end)
 	{
-		vector pos, dirT, inward;
-		GetEnd(t, end, pos, dirT, inward);
-		return pos - inward * 2.0 - Side(dirT) * 3.0 + Vector(0, 0.05, 0);
+		vector inward;
+		vector st = GetStairsPos(t, end, inward);
+		return st + inward * (DrezinaConst.STAIR_HALF_Y - 0.6) + Vector(0, DrezinaConst.STAIR_TOP + 0.05, 0);
 	}
 
 	// После подъёма: перед дверью павильона.
@@ -275,15 +300,14 @@ class DrezinaTunnelManager
 			d += piece;
 		}
 
-		// светильники под сводом
-		float lampD = 2.0;
-		while (lampD < len - 2.0)
+		// бункер у обоих концов: коридор + лестничная шахта (освещения нет — нужен фонарь)
+		for (int be = 0; be <= 1; be++)
 		{
-			vector lp, ld;
-			s.GetPosDir(lampD, lp, ld);
-			ld[1] = 0;
-			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_TunnelLamp", lp + Vector(0, 4.3, 0), ld.Normalized()));
-			lampD += DrezinaConst.LAMP_STEP;
+			vector bInward;
+			vector corPos = GetCorridorPos(t, be, bInward);
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_BunkerCorridor", corPos, bInward));
+			vector stPos = GetStairsPos(t, be, bInward);
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_BunkerStairs", stPos, bInward));
 		}
 
 		SpawnEntrance(t, 0, objs);
@@ -319,8 +343,11 @@ class DrezinaTunnelManager
 			objs.Insert(hatch);
 		}
 
-		vector lPos = pos - inward * (DrezinaConst.STATION_BACK - 0.6) - Side(dirT) * 3.0;
-		Drezina_MetroLadder ladder = Drezina_MetroLadder.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroLadder", lPos, inward));
+		// гермодверь изнутри: на верхней площадке, лицом в шахту
+		vector stInward;
+		vector stPos = GetStairsPos(t, end, stInward);
+		vector lPos = stPos + stInward * (DrezinaConst.STAIR_HALF_Y - 0.15) + Vector(0, DrezinaConst.STAIR_TOP, 0);
+		Drezina_MetroLadder ladder = Drezina_MetroLadder.Cast(DrezinaTrackManager.SpawnStatic("Drezina_MetroLadder", lPos, stInward * -1));
 		if (ladder)
 		{
 			ladder.m_TunnelId = t.Id;
@@ -359,10 +386,15 @@ class DrezinaTunnelManager
 		vector pos, dirT, inward;
 		GetEnd(t, end, pos, dirT, inward);
 		if (down)
+		{
 			player.SetPosition(GetStationSpawn(t, end));
+			player.SetDirection(inward * -1);   // лицом к первому маршу
+		}
 		else
+		{
 			player.SetPosition(GetSurfaceSpawn(t, end));
-		player.SetDirection(inward);
+			player.SetDirection(inward);        // спиной к гермодвери
+		}
 	}
 
 	// ------------------------------------------------------------------ постройка

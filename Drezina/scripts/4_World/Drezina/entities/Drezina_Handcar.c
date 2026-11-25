@@ -37,7 +37,10 @@ class Drezina_Handcar extends ItemBase
 	// --- только клиент (звук)
 	static const float RAIL_JOINT_STEP = 12.5;  // стыки рельсов через 12.5 м, как на настоящей дороге
 	static const float AXLE_SPACING    = 1.24;  // между осями дрезины
-	Drezina_LanternLight m_Lantern;
+	Drezina_HeadLight m_LightFront;
+	Drezina_HeadLight m_LightBack;
+	Drezina_BulbLight m_LightBulb;
+	EffectSound m_SndDynamo;
 	EffectSound m_SndRoll;
 	EffectSound m_SndBrake;
 	float m_JointAccum;
@@ -69,8 +72,8 @@ class Drezina_Handcar extends ItemBase
 	override void EEDelete(EntityAI parent)
 	{
 		super.EEDelete(parent);
-		if (m_Lantern)
-			m_Lantern.Destroy();
+		DestroyLights();
+		StopLoop(m_SndDynamo);
 		StopLoop(m_SndRoll);
 		StopLoop(m_SndBrake);
 		m_SndRoll = null;
@@ -328,23 +331,67 @@ class Drezina_Handcar extends ItemBase
 			SetAnimationPhase("drezina_lever", 0.5 + 0.5 * Math.Sin(m_LeverT));
 
 		UpdateSounds(dt, leverRate);
-		UpdateLantern();
+		UpdateLights(dt);
 	}
 
-	// Керосиновый фонарь на штанге горит, пока на дрезине есть водитель.
-	void UpdateLantern()
+	// Самодельный свет от динамо-машины на колесе: чем быстрее едешь, тем ярче.
+	// На малой скорости генератор «не тянет» — свет тусклый и мигает. Встал — погасло.
+	static const float LIGHT_ON_SPEED  = 0.35;
+	static const float LIGHT_OFF_SPEED = 0.15;
+	static const float LIGHT_FULL_SPEED = 5.0;
+
+	void UpdateLights(float dt)
 	{
-		if (HasDriver() && !m_Lantern)
-		{
-			m_Lantern = Drezina_LanternLight.Cast(ScriptedLightBase.CreateLight(Drezina_LanternLight, GetPosition()));
-			if (m_Lantern)
-				m_Lantern.AttachOnMemoryPoint(this, "lamp");
-		}
-		else if (!HasDriver() && m_Lantern)
-		{
-			m_Lantern.Destroy();
-			m_Lantern = null;
-		}
+		bool lit = m_LightFront != null;
+		if (!lit && m_Speed > LIGHT_ON_SPEED)
+			CreateLights();
+		else if (lit && m_Speed < LIGHT_OFF_SPEED)
+			DestroyLights();
+		if (!m_LightFront)
+			return;
+
+		float k = Math.Clamp(m_Speed / LIGHT_FULL_SPEED, 0, 1);
+		k = Math.Pow(k, 0.7);
+		if (m_Speed < 2.0)
+			k *= Math.RandomFloatInclusive(0.55, 1.0);   // слабый ток — мигает
+		m_LightFront.SetBrightnessTo(Drezina_HeadLight.MAX_BRIGHTNESS * k);
+		m_LightBack.SetBrightnessTo(Drezina_HeadLight.MAX_BRIGHTNESS * k * 0.7);
+		if (m_LightBulb)
+			m_LightBulb.SetBrightnessTo(Drezina_BulbLight.MAX_BRIGHTNESS * k);
+
+		// гул динамо
+		if (!m_SndDynamo)
+			m_SndDynamo = SEffectManager.PlaySoundOnObject("Drezina_Dynamo_SoundSet", this, 0.3, 0.3, true);
+		if (m_SndDynamo)
+			m_SndDynamo.SetSoundVolume(Math.Clamp(k, 0.2, 1.0));
+	}
+
+	void CreateLights()
+	{
+		m_LightFront = Drezina_HeadLight.Cast(ScriptedLightBase.CreateLight(Drezina_HeadLight, GetPosition()));
+		if (m_LightFront)
+			m_LightFront.AttachOnMemoryPoint(this, "light_front", "light_front_dir");
+		m_LightBack = Drezina_HeadLight.Cast(ScriptedLightBase.CreateLight(Drezina_HeadLight, GetPosition()));
+		if (m_LightBack)
+			m_LightBack.AttachOnMemoryPoint(this, "light_back", "light_back_dir");
+		m_LightBulb = Drezina_BulbLight.Cast(ScriptedLightBase.CreateLight(Drezina_BulbLight, GetPosition()));
+		if (m_LightBulb)
+			m_LightBulb.AttachOnMemoryPoint(this, "light_bulb");
+	}
+
+	void DestroyLights()
+	{
+		if (m_LightFront)
+			m_LightFront.Destroy();
+		if (m_LightBack)
+			m_LightBack.Destroy();
+		if (m_LightBulb)
+			m_LightBulb.Destroy();
+		m_LightFront = null;
+		m_LightBack = null;
+		m_LightBulb = null;
+		StopLoop(m_SndDynamo);
+		m_SndDynamo = null;
 	}
 
 	// ------------------------------------------------------------------ звук (клиент)
@@ -479,19 +526,37 @@ class Drezina_Handcar extends ItemBase
 	}
 }
 
-// Тёплый мерцающий свет фонаря дрезины.
-class Drezina_LanternLight extends PointLightBase
+// Фара от старой машины: узкий тёплый луч вдоль пути.
+class Drezina_HeadLight extends SpotLightBase
 {
-	void Drezina_LanternLight()
+	static const float MAX_BRIGHTNESS = 6.0;
+
+	void Drezina_HeadLight()
 	{
-		SetVisibleDuringDaylight(false);
-		SetRadiusTo(9);
-		SetBrightnessTo(2.2);
+		SetVisibleDuringDaylight(true);
+		SetRadiusTo(28);
+		SetSpotLightAngle(75);
 		SetCastShadow(true);
+		SetFlareVisible(true);
+		SetBrightnessTo(0);
+		SetDiffuseColor(1.0, 0.82, 0.55);
+		SetAmbientColor(1.0, 0.82, 0.55);
+	}
+}
+
+// Голая лампочка под стойкой: освещает саму дрезину и водителя.
+class Drezina_BulbLight extends PointLightBase
+{
+	static const float MAX_BRIGHTNESS = 1.6;
+
+	void Drezina_BulbLight()
+	{
+		SetVisibleDuringDaylight(true);
+		SetRadiusTo(5);
+		SetCastShadow(false);
 		SetFlareVisible(false);
-		SetDiffuseColor(1.0, 0.62, 0.28);
-		SetAmbientColor(1.0, 0.62, 0.28);
-		SetFlickerAmplitude(0.35);
-		SetFlickerSpeed(4.0);
+		SetBrightnessTo(0);
+		SetDiffuseColor(1.0, 0.72, 0.42);
+		SetAmbientColor(1.0, 0.72, 0.42);
 	}
 }

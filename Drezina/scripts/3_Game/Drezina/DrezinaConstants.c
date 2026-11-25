@@ -29,7 +29,12 @@ class DrezinaConst
 	static const float  STATION_LEN       = 24.0; // Drezina_MetroStation (по ходу)
 	static const float  STATION_BACK      = 4.0;  // сколько станции «за» точкой входа
 	static const float  RAIL_TOP_ABOVE_FLOOR = 0.27; // головка рельса над полом
-	static const float  LAMP_STEP         = 30.0;
+	// бункер: коридор от станции к лестнице и лестничная шахта (см. tools/blender/metro_bunker.py)
+	static const float  CORRIDOR_LEN      = 8.0;
+	static const float  STAIR_HALF_Y      = 3.0;  // полудлина шахты изнутри
+	static const float  BUNKER_WALL       = 0.35;
+	static const float  STAIR_TOP         = 9.6;  // высота верхней площадки над полом станции
+	static const float  BUNKER_SIDE_X     = -3.0; // проход в коридор: X станции (влево от пути, если смотреть в тоннель)
 	static const float  TUNNEL_SHORT_STEP = 2.0;  // шаг коротких звеньев на поворотах (модель 2.4 м, с нахлёстом)
 	static const float  METRO_MIN_LEN     = 50.0;
 

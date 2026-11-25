@@ -1,11 +1,19 @@
-// «Спуститься в метро» у павильона на поверхности.
+// «Открыть гермодверь» у входа в бункер: анимация открывания двери, скрежет — и игрок за дверью,
+// на верхней площадке лестницы. Дальше 4 марша вниз пешком.
 class ActionMetroDown extends ActionInteractBase
 {
 	void ActionMetroDown()
 	{
-		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_INTERACTONCE;
+		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_OPENDOORFW;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
-		m_Text = "Спуститься в метро";
+		m_Text = "Открыть гермодверь";
+	}
+
+	override void OnStartClient(ActionData action_data)
+	{
+		super.OnStartClient(action_data);
+		if (action_data.m_Target && action_data.m_Target.GetObject())
+			SEffectManager.PlaySoundAtPosition("Drezina_Door_SoundSet", action_data.m_Target.GetObject().GetPosition());
 	}
 
 	override void CreateConditionComponents()
@@ -27,14 +35,21 @@ class ActionMetroDown extends ActionInteractBase
 	}
 }
 
-// «Подняться наверх» у лестницы на станции.
+// «Открыть гермодверь» изнутри, на верхней площадке лестницы — выход на поверхность.
 class ActionMetroUp extends ActionInteractBase
 {
 	void ActionMetroUp()
 	{
-		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_INTERACTONCE;
+		m_CommandUID = DayZPlayerConstants.CMD_ACTIONMOD_OPENDOORFW;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
-		m_Text = "Подняться наверх";
+		m_Text = "Выйти наружу";
+	}
+
+	override void OnStartClient(ActionData action_data)
+	{
+		super.OnStartClient(action_data);
+		if (action_data.m_Target && action_data.m_Target.GetObject())
+			SEffectManager.PlaySoundAtPosition("Drezina_Door_SoundSet", action_data.m_Target.GetObject().GetPosition());
 	}
 
 	override void CreateConditionComponents()
