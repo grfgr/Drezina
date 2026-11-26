@@ -359,7 +359,7 @@ class DrezinaTunnelManager
 		float d = tStart;
 		int piece10 = 0;
 		// чередование вариантов прямого звена: обычное и 6 «событий» (обвал, ниша ТП, вагонетка, блокпост, протечка, крепь)
-		array<string> variants = {"Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10E", "Drezina_Tunnel10", "Drezina_Tunnel10C", "Drezina_Tunnel10F", "Drezina_Tunnel10", "Drezina_Tunnel10D", "Drezina_Tunnel10G"};
+		array<string> variants = {"Drezina_Tunnel10"};   // один вид звена (обстановку расставят маппингом)
 		while (d < tEnd - 0.01)
 		{
 			string type = "Drezina_Tunnel2";
@@ -1443,23 +1443,6 @@ class DrezinaTunnelManager
 				admin.SetPosition(Vector(x, GetGame().SurfaceY(x, z) + 0.2, z));
 			}
 		}
-		else if (cmd == "test")
-		{
-			// /metro test tunnel | curve [вперёд вбок угол] | stairs [шаг_вниз шаг_вперёд блоков] | corridor | entrance | hall | clear
-			string what = "tunnel";
-			if (args.Count() >= 3)
-				what = args[2];
-			what.ToLower();
-			array<string> nums = new array<string>;
-			for (int ai = 3; ai < args.Count(); ai++)
-				nums.Insert(args[ai]);
-			VanillaTest(sender, admin, what, nums);
-		}
-		else if (cmd == "measure")
-		{
-			// /metro measure — замер ванильных подземных блоков Ливонии: размеры коробки модели в лог сервера
-			MeasureVanilla(sender, here);
-		}
 		else if (cmd == "rebuild")
 		{
 			RespawnAll();
@@ -1467,7 +1450,7 @@ class DrezinaTunnelManager
 		}
 		else
 		{
-			DrezinaTrackManager.Notify(sender, "/metro a | via | auto <м> | undo | b | info | build [under|zone] [глубина] | preset | del [id] | list | tp a|b|<id>|<x> <z> | rebuild | measure");
+			DrezinaTrackManager.Notify(sender, "/metro a | via | auto <м> | undo | b | info | build [under|zone] [глубина] | preset | del [id] | list | tp a|b|<id>|<x> <z> | rebuild");
 		}
 	}
 
@@ -1518,196 +1501,6 @@ class DrezinaTunnelManager
 		draft.HasB = true;
 		Build(sender, draft, "auto", DrezinaSettings.Get().MetroDefaultDepth);
 		m_Drafts.Remove(uid);
-	}
-
-	// Каждый блок на миг ставится в 60 м над игроком, меряется (ClippingInfo — коробка модели,
-	// GetCollisionBox — коробка геометрии) и удаляется. Результат: строки [Drezina] MEASURE в логе сервера.
-	void MeasureVanilla(PlayerIdentity sender, vector here)
-	{
-		array<string> types = {"Land_Underground_Tunnel_Single", "Land_Underground_Tunnel_Single_Left", "Land_Underground_Tunnel_Single_Right",
-			"Land_Underground_Corridor_Main_Both", "Land_Underground_Corridor_Main_Left", "Land_Underground_Corridor_Main_Right",
-			"Land_Underground_Corridor_Connector", "Land_Underground_Corridor_Connector_Inv",
-			"Land_Underground_Storage_Big", "Land_Underground_Storage_Big_Vent", "Land_Underground_Storage_Workshop", "Land_Underground_Storage_Barracks",
-			"Land_Underground_Storage_Ammo", "Land_Underground_Storage_Hospital", "Land_Underground_WaterReservoir", "Land_Underground_WaterMaintenance",
-			"Land_Underground_Floor_Comms", "Land_Underground_Floor_Crew",
-			"Land_Underground_Stairs_Start", "Land_Underground_Stairs_Block", "Land_Underground_Stairs_Block_Corridor",
-			"Land_Underground_Stairs_Block_Corridor_NoDoor", "Land_Underground_Stairs_Block_Terminator", "Land_Underground_Stairs_Exit",
-			"Land_Underground_Entrance"};
-		vector pos = here + Vector(0, 60, 0);
-		int ok = 0;
-		foreach (string type : types)
-		{
-			Object o = GetGame().CreateObjectEx(type, pos, ECE_SETUP | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD, RF_DEFAULT);
-			if (!o)
-			{
-				Print("[Drezina] MEASURE " + type + ": НЕ СОЗДАН");
-				continue;
-			}
-			o.SetPosition(pos);
-			o.SetOrientation("0 0 0");
-			vector clip[2];
-			float r = o.ClippingInfo(clip);
-			vector cb[2];
-			bool hasCb = o.GetCollisionBox(cb);
-			vector csize = clip[1] - clip[0];
-			string line = "[Drezina] MEASURE " + type + " clip min=" + clip[0].ToString() + " max=" + clip[1].ToString() + " size=" + csize.ToString() + " r=" + r;
-			if (hasCb)
-			{
-				vector gsize = cb[1] - cb[0];
-				line += " coll min=" + cb[0].ToString() + " max=" + cb[1].ToString() + " size=" + gsize.ToString();
-			}
-			Print(line);
-			GetGame().ObjectDelete(o);
-			ok++;
-		}
-		DrezinaTrackManager.Notify(sender, "Замер готов: " + ok + " из " + types.Count() + " блоков. Пришлите строки [Drezina] MEASURE из script_*.log сервера.");
-	}
-
-	// ================================================================== ванильные блоки: тестовые сборки
-	//
-	// Размеры по замеру (/metro measure): Tunnel_Single — 10 м, центр модели в середине; Tunnel_Single_Left /
-	// _Right — начало модели у входного торца, поворот на 30° (ось R ~18.5 м: вперёд 9.24, вбок 2.48);
-	// Storage_Big — зал 15.5 x 20.9 м (торцы по оси Z: -10.45 / +10.42).
-
-	static const float V_STRAIGHT = 10.0;
-	// параметры поворота (подбираются тестом /metro test curve <вперёд> <вбок> <угол>)
-	float m_CurveFwd = 9.235;
-	float m_CurveSide = 2.475;
-	float m_CurveAng = 30.0;
-	static const float V_HALL_BACK = 10.45;
-	static const float V_HALL_FRONT = 10.42;
-
-	ref array<Object> m_TestObjects = new array<Object>;
-
-	Object TestSpawn(string type, vector pos, vector dir)
-	{
-		Object o = DrezinaTrackManager.SpawnStatic(type, pos, dir);
-		if (o)
-			m_TestObjects.Insert(o);
-		else
-			Print("[Drezina] test: не создан " + type);
-		return o;
-	}
-
-	// кусок тоннеля: 'S' прямой, 'L' / 'R' поворот на 30°; cur и h — начало куска и направление, сдвигаются на конец
-	void PlaceVanillaPiece(string kind, inout vector cur, inout vector h, array<Object> outObjs)
-	{
-		vector side = Side(h);       // вправо
-		if (kind == "S")
-		{
-			Object s1 = DrezinaTrackManager.SpawnStatic("Land_Underground_Tunnel_Single", cur + h * (V_STRAIGHT * 0.5), h);
-			if (s1)
-				outObjs.Insert(s1);
-			cur = cur + h * V_STRAIGHT;
-			return;
-		}
-		float a = m_CurveAng * Math.DEG2RAD;
-		float sg = 1;
-		string type = "Land_Underground_Tunnel_Single_Right";
-		if (kind == "L")
-		{
-			sg = -1;
-			type = "Land_Underground_Tunnel_Single_Left";
-		}
-		Object c1 = DrezinaTrackManager.SpawnStatic(type, cur, h);
-		if (c1)
-			outObjs.Insert(c1);
-		cur = cur + h * m_CurveFwd + side * (sg * m_CurveSide);
-		h = (h * Math.Cos(a) + side * (sg * Math.Sin(a))).Normalized();
-	}
-
-	void VanillaTest(PlayerIdentity sender, PlayerBase admin, string what, array<string> nums)
-	{
-		if (what == "clear")
-		{
-			foreach (Object o : m_TestObjects)
-			{
-				if (o)
-					GetGame().ObjectDelete(o);
-			}
-			m_TestObjects.Clear();
-			DrezinaTrackManager.Notify(sender, "Тестовые блоки убраны.");
-			return;
-		}
-		vector here = admin.GetPosition();
-		vector h = Flat(admin.GetDirection());
-		// в воздухе на 25 м над землёй перед игроком — удобно облететь и посмотреть стыки
-		vector base = here + h * 20.0;
-		base[1] = GetGame().SurfaceY(base[0], base[2]) + 25.0;
-		int before = m_TestObjects.Count();
-
-		if (what == "curve" && nums.Count() >= 3)
-		{
-			m_CurveFwd = nums[0].ToFloat();
-			m_CurveSide = nums[1].ToFloat();
-			m_CurveAng = nums[2].ToFloat();
-		}
-		if (what == "tunnel" || what == "curve")
-		{
-			DrezinaTrackManager.Notify(sender, "Поворот: вперёд " + m_CurveFwd + ", вбок " + m_CurveSide + ", угол " + m_CurveAng);
-			// зал — 2 прямых — поворот влево — 2 прямых — поворот вправо — 2 прямых — зал
-			vector cur = base;
-			if (what == "tunnel")
-				TestSpawn("Land_Underground_Storage_Big", cur - h * V_HALL_FRONT, h);
-			string seq = "SSLSSRSS";
-			if (what == "curve")
-				seq = "SLLLS";
-			for (int i = 0; i < seq.Length(); i++)
-				PlaceVanillaPiece(seq.Get(i), cur, h, m_TestObjects);
-			if (what == "tunnel")
-				TestSpawn("Land_Underground_Storage_Big", cur + h * V_HALL_BACK, h);
-		}
-		else if (what == "stairs")
-		{
-			// лестница: Start, N блоков со сдвигом (вниз, вперёд), внизу Block_Corridor
-			float dy = 3.3;
-			float dz = 0.0;
-			int n = 3;
-			if (nums.Count() > 0)
-				dy = nums[0].ToFloat();
-			if (nums.Count() > 1)
-				dz = nums[1].ToFloat();
-			if (nums.Count() > 2)
-				n = nums[2].ToInt();
-			TestSpawn("Land_Underground_Stairs_Start", base, h);
-			vector sp = base;
-			for (int k = 1; k <= n; k++)
-			{
-				sp = base - Vector(0, dy * k, 0) + h * (dz * k);
-				TestSpawn("Land_Underground_Stairs_Block", sp, h);
-			}
-			TestSpawn("Land_Underground_Stairs_Block_Corridor", sp - Vector(0, dy, 0) + h * dz, h);
-		}
-		else if (what == "entrance")
-		{
-			vector ep = here + h * 25.0;
-			ep[1] = GetGame().SurfaceY(ep[0], ep[2]);
-			TestSpawn("Land_Underground_Entrance", ep, h);
-		}
-		else if (what == "corridor")
-		{
-			// коридор с двумя путями -> коннектор -> тоннель (и то же с Connector_Inv рядом, в 30 м правее)
-			for (int v = 0; v < 2; v++)
-			{
-				vector cb = base + Side(h) * (30.0 * v);
-				string conn = "Land_Underground_Corridor_Connector";
-				if (v == 1)
-					conn = "Land_Underground_Corridor_Connector_Inv";
-				TestSpawn("Land_Underground_Corridor_Main_Both", cb, h);
-				vector ce = cb + h * 11.25;
-				TestSpawn(conn, ce + h * 6.65, h);
-				vector te = ce + h * (6.65 + 6.83);
-				TestSpawn("Land_Underground_Tunnel_Single", te + h * 5.0, h);
-				TestSpawn("Land_Underground_Tunnel_Single", te + h * 15.0, h);
-			}
-		}
-		else if (what == "hall")
-		{
-			TestSpawn("Land_Underground_Storage_Big", base, h);
-			TestSpawn("Land_Underground_Corridor_Connector", base + h * (V_HALL_FRONT + 6.65), h);
-			TestSpawn("Land_Underground_Corridor_Main_Both", base + h * (V_HALL_FRONT + 13.3 + 11.55), h);
-		}
-		DrezinaTrackManager.Notify(sender, "Тест «" + what + "»: поставлено " + (m_TestObjects.Count() - before) + " блоков (в 25 м над землёй впереди). Убрать: /metro test clear");
 	}
 
 	int FindNearestTunnel(vector p, float maxDist)

@@ -479,24 +479,9 @@ def build_entrance(outdir, save_fn, reset_fn):
     p.append(cyl("lamp_dead", 0.09, 0.15, (0, 0.55, 2.95), m["rust"], ROT_Y))
     for k in range(4):
         p.append(box(f"lamp_cage{k}", (0.012, 0.16, 0.012), (math.cos(k * 1.57) * 0.08, 0.62, 2.95 + math.sin(k * 1.57) * 0.08), m["steel"]))
-    # вентиляционный грибок над насыпью, кабель, мешки
+    # вентиляционный грибок над насыпью
     p.append(cyl("vent", 0.15, 2.2, (1.6, -3.2, 3.6), m["rust"]))
     p.append(hz.cone("vent_cap", 0.34, 0.05, 0.26, (1.6, -3.2, 4.8), m["rust"], (0, 0, 0), 24))
-    for i, x in enumerate((-1.75, -1.35)):
-        p.append(sphere(f"bag{i}", 1, (x, 1.1, 0.1), m["canvas"], (0.25, 0.16, 0.1), (16, 10)))
-    # --- антураж снаружи (этап 3): всё стоит на отмостке (верх z=0.03) — не повиснет на склоне
-    p.append(cyl("ext_barrel", 0.29, 0.86, (1.55, 2.1, 0.46), m["rust"], (0, 0, 0), 18))
-    for z in (0.18, 0.74):
-        p.append(torus(f"ext_barrel_hoop{z}", 0.295, 0.012, (1.55, 2.1, z), m["rust"], (0, 0, 0), (24, 6)))
-    p.append(cyl("ext_barrel_lid", 0.29, 0.02, (1.75, 2.45, 0.05), m["rust"], (math.radians(8), 0, 0), 18))
-    for k in range(4):        # поддон, прислонённый к откосу
-        p.append(box(f"ext_pallet{k}", (1.0, 0.1, 0.02), (-1.6, 2.15 + 0.05, 0.25 + k * 0.22), m["wood"], (math.radians(-20), 0, 0)))
-    for sx in (-0.42, 0.42):
-        p.append(box(f"ext_pallet_rail{sx}", (0.08, 0.08, 0.95), (-1.6 + sx, 2.12, 0.52), m["wood"], (math.radians(-20), 0, 0)))
-    # щит прислонён к левой части портала (верх к стене)
-    p.append(painted_board("ext_board", 0.84, 0.42, (-1.43, 0.6, 0.25), m["board8"], face="+y", lean=math.radians(-14)))
-    for k in range(4):
-        p.append(cyl(f"ext_can{k}", 0.035, 0.11, (rnd.uniform(-0.6, 1.0), rnd.uniform(1.2, 2.4), 0.065), m["steel"], (math.radians(90), 0, rnd.uniform(0, 3)), 10))
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 3.0)
     # срез насыпи — за фасадом блока (y = -0.35): заглушка не закрывает дверь, по бокам её прячут откосы
@@ -516,7 +501,6 @@ def build_entrance(outdir, save_fn, reset_fn):
     for sx in (-1, 1):
         geo(f"geometry_wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), (math.radians(-32), 0, 0))
     geo("geometry_mound", (11, 8, 6.5), (0, -4.5, 0.25))
-    geo("geometry_ext_barrel", (0.6, 0.6, 0.86), (1.55, 2.1, 0.46))
     save_fn(outdir, "bunker_entrance")
 
 
@@ -615,33 +599,6 @@ def build_stairs(outdir, save_fn, reset_fn):
     p.append(cyl("riser2", 0.05, SH_H, (SH_X - 0.35, -SH_Y + 0.12, SH_H / 2), m["paint"]))
     for k in range(5):
         p.append(box(f"riser_clamp{k}", (0.5, 0.06, 0.05), (SH_X - 0.25, -SH_Y + 0.08, 1.0 + k * 2.4), m["steel"]))
-    p += debris("deb", (-0.8, 2.0), 5, 0.5, m)
-    # --- антураж (этап 3)
-    # ночлег под маршем (низ, x<0): матрас, ящик, свечи, банки, надпись на стене
-    p.append(box("nook_mattress", (0.8, 1.8, 0.12), (-0.8, -1.3, 0.06), m["canvas"], (0, 0, math.radians(4))))
-    p.append(cyl("nook_bedroll", 0.13, 0.7, (-0.8, -2.55, 0.13), m["paint"], ROT_Y, 14))
-    p.append(box("nook_crate", (0.45, 0.4, 0.38), (-1.25, 0.2, 0.19), m["wood"], (0, 0, math.radians(-8))))
-    for k in range(3):
-        p.append(cyl(f"nook_candle{k}", 0.018, 0.05 + k * 0.02, (-1.32 + k * 0.06, 0.15, 0.38 + 0.025 + k * 0.01), m["tile"], (0, 0, 0), 8))
-        p.append(cyl(f"nook_can{k}", 0.035, 0.11, (-0.3 + k * 0.12, 0.3 - k * 0.08, 0.055), m["steel"], (0, 0, 0), 10))
-    p.append(painted_board("nook_board", 1.0, 0.5, (-SH_X + 0.03, -1.0, 1.3), m["board9"], face="+x"))
-    # у двери внизу: лужа, бумаги
-    p += puddle_blob("bot_pud", 0.6, 2.4, 0.5, 0.35, m)
-    for k in range(4):
-        p.append(box(f"bot_paper{k}", (0.2, 0.15, 0.004), (rnd.uniform(-1.2, 1.2), rnd.uniform(1.9, 2.8), 0.004), m["canvas"], (0, 0, rnd.uniform(0, 3))))
-    # площадка 4.8: ящик со свечой и банками в углу
-    p.append(box("land_crate", (0.4, 0.3, 0.32), (1.3, SH_Y - 0.18, LEVEL * 2 + 0.16), m["wood"], (0, 0, math.radians(5))))
-    p.append(cyl("land_candle", 0.018, 0.06, (1.25, SH_Y - 0.2, LEVEL * 2 + 0.35), m["tile"], (0, 0, 0), 8))
-    p.append(cyl("land_bottle", 0.035, 0.26, (1.38, SH_Y - 0.15, LEVEL * 2 + 0.45), m["paint"], (0, 0, 0), 10))
-    # площадка 7.2 и 2.4: банки и бумаги у стены
-    for z in (LEVEL * 3, LEVEL):
-        p.append(cyl(f"land_can{z}", 0.035, 0.11, (-1.3, -SH_Y + 0.15, z + 0.035), m["steel"], (math.radians(90), 0, 0.5), 10))
-        p.append(box(f"land_paper{z}", (0.2, 0.15, 0.004), (0.6, -SH_Y + 0.4, z + 0.004), m["tile"], (0, 0, 1.0)))
-    # верх: «ПРОВЕРЬ ДОЗИМЕТР» напротив двери выхода, через пролёт
-    p.append(painted_board("top_board", 1.2, 0.6, (SH_X - 0.03, -0.5, STAIR_TOP + 1.4), m["board7"], face="-x"))
-    # оборванный кабель вдоль шахты
-    p += sag_cable("shaft_cab", (SH_X - 0.1, -1.5, SH_H - 0.3), (SH_X - 0.15, 1.0, STAIR_TOP - 1.5), 0.4, m, segs=8)
-
     o = join(p, "bunker_stairs")
     uv_box(o, 3.0)
     smooth(o)
@@ -656,8 +613,6 @@ def build_stairs(outdir, save_fn, reset_fn):
         geo(f"geometry_front_side{sx}", (0.8, 0.4, 2.4), (sx * 1.2, SH_Y + 0.2, 1.2))
     geo("geometry_floor", (2 * SH_X, 2 * SH_Y, 0.3), (0, 0, -0.15))
     geo("geometry_divider", (0.15, run, STAIR_TOP - LEVEL * 0.5), (0, 0, (STAIR_TOP - LEVEL * 0.5) / 2))
-    geo("geometry_nook_crate", (0.45, 0.4, 0.38), (-1.25, 0.2, 0.19))
-    geo("geometry_land_crate", (0.4, 0.3, 0.32), (1.3, SH_Y - 0.18, LEVEL * 2 + 0.16))
     geo("geometry_top_rail", (0.12, run, STAIR_TOP + 1.05 - (STAIR_TOP - LEVEL * 0.5)), (0.08, 0, (STAIR_TOP + 1.05 + STAIR_TOP - LEVEL * 0.5) / 2))
     for z, yy in ((STAIR_TOP, SH_Y - 0.5), (LEVEL * 2, SH_Y - 0.5), (LEVEL * 3, -SH_Y + 0.5), (LEVEL, -SH_Y + 0.5)):
         geo(f"geometry_landing{z}", (2 * SH_X, 1.0, 0.2), (0, yy, z - 0.1))
@@ -686,32 +641,9 @@ def build_corridor(outdir, save_fn, reset_fn):
         p.append(box(f"beam{i}", (COR_W, 0.2, 0.22), (0, y, COR_H - 0.11), m["concrete"]))
     p += pipes_along("pipes", -COR_W / 2 + 0.15, [2.3, 2.5], L, 0, m, [0.07, 0.05])
     p += cables_along("cab", COR_W / 2 - 0.08, 2.45, L, 0, m, 4)
-    # электрощиток с распахнутой дверцей
-    p.append(box("panel", (0.1, 0.5, 0.7), (COR_W / 2 - 0.05, 1.5, 1.5), m["paint"]))
-    p.append(box("panel_door", (0.5, 0.02, 0.7), (COR_W / 2 - 0.35, 1.78, 1.5), m["paint"], (0, 0, math.radians(30))))
     # водосток
     p.append(box("drain", (0.2, L, 0.02), (-COR_W / 2 + 0.2, 0, 0.005), m["steel"]))
-    p += debris("deb", (0.6, -2.5), 4, 0.4, m)
-    # --- антураж (этап 3): опрокинутый шкаф, упавшая балка, стул, противогаз на трубе, надпись, лужа
-    p.append(box("cab_fallen", (0.45, 1.6, 0.42), (-0.93, -2.0, 0.21), m["paint2"], (0, 0, math.radians(3))))
-    p.append(box("cab_fallen_door", (0.43, 0.75, 0.02), (-0.55, -2.4, 0.04), m["paint2"], (0, math.radians(-4), math.radians(-25))))
-    for k in range(5):
-        p.append(box(f"cab_paper{k}", (0.21, 0.29, 0.004), (-0.5 + rnd.uniform(-0.2, 0.4), -2.0 + rnd.uniform(-1.0, 1.0), 0.004), m["tile"],
-                     (0, 0, rnd.uniform(0, 3))))
-    p.append(box("beam_fallen", (0.2, 0.22, 3.0), (0.97, 2.2, 1.3), m["concrete"], (math.radians(-38), 0, 0)))
-    for k in range(3):
-        p.append(cyl(f"beam_rebar{k}", 0.007, 0.35, (0.95 + (k - 1) * 0.05, 1.05, 0.12), m["rust"], (math.radians(-60 + k * 20), 0, 0), 6))
-    p.append(box("chair_seat", (0.4, 0.4, 0.03), (0.55, -0.4, 0.22), m["wood"], (math.radians(80), 0, math.radians(20))))
-    for k, (dx, dz) in enumerate(((-0.17, 0.1), (0.17, 0.1), (-0.17, 0.42), (0.17, 0.42))):
-        p.append(cyl(f"chair_leg{k}", 0.012, 0.42, (0.55 + dx, -0.25, dz), m["steel"], (math.radians(90), 0, math.radians(20)), 6))
-    p.append(sphere("gasmask", 0.1, (-COR_W / 2 + 0.2, 0.8, 2.15), m["paint"], (0.9, 0.8, 1.1), (12, 8)))
-    p.append(cyl("gasmask_filter", 0.045, 0.08, (-COR_W / 2 + 0.24, 0.88, 2.05), m["steel"], (math.radians(60), 0, 0), 10))
-    p.append(cyl("gasmask_strap", 0.006, 0.3, (-COR_W / 2 + 0.17, 0.8, 2.33), m["tape"], (0, 0, 0), 6))
-    p.append(painted_board("cor_board", 1.1, 0.55, (COR_W / 2 - 0.03, -1.2, 1.5), m["board6"], face="-x"))
-    p += puddle_blob("cor_pud", 0.1, 0.9, 0.5, 0.9, m)
     o = finish(p, "bunker_corridor")
-    geo("geometry_cab_fallen", (0.45, 1.6, 0.42), (-0.93, -2.0, 0.21))
-    geo("geometry_beam_fallen", (0.25, 2.0, 2.4), (0.97, 2.2, 1.2))
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.4, L, COR_H), (sx * (COR_W / 2 + 0.2), 0, COR_H / 2))
     geo("geometry_floor", (COR_W, L, 0.3), (0, 0, -0.15))
@@ -744,20 +676,8 @@ def build_station(outdir, save_fn, reset_fn):
     # «ВЫХОД» над проходом
     sign = sign_plate("exit_sign", (0.8, 0.03, 0.4), (DOOR_X, -ST_LEN / 2 + 0.02, 2.75), m["sign_out"])
     p.append(sign)
-    # мусор, ящики, бочка
-    p += debris("deb_a", (4.5, -8.0), 8, 0.9, m)
-    p += debris("deb_b", (-5.0, 6.0), 6, 0.7, m)
-    for i, (x, y) in enumerate(((4.9, 0.6), (4.9, 1.5), (4.7, 1.05))):   # не на площадке генератора
-        p.append(box(f"crate{i}", (0.7, 0.6, 0.5), (x, y, 0.25 + (0.5 if i == 2 else 0)), m["wood"], (0, 0, math.radians(rnd.uniform(-10, 10)))))
-    p.append(cyl("barrel", 0.3, 0.9, (-5.2, -6.5, 0.45), m["rust"]))
-    for z in (0.15, 0.75):
-        p.append(torus(f"barrel_hoop{z}", 0.305, 0.012, (-5.2, -6.5, z), m["rust"], (0, 0, 0), (32, 6)))
     p += station_details(m)
-    amb, amb_geo = stalker_station(m)
-    p += amb
     o = finish(p, "metro_station")
-    for gname, gsize, gloc in amb_geo:
-        geo(gname, gsize, gloc)
     geo("geometry_floor", (ST_W + 1, ST_LEN, 0.4), (0, 0, -0.2))
     for sx in (-1, 1):
         geo(f"geometry_wall{sx}", (0.5, ST_LEN, total_h), (sx * (ST_W / 2 + 0.25), 0, total_h / 2))
@@ -766,37 +686,13 @@ def build_station(outdir, save_fn, reset_fn):
     geo("geometry_back_l", (ST_W / 2 + DOOR_X - 0.8 + 0.5, 0.5, total_h), ((-ST_W / 2 - 0.5 + DOOR_X - 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
     geo("geometry_back_r", (ST_W / 2 - DOOR_X - 0.8, 0.5, total_h), ((ST_W / 2 + DOOR_X + 0.8) / 2, -ST_LEN / 2 - 0.25, total_h / 2))
     geo("geometry_roof", (ST_W + 1, ST_LEN, 0.5), (0, 0, total_h))
-    # коллизия обстановки: по платформе ходят, в колонны, будку, лавки и ящики упираются
+    # коллизия: платформа, колонны, упор
     px0, px1 = -ST_W / 2, -1.9
     geo("geometry_platform", (px1 - px0, ST_LEN - 0.4, PLATFORM_H), ((px0 + px1) / 2, -0.2, PLATFORM_H / 2))
     for y in (-6.0, 0.0, 6.0):
         geo(f"geometry_col{y}", (0.45, 0.45, vault_z(px1 - 0.825) + 0.1), (px1 - 0.6, y, (vault_z(px1 - 0.825) + 0.1) / 2))
-    bx, by = -4.6, -9.6
-    geo("geometry_booth_back", (2.4, 0.1, 2.4), (bx, by - 0.9, PLATFORM_H + 1.2))
-    d0, d1 = by - 0.75, by + 0.05
-    geo("geometry_booth_side_a", (0.1, d0 - (by - 0.9), 2.4), (bx + 1.2, (by - 0.9 + d0) / 2, PLATFORM_H + 1.2))
-    geo("geometry_booth_side_b", (0.1, by + 0.9 - d1, 2.4), (bx + 1.2, (d1 + by + 0.9) / 2, PLATFORM_H + 1.2))
-    geo("geometry_booth_lintel", (0.1, d1 - d0, 0.4), (bx + 1.2, (d0 + d1) / 2, PLATFORM_H + 2.2))
-    geo("geometry_booth_locker", (0.5, 0.45, 1.8), (bx - 0.85, by - 0.62, PLATFORM_H + 0.9))
-    # окно без стекла и стол: через окно не залезть, на стол не встать
-    geo("geometry_booth_window", (2.4, 0.1, 1.1), (bx, by + 0.9, PLATFORM_H + 1.55))
-    geo("geometry_booth_desk", (1.6, 0.5, 0.95), (bx, by + 0.55, PLATFORM_H + 0.475))
-    geo("geometry_booth_bin", (0.3, 0.3, 0.35), (bx + 0.85, by - 0.6, PLATFORM_H + 0.175))
-    a = math.radians(75)
-    geo("geometry_booth_door", (0.05, 0.78, 1.98), (bx + 1.2 + 0.39 * math.sin(a), by - 0.75 + 0.39 * math.cos(a), PLATFORM_H + 1.0), (0, 0, -a))
-    geo("geometry_booth_drawers", (0.4, 0.45, 0.85), (bx + 0.55, by + 0.55, PLATFORM_H + 0.425))
-    geo("geometry_booth_front", (2.4, 0.1, 1.0), (bx, by + 0.9, PLATFORM_H + 0.5))
-    geo("geometry_booth_roof", (2.6, 2.0, 0.1), (bx, by, PLATFORM_H + 2.44))
-    for yb in (-3.0, 3.0):
-        geo(f"geometry_bench{yb}", (1.6, 0.5, 0.5), (-4.8, yb, PLATFORM_H + 0.25))
-    geo("geometry_crates", (0.9, 1.6, 1.0), (4.85, 1.05, 0.5))
-    geo("geometry_barrel", (0.6, 0.6, 0.9), (-5.2, -6.5, 0.45))
     ey = E_LOCAL_Y - 1.0
     geo("geometry_stop", (2.6, 1.0, 0.9), (0, ey - 0.3, 0.45))
-    gy = E_LOCAL_Y - 2.0
-    geo("geometry_shelf", (0.5, 1.6, 1.6), (ST_W / 2 - 0.3, gy + 2.5, 0.8))
-    geo("geometry_oil", (0.6, 1.3, 0.9), (ST_W / 2 - 0.5, gy + 5.7, 0.45))
-    geo("geometry_mattress", (0.9, 1.9, 0.14), (-5.3, 9.2, PLATFORM_H + 0.07))
     save_fn(outdir, "metro_station")
 
 
@@ -834,89 +730,6 @@ def station_details(m):
         p.append(box(f"col{y}", (0.45, 0.45, ch), (cxp, y, ch / 2), m["wall"]))
         p.append(box(f"col_cap{y}", (0.62, 0.62, 0.18), (cxp, y, vault_z(cxp + 0.31) - 0.12), m["concrete"]))
         p.append(box(f"col_base{y}", (0.55, 0.55, 0.15), (cxp, y, 0.075), m["concrete"]))
-    # скамейки
-    p += bench("bench_a", -4.8, -3.0, m)
-    p += bench("bench_b", -4.8, 3.0, m)
-    # будка дежурного: стенки, разбитое окно, крыша, дверь
-    bx, by = -4.6, -9.6
-    p.append(box("booth_w1", (2.4, 0.08, 2.4), (bx, by - 0.9, PLATFORM_H + 1.2), m["paint"]))
-    # боковая стенка с дверным проёмом 0.8 x 2.0 (раньше была глухой — в будку было не попасть)
-    d0, d1 = by - 0.75, by + 0.05
-    p.append(box("booth_w2a", (0.08, d0 - (by - 0.9), 2.4), (bx + 1.2, (by - 0.9 + d0) / 2, PLATFORM_H + 1.2), m["paint"]))
-    p.append(box("booth_w2b", (0.08, by + 0.9 - d1, 2.4), (bx + 1.2, (d1 + by + 0.9) / 2, PLATFORM_H + 1.2), m["paint"]))
-    p.append(box("booth_lintel", (0.08, d1 - d0, 0.4), (bx + 1.2, (d0 + d1) / 2, PLATFORM_H + 2.2), m["paint"]))
-    for yy in (d0, d1):
-        p.append(box(f"booth_jamb{yy:.2f}", (0.1, 0.05, 2.0), (bx + 1.2, yy, PLATFORM_H + 1.0), m["steel"]))
-    # дверь приоткрыта наружу на петлях у d0
-    a = math.radians(75)
-    p.append(box("booth_door", (0.04, 0.78, 1.98), (bx + 1.2 + 0.39 * math.sin(a), d0 + 0.39 * math.cos(a), PLATFORM_H + 1.0), m["paint"], (0, 0, -a)))
-    p.append(cyl("booth_door_handle", 0.012, 0.12, (bx + 1.2 + 0.72 * math.sin(a) + 0.04 * math.cos(a), d0 + 0.72 * math.cos(a) - 0.04 * math.sin(a), PLATFORM_H + 1.0), m["steel"], ROT_X))
-    for zh in (0.3, 1.7):
-        p.append(cyl(f"booth_hinge{zh}", 0.018, 0.12, (bx + 1.2, d0, PLATFORM_H + zh), m["rust"]))
-    # обстановка внутри: стул, шкафчик, тумба, бумаги, лампа, урна, календарь, полка
-    p.append(box("booth_chair_seat", (0.42, 0.42, 0.04), (bx - 0.1, by + 0.05, PLATFORM_H + 0.45), m["wood"], (0, 0, math.radians(12))))
-    for cx_, cy_ in ((-0.18, -0.18), (0.18, -0.18), (-0.18, 0.18), (0.18, 0.18)):
-        p.append(cyl(f"booth_chair_leg{cx_}{cy_}", 0.014, 0.45, (bx - 0.1 + cx_, by + 0.05 + cy_, PLATFORM_H + 0.225), m["steel"]))
-    p.append(box("booth_chair_back", (0.42, 0.03, 0.4), (bx - 0.1 + 0.04, by + 0.05 - 0.2, PLATFORM_H + 0.78), m["wood"], (math.radians(-8), 0, math.radians(12))))
-    p.append(box("booth_locker", (0.5, 0.42, 1.8), (bx - 0.85, by - 0.62, PLATFORM_H + 0.9), m["paint2"]))
-    p.append(box("booth_locker_door", (0.46, 0.02, 1.7), (bx - 0.85, by - 0.4, PLATFORM_H + 0.9), m["paint2"]))
-    for k in range(3):
-        p.append(box(f"booth_locker_vent{k}", (0.3, 0.025, 0.015), (bx - 0.85, by - 0.39, PLATFORM_H + 1.55 + k * 0.05), m["tape"]))
-    p.append(box("booth_drawers", (0.4, 0.45, 0.85), (bx + 0.55, by + 0.55, PLATFORM_H + 0.425), m["paint"]))
-    for k in range(3):
-        p.append(box(f"booth_drawer_handle{k}", (0.12, 0.02, 0.02), (bx + 0.55, by + 0.32, PLATFORM_H + 0.2 + k * 0.27), m["steel"]))
-    p.append(box("booth_desk_leg", (0.05, 0.45, 0.88), (bx - 0.75, by + 0.55, PLATFORM_H + 0.44), m["steel"]))
-    p.append(box("booth_papers", (0.3, 0.22, 0.01), (bx - 0.3, by + 0.5, PLATFORM_H + 0.93), m["canvas"], (0, 0, math.radians(15))))
-    p.append(box("booth_papers2", (0.25, 0.32, 0.006), (bx - 0.05, by + 0.6, PLATFORM_H + 0.93), m["tile"], (0, 0, math.radians(-25))))
-    p.append(box("booth_logbook", (0.22, 0.3, 0.04), (bx + 0.1, by + 0.48, PLATFORM_H + 0.945), m["leather"] if "leather" in m else m["wood"], (0, 0, math.radians(5))))
-    p.append(cyl("booth_lamp_base", 0.07, 0.03, (bx - 0.65, by + 0.6, PLATFORM_H + 0.94), m["paint"]))
-    p.append(cyl("booth_lamp_arm", 0.01, 0.35, (bx - 0.65, by + 0.6, PLATFORM_H + 1.12), m["steel"], (math.radians(-15), 0, 0)))
-    p.append(cyl("booth_lamp_shade", 0.08, 0.12, (bx - 0.65, by + 0.5, PLATFORM_H + 1.28), m["paint"], (math.radians(-60), 0, 0)))
-    p.append(cyl("booth_mug", 0.04, 0.09, (bx + 0.35, by + 0.42, PLATFORM_H + 0.97), m["steel"]))
-    p.append(cyl("booth_bin", 0.15, 0.35, (bx + 0.85, by - 0.6, PLATFORM_H + 0.175), m["rust"]))
-    p.append(box("booth_calendar", (0.3, 0.01, 0.42), (bx - 0.2, by - 0.85, PLATFORM_H + 1.5), m["tile"]))
-    p.append(box("booth_shelf", (1.0, 0.25, 0.03), (bx + 0.2, by - 0.75, PLATFORM_H + 1.85), m["wood"]))
-    for k in range(4):
-        p.append(box(f"booth_binder{k}", (0.06, 0.22, 0.3), (bx - 0.15 + k * 0.08, by - 0.75, PLATFORM_H + 2.02), m["paint2"] if k % 2 else m["paint"], (0, math.radians(6 if k == 3 else 0), 0)))
-    for k, (dx, dy) in enumerate(((0.2, -0.2), (0.45, 0.1), (-0.4, -0.3))):
-        p.append(box(f"booth_scrap{k}", (0.2, 0.15, 0.004), (bx + dx, by + dy, PLATFORM_H + 0.004), m["canvas"], (0, 0, k * 0.9)))
-    p.append(box("booth_front_low", (2.4, 0.08, 1.0), (bx, by + 0.9, PLATFORM_H + 0.5), m["paint"]))
-    p.append(box("booth_front_top", (2.4, 0.08, 0.3), (bx, by + 0.9, PLATFORM_H + 2.25), m["paint"]))
-    for k in (-0.6, 0.6):
-        p.append(box(f"booth_mullion{k}", (0.05, 0.06, 1.1), (bx + k, by + 0.9, PLATFORM_H + 1.55), m["steel"]))
-    p.append(box("booth_glass_shard", (0.4, 0.01, 0.35), (bx - 0.85, by + 0.9, PLATFORM_H + 1.25), m["glass"], (0, 0, math.radians(8))))
-    p.append(box("booth_roof", (2.6, 2.0, 0.08), (bx, by, PLATFORM_H + 2.44), m["rust"]))
-    p.append(box("booth_desk", (1.6, 0.5, 0.05), (bx, by + 0.55, PLATFORM_H + 0.9), m["wood"]))
-    p.append(box("booth_phone", (0.18, 0.14, 0.1), (bx + 0.4, by + 0.55, PLATFORM_H + 0.97), m["tape"]))
-    # название станции, часы, табло
-    p.append(sign_plate("station_sign", (2.6, 0.03, 0.65), (-ST_W / 2 + 0.2, 0.0, 2.3), m["sign_station"]))
-    # повернуть табличку лицом в зал (+X): строим её как плоскость вдоль Y
-    p[-1].rotation_euler = (0, 0, math.radians(-90))
-    p[-1].location = (-ST_W / 2 + 0.03, 0, 2.3)
-    bpy.context.view_layer.objects.active = p[-1]
-    bpy.ops.object.select_all(action="DESELECT")
-    p[-1].select_set(True)
-    bpy.ops.object.transform_apply(location=True, rotation=True)
-    p.append(cyl("clock", 0.3, 0.06, (-ST_W / 2 + 0.06, 6.0, 2.6), m["paint"], ROT_X))
-    p.append(cyl("clock_face", 0.26, 0.065, (-ST_W / 2 + 0.065, 6.0, 2.6), m["tile"], ROT_X))
-    p.append(box("clock_hand1", (0.01, 0.015, 0.2), (-ST_W / 2 + 0.1, 6.0, 2.66), m["tape"], (math.radians(35), 0, 0)))
-    p.append(box("clock_hand2", (0.01, 0.015, 0.14), (-ST_W / 2 + 0.1, 6.04, 2.58), m["tape"], (math.radians(110), 0, 0)))
-    # пожарный шкаф и телефон на стене
-    p.append(box("fire_cab", (0.25, 0.7, 0.9), (-ST_W / 2 + 0.12, -6.5, PLATFORM_H + 1.3), m["hazard"]))
-    p.append(cyl("fire_hose", 0.2, 0.08, (-ST_W / 2 + 0.28, -6.5, PLATFORM_H + 1.3), m["paint"], ROT_X))
-    p.append(box("wall_phone", (0.15, 0.25, 0.35), (-ST_W / 2 + 0.08, 8.5, PLATFORM_H + 1.4), m["paint"]))
-    p.append(torus("wall_phone_cord", 0.05, 0.006, (-ST_W / 2 + 0.17, 8.5, PLATFORM_H + 1.15), m["tape"], ROT_Y, (12, 6)))
-    # стоянка сталкеров: кострище из камней, матрас, банки
-    cx, cy = -4.3, 7.8
-    for k in range(9):
-        a = k * 2 * math.pi / 9
-        p.append(box(f"fire_stone{k}", (0.16, 0.13, 0.1), (cx + math.cos(a) * 0.38, cy + math.sin(a) * 0.38, PLATFORM_H + 0.05), m["concrete"], (0, 0, a)))
-    p.append(cyl("ashes", 0.3, 0.02, (cx, cy, PLATFORM_H + 0.01), m["tape"]))
-    for k in range(3):
-        p.append(cyl(f"log{k}", 0.04, 0.5, (cx, cy, PLATFORM_H + 0.05), m["wood"], (math.radians(90), 0, k * 1.05), 10))
-    p.append(box("mattress", (0.9, 1.9, 0.14), (-5.3, 9.2, PLATFORM_H + 0.07), m["canvas"]))
-    for k in range(3):
-        p.append(cyl(f"can{k}", 0.035, 0.11, (cx + 0.7 + k * 0.1, cy - 0.5 + k * 0.07, PLATFORM_H + 0.055), m["steel"]))
     # --- справа: зона выдачи дрезин
     # тупиковый упор за началом пути: шпальная клетка + щит с красно-белой полосой
     ey = E_LOCAL_Y - 1.0
@@ -925,24 +738,9 @@ def station_details(m):
     p.append(box("stop_beam", (2.2, 0.25, 0.3), (0, ey + 0.05, 0.75), m["hazard"]))
     for sx in (-0.8, 0.8):
         p.append(box(f"stop_post{sx}", (0.15, 0.15, 0.9), (sx, ey - 0.1, 0.45), m["rust"]))
-    # бетонная площадка под генератор, распределительный щит и кабель к нему
+    # бетонная площадка под генератор
     gx, gy = 4.5, E_LOCAL_Y - 2.0
     p.append(box("gen_pad", (1.6, 1.2, 0.12), (gx, gy, 0.06), m["concrete"]))
-    p.append(box("gen_panel", (0.15, 0.7, 1.0), (ST_W / 2 - 0.1, gy, 1.5), m["paint"]))
-    p.append(box("gen_panel_door", (0.03, 0.6, 0.9), (ST_W / 2 - 0.19, gy, 1.5), m["paint"]))
-    p.append(box("gen_switch", (0.08, 0.06, 0.18), (ST_W / 2 - 0.22, gy + 0.18, 1.6), m["steel"], (0, math.radians(20), 0)))
-    p.append(cyl("gen_cable", 0.02, ST_W / 2 - gx - 0.5, (gx + (ST_W / 2 - gx) / 2, gy + 0.3, 0.03), m["tape"], (0, math.radians(90), 0), 8))
-    p.append(cyl("gen_cable_up", 0.02, 1.0, (ST_W / 2 - 0.12, gy + 0.3, 0.5), m["tape"], (0, 0, 0), 8))
-    # табличка на стене над щитом, лицом в зал (раньше торчала из стены поперёк)
-    p.append(painted_board("gen_sign", 0.5, 0.18, (ST_W / 2 - 0.02, gy, 2.15), m["sign_in"], face="-x"))
-    # стеллаж с запчастями и запасное колесо у стены
-    for k in range(3):
-        p.append(box(f"shelf{k}", (0.5, 1.6, 0.04), (ST_W / 2 - 0.3, gy + 2.5, 0.4 + k * 0.6), m["rust"]))
-    for sy in (-0.75, 0.75):
-        p.append(box(f"shelf_post{sy}", (0.04, 0.04, 1.6), (ST_W / 2 - 0.3, gy + 2.5 + sy, 0.8), m["rust"]))
-    p.append(torus("spare_wheel", 0.33, 0.04, (ST_W / 2 - 0.25, gy + 4.4, 0.4), m["steel"], ROT_X, (24, 8)))
-    for k in range(2):
-        p.append(cyl(f"oil_barrel{k}", 0.3, 0.9, (ST_W / 2 - 0.5, gy + 5.4 + k * 0.65, 0.45), m["paint2"]))
     return p
 
 
@@ -1373,14 +1171,7 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="
             p.append(cyl(f"tray_cable{k}", 0.02, floor_len, (TUN_W / 2 - 0.35 + k * 0.06, 0, tz + 0.03), m["tape"], ROT_Y, 8))
         for yy in (-3.75, -1.25, 1.25, 3.75):
             p.append(box(f"tray_bracket{yy}", (0.34, 0.04, 0.04), (TUN_W / 2 - 0.2, yy + 0.15, tz - 0.03), m["rust"]))
-        jy = {"a": 3.0, "b": -2.0, "c": 2.4, "d": -3.2, "e": 1.8, "f": -1.6, "g": 3.4}.get(variant, 0.0)
-        p.append(box("jbox", (0.12, 0.35, 0.45), (TUN_W / 2 - 0.06, jy, 1.45), m["paint"]))
-        p.append(box("jbox_lid", (0.02, 0.33, 0.43), (TUN_W / 2 - 0.13, jy, 1.45), m["paint2"]))
-        p.append(cyl("jbox_conduit", 0.02, 0.65, (TUN_W / 2 - 0.08, jy, 1.93), m["steel"], (0, 0, 0), 8))
-        # отметка пикета на стене
-        p.append(box("picket", (0.02, 0.3, 0.2), (-TUN_W / 2 + 0.01, 2.5, walk_h + 1.5), m["sign_in"]))
-        amb, amb_geo = tunnel_props(variant, m, walk_h)
-        p += amb
+        pass
     finish(p, name)
     for gname, gsize, gloc in amb_geo:
         geo(gname, gsize, gloc)
@@ -1419,7 +1210,7 @@ def build_junction_hall(outdir, save_fn, reset_fn):
             ln = 2 * r * math.sin(math.pi / n) + 0.05
             p.append(box(f"ringbeam{r}_{k}", (ln, w, 0.55), (mx, my, JUNC_H - 0.28), m["tubing"], (0, 0, -(a0 + a1) / 2 + math.pi / 2)))
     p.append(cyl("hub", 1.2, 0.6, (0, 0, JUNC_H - 0.3), m["tubing"], (0, 0, 0), 32))
-    # на полу: водоотводное кольцо у стен и пятна сырости
+    # на полу: водоотводное кольцо у стен
     n = 64
     for k in range(n):
         a0 = k * 2 * math.pi / n
@@ -1428,8 +1219,6 @@ def build_junction_hall(outdir, save_fn, reset_fn):
         mx, my = (math.sin(a0) + math.sin(a1)) / 2 * r, (math.cos(a0) + math.cos(a1)) / 2 * r
         ln = 2 * r * math.sin(math.pi / n) + 0.02
         p.append(box(f"drain{k}", (ln, 0.3, 0.02), (mx, my, 0.01), m["steel"], (0, 0, -(a0 + a1) / 2 + math.pi / 2), round_edges=False))
-    for k, (x, y, sx, sy) in enumerate(((8, 5, 1.4, 0.9), (-6, -9, 1.0, 1.3), (14, -6, 0.8, 0.7), (-15, 7, 1.1, 0.8))):
-        p += puddle_blob(f"hall_pud{k}", x, y, sx, sy, m)
     finish(p, "junction_hall")
     geo("geometry_floor", (2 * JUNC_R + 1, 2 * JUNC_R + 1, 0.4), (0, 0, -0.2))
     geo("geometry_ceiling", (2 * JUNC_R + 1, 2 * JUNC_R + 1, 0.5), (0, 0, JUNC_H + 0.25))
@@ -1478,8 +1267,6 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_corridor(outdir, save_fn, reset_fn)
     build_station(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn)
-    for v in "bcdefg":                               # варианты звена с антуражем
-        build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_" + v, v)
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_junction_hall(outdir, save_fn, reset_fn)
     build_junction_wall(outdir, save_fn, reset_fn)
