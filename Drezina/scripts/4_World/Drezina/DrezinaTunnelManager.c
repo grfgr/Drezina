@@ -351,6 +351,32 @@ class DrezinaTunnelManager
 
 	// ------------------------------------------------------------------ спавн
 
+	static bool IsJoined(DrezinaTunnelData t, int end)
+	{
+		if (end == 0)
+			return t.JoinA > 0;
+		return t.JoinB > 0;
+	}
+
+	// где начинается тоннель от конца: за станцией или сразу (конец подключён к другой линии)
+	static float TunnelStart(DrezinaTunnelData t, int end)
+	{
+		if (IsJoined(t, end))
+			return 0;
+		return DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
+	}
+
+	// чей генератор питает лампы у этого конца: свой, а у подключённого конца — генератор той линии
+	int PowerKey(DrezinaTunnelData t, int end)
+	{
+		int j = t.JoinA;
+		if (end == 1)
+			j = t.JoinB;
+		if (j > 0 && m_Tunnels.Get(j))
+			return Key(j, 0);
+		return Key(t.Id, end);
+	}
+
 	void SpawnTunnel(DrezinaTunnelData t)
 	{
 		DespawnTunnel(t.Id);
@@ -361,16 +387,18 @@ class DrezinaTunnelManager
 		float len = s.GetLength();
 		float stCenter = DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK;
 
-		// станции (открытым торцом в тоннель)
+		// станции (открытым торцом в тоннель); у концов, подключённых к другой линии, станции нет
 		vector pA, dA, iA, pB, dB, iB;
 		GetEnd(t, 0, pA, dA, iA);
 		GetEnd(t, 1, pB, dB, iB);
-		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pA + iA * stCenter, iA));
-		AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pB + iB * stCenter, iB));
+		if (!IsJoined(t, 0))
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pA + iA * stCenter, iA));
+		if (!IsJoined(t, 1))
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_MetroStation", pB + iB * stCenter, iB));
 
 		// тоннель: на прямых — звенья 10 м, на поворотах — короткие с нахлёстом
-		float tStart = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
-		float tEnd = len - tStart;
+		float tStart = TunnelStart(t, 0);
+		float tEnd = len - TunnelStart(t, 1);
 		float d = tStart;
 		int piece10 = 0;
 		// чередование вариантов прямого звена: обычное и 6 «событий» (обвал, ниша ТП, вагонетка, блокпост, протечка, крепь)
@@ -404,6 +432,8 @@ class DrezinaTunnelManager
 		// бункер у обоих концов: коридор + лестничная шахта (освещения нет — нужен фонарь)
 		for (int be = 0; be <= 1; be++)
 		{
+			if (IsJoined(t, be))
+				continue;
 			vector bInward;
 			vector corPos = GetCorridorPos(t, be, bInward);
 			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_BunkerCorridor", corPos, bInward));
@@ -411,8 +441,10 @@ class DrezinaTunnelManager
 			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_BunkerStairs", stPos, bInward));
 		}
 
-		SpawnEntrance(t, 0, objs);
-		SpawnEntrance(t, 1, objs);
+		if (!IsJoined(t, 0))
+			SpawnEntrance(t, 0, objs);
+		if (!IsJoined(t, 1))
+			SpawnEntrance(t, 1, objs);
 		SpawnLighting(t, objs);
 		SpawnDarkness(t, objs);
 		m_Objects.Set(t.Id, objs);
@@ -425,7 +457,12 @@ class DrezinaTunnelManager
 			vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset, 0);
 			foreach (vector rp : t.Route)
 				nodes.Insert(ToUnder(t, rp) + railUp);
-			t.TrackId = DrezinaTrackManager.Get().CreateTrack(nodes, "Метро " + t.Id);
+			int noDisp = 0;
+			if (IsJoined(t, 0))
+				noDisp += 1;
+			if (IsJoined(t, 1))
+				noDisp += 2;
+			t.TrackId = DrezinaTrackManager.Get().CreateTrack(nodes, "Метро " + t.Id, noDisp);
 			Save();
 		}
 	}
@@ -438,6 +475,8 @@ class DrezinaTunnelManager
 		int before = objs.Count();
 		for (int end = 0; end <= 1; end++)
 		{
+			if (IsJoined(t, end))
+				continue;
 			vector sIn, cIn;
 			vector st = GetStairsPos(t, end, sIn);
 			AddObj(objs, DrezinaUnderground.AddZone(st + Vector(0, 6.4, 0), Vector(5.0, 13.6, 8.4), sIn, "drezina stairs " + t.Id));
@@ -526,6 +565,8 @@ class DrezinaTunnelManager
 			int key = Key(t.Id, end);
 			m_Lamps.Remove(key);
 			m_Powered.Set(key, false);
+			if (IsJoined(t, end))
+				continue;              // ни станции, ни генератора — свет этой половины от линии, к которой подключена
 
 			vector e, inward, side;
 			GetBunkerFrame(t, end, e, inward, side);
@@ -561,16 +602,15 @@ class DrezinaTunnelManager
 		}
 
 		// тоннель: каждые LAMP_STEP метров, ближняя половина — к своей станции
-		float tStart = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK;
-		float d = tStart + 5.0;
-		while (d < len - tStart)
+		float d = TunnelStart(t, 0) + 5.0;
+		while (d < len - TunnelStart(t, 1))
 		{
 			vector lp, ld;
 			s.GetPosDir(d, lp, ld);
 			ld[1] = 0;
-			int tkey = Key(t.Id, 0);
+			int tkey = PowerKey(t, 0);
 			if (d > len * 0.5)
-				tkey = Key(t.Id, 1);
+				tkey = PowerKey(t, 1);
 			float jr3;
 			// на левой стене (со стороны служебного прохода), над трубами
 			vector lside = Side(ld.Normalized());
@@ -592,6 +632,8 @@ class DrezinaTunnelManager
 		{
 			for (int end = 0; end <= 1; end++)
 			{
+				if (IsJoined(t, end))
+					continue;
 				int key = Key(id, end);
 				EntityAI gen = m_Generators.Get(key);
 				if (!gen)
@@ -834,8 +876,8 @@ class DrezinaTunnelManager
 		{
 			foreach (int ib, DrezinaTunnelData b : m_Tunnels)
 			{
-				if (a.Id >= b.Id || a.Zone || b.Zone)
-					continue;
+				if (a.Id >= b.Id || a.Zone || b.Zone || b.JoinA > 0 || b.JoinB > 0)
+					continue;                          // подключённые линии не двигаем — развязка разъехалась бы
 				float diff = Math.AbsFloat(a.FloorY - b.FloorY);
 				if (diff <= 0.3 || diff > 6.0)
 					continue;
@@ -874,6 +916,43 @@ class DrezinaTunnelManager
 	void ComputeJunctions()
 	{
 		m_Junctions.Clear();
+		// Т-развязки: концы линий, подключённые к другим линиям
+		foreach (int tid, DrezinaTunnelData tt : m_Tunnels)
+		{
+			for (int e = 0; e <= 1; e++)
+			{
+				int jid = tt.JoinA;
+				vector jp = tt.JoinPA;
+				if (e == 1)
+				{
+					jid = tt.JoinB;
+					jp = tt.JoinPB;
+				}
+				DrezinaTunnelData mainT = m_Tunnels.Get(jid);
+				if (jid <= 0 || !mainT)
+					continue;
+				DrezinaTrack ms = GetSpline(mainT);
+				float moff;
+				float md = ms.ClosestDistance(Vector(jp[0], mainT.FloorY, jp[2]), moff);
+				vector mp, mdir;
+				ms.GetPosDir(md, mp, mdir);
+				vector endP, endDir, endIn;
+				GetEnd(tt, e, endP, endDir, endIn);
+				DrezinaJunction tj = new DrezinaJunction();
+				tj.A = mainT.Id;
+				tj.B = tt.Id;
+				tj.Center = Vector(mp[0], mainT.FloorY, mp[2]);
+				tj.DirA = Flat(mdir);
+				vector toB = endP - tj.Center;
+				toB[1] = 0;
+				tj.DirB = toB.Normalized();
+				tj.Tee = true;
+				tj.Radius = JUNC_RADIUS;
+				tj.EndB = e;
+				m_Junctions.Insert(tj);
+				Print("[Drezina] Т-развязка: метро #" + tt.Id + " подключено к #" + mainT.Id);
+			}
+		}
 		array<DrezinaTunnelData> list = new array<DrezinaTunnelData>;
 		foreach (int id, DrezinaTunnelData t : m_Tunnels)
 		{
@@ -1012,9 +1091,15 @@ class DrezinaTunnelManager
 		arms.Insert(j.DirA);
 		arms.Insert(j.DirA * -1.0);
 		arms.Insert(j.DirB);
-		arms.Insert(j.DirB * -1.0);
+		if (!j.Tee)
+			arms.Insert(j.DirB * -1.0);
 		foreach (vector arm : arms)
+		{
 			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionPortal", c + arm * R, arm * -1.0));
+			// короткие звенья тоннеля вплотную к порталу — без щели между залом и тоннелем
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", c + arm * (R + 1.0), arm));
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", c + arm * (R + 3.0), arm));
+		}
 		float stepA = 2.7 / (R + 0.25);
 		float gap = Math.Asin(4.4 / R);          // панели с центром ближе 4.4 м к оси входа — за порталом (он 12 м)
 		for (float ang = 0; ang < Math.PI2 - stepA * 0.5; ang += stepA)
@@ -1043,7 +1128,9 @@ class DrezinaTunnelManager
 		float dXB = mb.ClosestDistance(Vector(c[0], railY, c[2]), off);
 		vector cr = Vector(c[0], railY, c[2]);
 
-		if (j.Ring)
+		if (j.Tee)
+			BuildTee(j, ma, mb, dXA, railY);
+		else if (j.Ring)
 			BuildRing(j, ma, mb, dXA, dXB, cr, railY);
 		else
 			BuildWye(j, ma, mb, dXA, dXB, railY);
@@ -1139,6 +1226,51 @@ class DrezinaTunnelManager
 		}
 	}
 
+	// Т-развязка: путь линии B кончается в зале; из его конца два съезда — налево и направо на линию A.
+	// Едешь по B к залу и держишь руль в нужную сторону — уходишь на A в эту сторону; с A на B — так же.
+	void BuildTee(DrezinaJunction j, DrezinaTrack ma, DrezinaTrack mb, float dXA, float railY)
+	{
+		DrezinaTrackManager tm = DrezinaTrackManager.Get();
+		float lenB = mb.GetLength();
+		float dB = 2.5;          // точка съезда на пути B (у конца, перед упором)
+		int sB = -1;              // движение по B к залу: к началу пути (-1) или к концу (+1)
+		if (j.EndB == 1)
+		{
+			dB = lenB - 2.5;
+			sB = 1;
+		}
+		vector P, pd;
+		mb.GetPosDir(dB, P, pd);
+		float fsB = sB;
+		vector t0 = Flat(pd) * fsB;                    // направление к линии A
+		for (int k = -1; k <= 1; k += 2)
+		{
+			float fk = k;
+			float d1 = dXA + fk * 16.0;
+			vector Q, qd;
+			ma.GetPosDir(d1, Q, qd);
+			vector t1 = Flat(qd) * fk;                  // по линии A в сторону съезда
+			array<vector> nodes = new array<vector>;
+			ConnectorNodes(P, t0, Q, t1, railY, nodes);
+			array<ref DrezinaLink> cl = new array<ref DrezinaLink>;
+			DrezinaLink a = new DrezinaLink();
+			a.End = 0;
+			a.ToTrack = mb.GetId();
+			a.ToD = dB;
+			a.MergeDir = -sB;                          // со съезда на B — от зала
+			a.Side = SideSign(t0, P, nodes[3]);
+			cl.Insert(a);
+			DrezinaLink b = new DrezinaLink();
+			b.End = 1;
+			b.ToTrack = ma.GetId();
+			b.ToD = d1;
+			b.MergeDir = k;
+			b.Side = SideSign(t1 * -1.0, Q, nodes[7]);
+			cl.Insert(b);
+			tm.CreateServiceTrack(nodes, "Съезд Т", cl);
+		}
+	}
+
 	void BuildWye(DrezinaJunction j, DrezinaTrack ma, DrezinaTrack mb, float dXA, float dXB, float railY)
 	{
 		DrezinaTrackManager tm = DrezinaTrackManager.Get();
@@ -1215,11 +1347,24 @@ class DrezinaTunnelManager
 		DrezinaSettings st = DrezinaSettings.Get();
 		DrezinaTunnelData t = new DrezinaTunnelData();
 		t.Id = NextId();
+		// конец рядом с существующей линией — подключаемся к ней Т-развязкой (без станции и входа)
+		int joinA = 0;
+		int joinB = 0;
+		vector jpA, jpB;
+		float joinFloor = 0;
+		joinA = TryJoin(route, 0, jpA, joinFloor, 0);
+		joinB = TryJoin(route, 1, jpB, joinFloor, joinA);
 		t.Route.InsertAll(route);
+		t.JoinA = joinA;
+		t.JoinB = joinB;
+		t.JoinPA = jpA;
+		t.JoinPB = jpB;
 		t.FaceA = draft.FaceA;
 		t.FaceB = draft.FaceB;
 
 		float floorY = MinSurfaceAlong(route) - depth;
+		if (joinA > 0 || joinB > 0)
+			floorY = joinFloor;                    // на уровне линии, к которой подключаемся
 		bool canUnder = floorY >= st.MetroMinFloorY;
 
 		if (mode == "under" && !canUnder)
@@ -1228,6 +1373,8 @@ class DrezinaTunnelManager
 			return;
 		}
 
+		if ((joinA > 0 || joinB > 0) && mode != "zone")
+			mode = "under";
 		if (mode == "zone" || (mode == "auto" && !canUnder))
 		{
 			t.Zone = true;
@@ -1264,6 +1411,10 @@ class DrezinaTunnelManager
 		if (m_Junctions.Count() > jBefore)
 			DrezinaTrackManager.Notify(sender, "Пересечений с другими линиями: " + (m_Junctions.Count() - jBefore) + " — построены залы со стрелками.");
 
+		if (joinA > 0)
+			DrezinaTrackManager.Notify(sender, "Вход A подключён к метро #" + joinA + " (Т-развязка, руль A/D — налево/направо).");
+		if (joinB > 0)
+			DrezinaTrackManager.Notify(sender, "Выход B подключён к метро #" + joinB + " (Т-развязка, руль A/D — налево/направо).");
 		string where = "под землёй, пол на высоте " + Math.Round(t.FloorY) + " м";
 		if (t.Zone)
 			where = "в локации за картой";
@@ -1529,6 +1680,65 @@ class DrezinaTunnelManager
 		m_Drafts.Remove(uid);
 	}
 
+	static const float JOIN_RADIUS = 40.0;   // конец ближе к оси другой линии — подключается к ней
+	static const float JOIN_STUB = 18.0;     // путь подключённой линии кончается в 18 м от оси (внутри зала)
+
+	// Конец end маршрута (0 — первая точка, 1 — последняя) рядом с осью другой подземной линии:
+	// точка конца заменяется на точку в 18 м от оси (перпендикулярно), перед ней — ещё одна в 38 м,
+	// чтобы линия подходила к развязке под прямым углом. Возвращает id линии (0 — не подключён).
+	int TryJoin(array<vector> route, int end, out vector joinPoint, inout float floorY, int otherJoin)
+	{
+		int idx = 0;
+		int nb = 1;
+		if (end == 1)
+		{
+			idx = route.Count() - 1;
+			nb = route.Count() - 2;
+		}
+		vector p = route[idx];
+		int best = 0;
+		float bestDist = JOIN_RADIUS;
+		vector bestX, bestDir;
+		foreach (int id, DrezinaTunnelData ot : m_Tunnels)
+		{
+			if (ot.Zone)
+				continue;
+			if (otherJoin > 0 && Math.AbsFloat(ot.FloorY - floorY) > 0.3)
+				continue;                              // второй конец — только к линии того же уровня
+			DrezinaTrack s = GetSpline(ot);
+			float off;
+			float d = s.ClosestDistance(Vector(p[0], ot.FloorY, p[2]), off);
+			if (off >= bestDist || d < JUNC_END_CLEAR || d > s.GetLength() - JUNC_END_CLEAR)
+				continue;                              // далеко или у станции той линии
+			vector x, dir;
+			s.GetPosDir(d, x, dir);
+			best = id;
+			bestDist = off;
+			bestX = x;
+			bestDir = Flat(dir);
+			floorY = ot.FloorY;
+		}
+		if (best == 0)
+			return 0;
+		// с какой стороны оси подходит линия
+		vector side = Side(bestDir);
+		vector toNb = route[nb] - bestX;
+		toNb[1] = 0;
+		if (vector.Dot(toNb, side) < 0)
+			side = side * -1.0;
+		joinPoint = bestX;
+		vector stub = bestX + side * JOIN_STUB;
+		vector approach = bestX + side * (JOIN_STUB + 20.0);
+		stub[1] = p[1];
+		approach[1] = p[1];
+		route[idx] = stub;
+		if (end == 0)
+			route.InsertAt(approach, 1);
+		else
+			route.InsertAt(approach, route.Count() - 1);
+		return best;
+	}
+
 	int FindNearestTunnel(vector p, float maxDist)
 	{
 		int best = 0;
@@ -1563,6 +1773,8 @@ class DrezinaJunction
 	vector DirA;       // направления осей линий в точке пересечения (по росту дистанции, горизонтально)
 	vector DirB;
 	bool Ring;         // кольцо (угол >= 55°) или два съезда
+	int EndB;          // каким концом линия B подключена (для Т-развязки)
+	bool Tee;          // Т-развязка: линия B подключена концом к линии A (DirB — от центра к линии B)
 	float Radius;
 	ref array<Object> Objects = new array<Object>;
 }

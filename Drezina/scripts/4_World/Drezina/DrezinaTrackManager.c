@@ -120,6 +120,11 @@ class DrezinaTrackManager extends Managed
 				type = "Drezina_Rail10";
 				piece = 10.0;
 			}
+			else if (t.IsService() || !IsStraight(t, d, Math.Min(d + 2.0, len)))
+			{
+				type = "Drezina_Rail1";          // кривые и съезды — звеньями по 1 м, без заметных изломов
+				piece = 1.0;
+			}
 			float center = d + piece * 0.5;
 			if (center + piece * 0.5 > len)
 				center = Math.Max(len - piece * 0.5, piece * 0.5); // последний кусок — с нахлёстом назад
@@ -151,8 +156,10 @@ class DrezinaTrackManager extends Managed
 		// Станции выдачи у обоих концов пути (у служебных путей развязок — нет).
 		if (!t.IsService())
 		{
-			SpawnDispenser(t, true, objs);
-			SpawnDispenser(t, false, objs);
+			if ((t.m_Data.NoDispenser & 1) == 0)
+				SpawnDispenser(t, true, objs);
+			if ((t.m_Data.NoDispenser & 2) == 0)
+				SpawnDispenser(t, false, objs);
 		}
 
 		m_WorldObjects.Set(t.GetId(), objs);
@@ -748,11 +755,12 @@ class DrezinaTrackManager extends Managed
 	}
 
 	// Создать путь из готовых узлов (используется метро).
-	int CreateTrack(array<vector> nodes, string name)
+	int CreateTrack(array<vector> nodes, string name, int noDispenser = 0)
 	{
 		DrezinaTrackData data = new DrezinaTrackData();
 		data.Id = NextTrackId();
 		data.Name = name;
+		data.NoDispenser = noDispenser;
 		data.Nodes.InsertAll(nodes);
 		DrezinaTrack t = new DrezinaTrack(data);
 		m_Tracks.Set(data.Id, t);

@@ -36,6 +36,7 @@ MODELS = {
     "trailer_barrel": (30.0, False),
     "rail_10m": (2000.0, False),
     "rail_2m": (400.0, False),
+    "rail_1m": (200.0, False),
     "dispenser": (500.0, False),
     "tunnel_lamp": (2.0, False),
     "tunnel_10m": (20000.0, False),
@@ -60,12 +61,13 @@ LOD_RES = [1.0, 4.0, 10.0, 25.0]
 
 # Материал граней в Geometry / Fire Geometry / Roadway: по нему игра выбирает звук шагов,
 # следы попаданий и пробиваемость (ванильные penetration-rvmat ссылаются на свой .bisurf).
-SURF_CONCRETE = "Drezina\\data\\textures\\drezina_surface_concrete.rvmat"   # свой rvmat с concrete.bisurf
+# ванильный материал пола бункера Ливонии: по нему в бункере звучат шаги по бетону
+SURF_CONCRETE = "dz\\structures_bliss\\underground\\storage\\data\\underground_storage_big_floor.rvmat"
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
 SURFACE = {
-    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_METAL, "tunnel_lamp": SURF_METAL,
-    "rail_10m": SURF_WOOD, "rail_2m": SURF_WOOD,
+    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_CONCRETE, "tunnel_lamp": SURF_CONCRETE,
+    "rail_10m": SURF_CONCRETE, "rail_2m": SURF_CONCRETE, "rail_1m": SURF_CONCRETE,
 }
 
 

@@ -28,6 +28,7 @@ class Drezina_JunctionWall extends House {}
 class Drezina_JunctionPortal extends House {}
 class Drezina_MetroStation extends House {}
 class Drezina_Rail10 extends House {}
+class Drezina_Rail1 extends House {}
 class Drezina_BunkerStairs extends House {}
 class Drezina_BunkerCorridor extends House {}
 

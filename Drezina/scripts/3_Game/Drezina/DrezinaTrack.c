@@ -8,6 +8,7 @@ class DrezinaTrackData
 	string Name;
 	ref array<vector> Nodes = new array<vector>; // точки, поставленные админом
 	bool Service;                                // служебный путь развязки метро: без терминалов, не сохраняется
+	int NoDispenser;                             // без терминала выдачи: 1 — у начала, 2 — у конца (концы, подключённые к другой линии)
 	ref array<ref DrezinaLink> Links = new array<ref DrezinaLink>; // концы этого пути, примыкающие к другим путям
 }
 

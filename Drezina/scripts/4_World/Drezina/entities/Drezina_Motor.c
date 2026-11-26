@@ -813,6 +813,7 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		Wake();
 		if (tr)
 			tr.ServerPlace(t, d - m_Face * TRAILER_GAP, m_Face);
 		SetSynchDirty();
@@ -836,19 +837,26 @@ class Drezina_Motor extends CarScript
 		vector place = vector.Zero;
 		float sgn = 1;
 		Drezina_Trailer tr = Trailer();
-		for (int k = 0; k < 2; k++)
+		// сначала пробуем дальше от пути, потом ближе (в тоннеле до стены всего 3 м); встречной дрезине
+		// хватает 1.7 м от оси
+		float offs[3] = {2.1, 1.9, 1.7};
+		for (int oi = 0; oi < 3 && place == vector.Zero; oi++)
 		{
-			sgn = 1;
-			if (k == 1)
-				sgn = -1;
-			vector side = mat[0] * sgn;
-			// луч до дальнего борта дрезины в стоящем положении (+0.9 м); с прицепом — и у прицепа
-			if (DayZPhysics.RaycastRV(center, center + side * (off + 0.9), hitPos, hitDir, hitComp, null, null, this))
-				continue;
-			if (tr && !tr.SideFree(sgn, off))
-				continue;
-			place = mat[3] + side * off;
-			break;
+			off = offs[oi];
+			for (int k = 0; k < 2; k++)
+			{
+				sgn = 1;
+				if (k == 1)
+					sgn = -1;
+				vector side = mat[0] * sgn;
+				// луч до дальнего борта дрезины в стоящем положении (+0.85 м); с прицепом — и у прицепа
+				if (DayZPhysics.RaycastRV(center, center + side * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom))
+					continue;
+				if (tr && !tr.SideFree(sgn, off))
+					continue;
+				place = mat[3] + side * off;
+				break;
+			}
 		}
 		if (place == vector.Zero)
 			return false;
@@ -862,11 +870,22 @@ class Drezina_Motor extends CarScript
 		m_OffRail = true;
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
-		m_Sleeping = true;
-		dBodyActive(this, ActiveState.INACTIVE);
+		// физика включена и с гравитацией: машина садится на пол и её новое место уходит всем клиентам
+		// (раньше тело сразу усыплялось — положение не обновлялось, дрезина оставалась на рельсах)
+		dBodyEnableGravity(this, true);
+		m_GravityOff = false;
+		Wake();
 		SetSynchDirty();
 		Print("[Drezina] motor: снята с рельсов");
 		return true;
+	}
+
+	// разбудить физику: RailStep снова ставит машину на путь, а новое положение уходит клиентам
+	void Wake()
+	{
+		m_Sleeping = false;
+		m_StillTime = 0;
+		dBodyActive(this, ActiveState.ACTIVE);
 	}
 
 	bool ServerPutOnRail()
@@ -902,6 +921,7 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		Wake();
 		Drezina_Trailer tr = Trailer();
 		if (tr)
 		{

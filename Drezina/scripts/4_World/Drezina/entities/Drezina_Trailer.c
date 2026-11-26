@@ -227,7 +227,7 @@ class Drezina_Trailer extends CarScript
 		vector center = mat[3] + Vector(0, 0.8, 0);
 		vector hitPos, hitDir;
 		int hitComp;
-		return !DayZPhysics.RaycastRV(center, center + mat[0] * sgn * (off + 0.9), hitPos, hitDir, hitComp, null, null, this);
+		return !DayZPhysics.RaycastRV(center, center + mat[0] * sgn * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom);
 	}
 
 	void ServerTakeOffRail(float sgn, float off)
@@ -243,7 +243,9 @@ class Drezina_Trailer extends CarScript
 		m_OffRail = true;
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
-		dBodyActive(this, ActiveState.INACTIVE);
+		dBodyEnableGravity(this, true);
+		m_GravityOff = false;
+		dBodyActive(this, ActiveState.ACTIVE);
 		SetSynchDirty();
 	}
 
@@ -272,10 +274,9 @@ class Drezina_Trailer extends CarScript
 		vector mat[4];
 		Drezina_Motor.TrackTransformFace(t, d, face, mat);
 		SetTransform(mat);
-		// без скорости и с усыплённой физикой: иначе физика между кадрами сдвигала прицеп ещё вперёд,
-		// а клиент вдобавок досчитывал движение по скорости — прицеп «обгонял» дрезину
+		// без скорости: иначе физика между кадрами сдвигала прицеп ещё вперёд, а клиент досчитывал
+		// движение по скорости — прицеп «обгонял» дрезину. Тело не усыпляем — иначе положение не уходит клиентам.
 		SetVelocity(this, vector.Zero);
-		dBodyActive(this, ActiveState.INACTIVE);
 	}
 
 	void Follow(float dt)

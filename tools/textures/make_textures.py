@@ -675,9 +675,6 @@ def write_rvmats(out):
 		dir[] = {0, 0, 0};
 		pos[] = {0, 0, 0};
 	};''')
-        if name.startswith("metro_"):
-            # поверхность «бетон»: звук шагов и попаданий по всему метро
-            text = 'surfaceInfo = "dz\\data\\data\\penetration\\concrete.bisurf";\n' + text
         with open(os.path.join(out, name + ".rvmat"), "w") as f:
             f.write(text)
 

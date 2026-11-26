@@ -9,6 +9,10 @@ class DrezinaTunnelData
 	int    TrackId;  // путь (DrezinaTrack) внутри тоннеля
 	vector FaceA;    // куда смотрит вход A (взгляд админа при /metro a | /rail start); 0 — вдоль линии
 	vector FaceB;    // куда смотрит выход B
+	int    JoinA;    // конец A подключён к линии JoinA (Т-развязка вместо станции), 0 — обычная станция
+	int    JoinB;
+	vector JoinPA;   // точка на оси той линии, к которой подключён конец
+	vector JoinPB;
 }
 
 class DrezinaTunnelsDB
