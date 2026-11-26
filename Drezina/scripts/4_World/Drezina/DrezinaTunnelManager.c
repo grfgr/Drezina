@@ -1024,6 +1024,34 @@ class DrezinaTunnelManager
 		DrezinaTrackManager.Get().ServerJunctionsChanged();
 	}
 
+	// точка, где ось линии (сплайн) выходит из круга радиуса R вокруг центра, в сторону sign по дистанции
+	void ArmOnSpline(DrezinaTrack s, vector c, float R, int sign, array<vector> arms, array<vector> pos, array<vector> dir)
+	{
+		float off;
+		float d0 = s.ClosestDistance(c, off);
+		float d = d0;
+		float step = 0.25;
+		vector p, pd;
+		for (int i = 0; i < 800; i++)
+		{
+			d = d0 + sign * i * step;
+			if (d <= 0 || d >= s.GetLength())
+				break;
+			s.GetPosDir(d, p, pd);
+			if (FlatDistance(p, c) >= R)
+				break;
+		}
+		s.GetPosDir(d, p, pd);
+		p[1] = c[1];
+		float fs = sign;
+		vector outDir = Flat(pd) * fs;
+		vector rad = p - c;
+		rad[1] = 0;
+		arms.Insert(rad.Normalized());
+		pos.Insert(p);
+		dir.Insert(outDir);
+	}
+
 	static vector ArmDir(float ang)
 	{
 		return Vector(Math.Sin(ang), 0, Math.Cos(ang));
@@ -1078,18 +1106,34 @@ class DrezinaTunnelManager
 
 		// зал: пол, свод на балках; стены панелями по кругу, у входа каждой ветки — портал под тоннель
 		AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHall", c, j.DirA));
-		array<vector> arms = new array<vector>;
-		arms.Insert(j.DirA);
-		arms.Insert(j.DirA * -1.0);
-		arms.Insert(j.DirB);
-		if (!j.Tee)
-			arms.Insert(j.DirB * -1.0);
-		foreach (vector arm : arms)
+		// порталы ставим там, где ось линии на самом деле пересекает стену зала, и по направлению линии
+		// в этом месте (линия может подходить не по прямой — раньше портал оказывался рядом с тоннелем)
+		array<vector> arms = new array<vector>;      // направления от центра на порталы (для стен)
+		array<vector> armPos = new array<vector>;
+		array<vector> armDir = new array<vector>;    // направление тоннеля наружу из зала
+		DrezinaTrack sa = GetSpline(ta);
+		DrezinaTrack sb = GetSpline(tb);
+		ArmOnSpline(sa, c, R, 1, arms, armPos, armDir);
+		ArmOnSpline(sa, c, R, -1, arms, armPos, armDir);
+		if (j.Tee)
 		{
-			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionPortal", c + arm * R, arm * -1.0));
+			int teeSign = 1;
+			if (j.EndB == 1)
+				teeSign = -1;
+			ArmOnSpline(sb, c, R, teeSign, arms, armPos, armDir);
+		}
+		else
+		{
+			ArmOnSpline(sb, c, R, 1, arms, armPos, armDir);
+			ArmOnSpline(sb, c, R, -1, arms, armPos, armDir);
+		}
+		for (int ai2 = 0; ai2 < armPos.Count(); ai2++)
+		{
+			vector ap = armPos[ai2];
+			vector ad = armDir[ai2];
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionPortal", ap, ad * -1.0));
 			// короткие звенья тоннеля вплотную к порталу — без щели между залом и тоннелем
-			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", c + arm * (R + 1.0), arm));
-			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", c + arm * (R + 3.0), arm));
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", ap + ad * 1.0, ad));
 		}
 		float stepA = 2.7 / (R + 0.25);
 		float gap = Math.Asin(4.4 / R);          // панели с центром ближе 4.4 м к оси входа — за порталом (он 12 м)
@@ -1184,7 +1228,7 @@ class DrezinaTunnelManager
 			m.GetPosDir(dP, P, pdir);
 			for (int sg = -1; sg <= 1; sg += 2)
 			{
-				float aq = DirAngle(o) + sg * 50 * Math.DEG2RAD;
+				float aq = DirAngle(o) + sg * 30 * Math.DEG2RAD;     // съезды разных веток на кольце не вплотную
 				vector Q = cr + ArmDir(aq) * JUNC_RING_R;
 				Q[1] = railY;
 				vector tr = Vector(Math.Cos(aq), 0, -Math.Sin(aq));    // касательная кольца по росту дистанции

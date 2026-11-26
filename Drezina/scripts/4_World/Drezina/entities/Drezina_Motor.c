@@ -35,6 +35,7 @@ class Drezina_Motor extends CarScript
 	int m_PrevFace;
 	float m_EntryD;
 	int m_TransferTime = -100000;
+	float m_SinceTransfer = 100;  // путь, пройденный после последней стрелки (м)
 	// клиент водителя: свой переход важнее устаревшей синхронизации с сервера
 	int m_LTrack;
 	int m_LFace;
@@ -544,10 +545,13 @@ class Drezina_Motor extends CarScript
 		float steer = 0;
 		if (CrewDriver())
 			steer = GetSteering();
+		m_SinceTransfer += Math.AbsFloat(nd - d);
 		foreach (DrezinaSwitch sw : t.m_Switches)
 		{
 			if (sw.Dir != md)
 				continue;
+			if (m_SinceTransfer < 7.0)
+				continue;                       // сразу после стрелки следующую не берём (на кольце съезды рядом)
 			if ((sw.D - d) * md <= 0 || (nd - sw.D) * md < 0)
 				continue;                       // эту стрелку в этом шаге не пересекли
 			if (steer * sw.Side < 0.35)
@@ -604,6 +608,7 @@ class Drezina_Motor extends CarScript
 			m_Face = -toMove;
 		m_DistHint = toD;
 		m_TransferTime = GetGame().GetTime();
+		m_SinceTransfer = 0;
 		if (GetGame().IsServer())
 		{
 			SetSynchDirty();
