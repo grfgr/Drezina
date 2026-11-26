@@ -70,6 +70,7 @@ def mats():
         "wall_b": hz.tex_material("metro_wall_b", "metro_wall_b", 0.9),
         "wall_c": hz.tex_material("metro_wall_c", "metro_wall_c", 0.6),
         "brick": hz.tex_material("metro_brick", "metro_brick", 0.85),
+        "concrete_ext": hz.tex_material("metro_concrete_ext", "metro_concrete_ext", 0.95),
         "plaster": hz.tex_material("metro_plaster", "metro_plaster", 0.95),
     })
     return m
@@ -451,23 +452,23 @@ def build_entrance(outdir, save_fn, reset_fn):
     p = []
     BW, BD, BH = 4.6, 4.0, 3.2
     # бетонная коробка, почти полностью в насыпи
-    p.append(box("block", (BW, BD, BH + 3.0), (0, -BD / 2, (BH - 3.0) / 2), m["concrete"]))      # фундамент на 3 м в землю
+    p.append(box("block", (BW, BD, BH + 3.0), (0, -BD / 2, (BH - 3.0) / 2), m["concrete_ext"]))      # фундамент на 3 м в землю
     # портал: толстая рамка вокруг ниши
     # (внутренние края портала вплотную к коробке двери: 1.6/2 + 0.18 = 0.98)
-    p.append(box("portal_l", (0.9, 0.6, 3.5), (-1.43, 0.2, 1.75), m["concrete"]))
-    p.append(box("portal_r", (0.9, 0.6, 3.5), (1.43, 0.2, 1.75), m["concrete"]))
-    p.append(box("portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04), m["concrete"]))   # строго между боковинами
-    p.append(box("visor", (4.4, 1.1, 0.22), (0, 0.55, 3.55), m["concrete"], (math.radians(-5), 0, 0)))
+    p.append(box("portal_l", (0.9, 0.6, 3.5), (-1.43, 0.2, 1.75), m["concrete_ext"]))
+    p.append(box("portal_r", (0.9, 0.6, 3.5), (1.43, 0.2, 1.75), m["concrete_ext"]))
+    p.append(box("portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04), m["concrete_ext"]))   # строго между боковинами
+    p.append(box("visor", (4.4, 1.1, 0.22), (0, 0.55, 3.55), m["concrete_ext"], (math.radians(-5), 0, 0)))
     p.append(box("niche_floor", (2.2, 1.0, 0.1), (0, 0.0, 0.05), m["concrete"]))
     # бетонная отмостка перед входом, уходит в землю (на склоне не видно щели под порогом)
     p.append(box("apron", (4.2, 2.6, 2.0), (0, 1.3, -0.97), m["concrete"]))
     for sx in (-1, 1):
-        p.append(box(f"portal_foot{sx}", (0.9, 0.6, 2.0), (sx * 1.43, 0.2, -1.0), m["concrete"]))
+        p.append(box(f"portal_foot{sx}", (0.9, 0.6, 2.0), (sx * 1.43, 0.2, -1.0), m["concrete_ext"]))
     # откосные стенки, держат насыпь
     for sx in (-1, 1):
-        p.append(box(f"wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), m["concrete"], (math.radians(-32), 0, 0)))
-        p.append(box(f"wing_foot{sx}", (0.4, 3.0, 2.2), (sx * 2.3, 1.1, -0.9), m["concrete"]))
-        p.append(box(f"wing_cap{sx}", (0.5, 3.4, 0.15), (sx * 2.3, 1.4, 2.45), m["concrete"], (math.radians(-32), 0, 0)))
+        p.append(box(f"wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), m["concrete_ext"], (math.radians(-32), 0, 0)))
+        p.append(box(f"wing_foot{sx}", (0.4, 3.0, 2.2), (sx * 2.3, 1.1, -0.9), m["concrete_ext"]))
+        p.append(box(f"wing_cap{sx}", (0.5, 3.4, 0.15), (sx * 2.3, 1.4, 2.45), m["concrete_ext"], (math.radians(-32), 0, 0)))
     # дверь (крупнее, как у армейских бункеров) в жёлто-чёрной коробке
     dw, dh = 1.6, 2.4
     # дверь в нише портала: перед фасадом блока (y=0), на 0.25 м глубже лица портала (y=0.5)

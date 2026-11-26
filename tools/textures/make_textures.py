@@ -560,6 +560,7 @@ RVMAT_PARAMS = {
     "drezina_redglass": (0.6, 120, 0.0, 0.9, "0, 0, 0, 1"),
     "drezina_redglass_e": (0.6, 120, 0.0, 0.9, "1, 0.12, 0.08, 1"),
     "metro_concrete": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
+    "metro_concrete_ext": (0.03, 10, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_puddle": (0.9, 200, 0.0, 1.0, "0, 0, 0, 1"),
     "metro_sign_rad": (0.1, 20, 0.2, 0.3, "0, 0, 0, 1"),
     "metro_sign_board1": (0.02, 8, 0.0, 0.1, "0, 0, 0, 1"),
@@ -605,6 +606,7 @@ DETAIL_MAPS = {
     "drezina_leather": (1.2, 0.15),
     "drezina_plate": (0.8, 0.3),
     "metro_concrete": (1.4, 0.05),
+    "metro_concrete_ext": (1.4, 0.05),
     "metro_wall": (0.9, 0.12),
     "metro_brick": (1.0, 0.1),
     "metro_plaster": (1.0, 0.05),
@@ -663,7 +665,7 @@ def write_rvmats(out):
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
             text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.35, 0.35, 0.35, 1};")
-        if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete"):
+        if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt"):
             # детальная текстура поверх цвета с повтором x8 — вблизи без «мыла»
             text = text.replace('''	texture = "#(argb,8,8,3)color(0.5,0.5,0.5,1,DT)";
 	uvSource = "tex";''', '''	texture = "Drezina\\data\\textures\\metro_detail_dt.paa";
@@ -732,7 +734,7 @@ def main():
     metro_pbr.main(out)
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
-            if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete"):
+            if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt"):
                 continue
             detail_maps(out, name, strength, shine)
     write_rvmats(out)

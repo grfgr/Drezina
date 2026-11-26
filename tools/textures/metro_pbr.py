@@ -330,11 +330,120 @@ def detail_dt(out, seed=505):
     save(d, os.path.join(out, "metro_detail_dt.png"))
 
 
+# ============================================================================ наружный бетон входа
+
+def concrete_ext(out, seed=606):
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32)
+    zb = (N - 1 - yy)
+    base = lerp(col(138, 136, 128), col(108, 106, 100), _noise(N, 60, 6, rng))
+    c = base * (1 + _fine(rng, 0.09)[..., None])
+    # доски опалубки по 15 см: свой тон, волокно, ступенька на стыке
+    bh = 0.15 * PX
+    board = np.floor(zb / bh).astype(int)
+    tone = rng.normal(0, 1, board.max() + 2).astype(np.float32)[board]
+    fib = _noise(N, 3, 3, rng, stretch=(40, 1))
+    c = c * (1 + tone[..., None] * 0.03) * (0.96 + fib[..., None] * 0.07)
+    fy = zb / bh - board
+    seam = (np.minimum(fy, 1 - fy) < 0.03).astype(np.float32)
+    c = c * (1 - seam[..., None] * 0.2)
+    # отверстия от стяжек опалубки сеткой ~0.6 м
+    g = 0.6 * PX
+    dx = (xx % g) - g / 2
+    dy = (zb % g) - g / 2
+    tie = ((dx ** 2 + dy ** 2) < (0.018 * PX) ** 2).astype(np.float32)
+    c = c * (1 - tie[..., None] * 0.55)
+    # дождевые потёки сверху, мох и лишайник у земли и пятнами, трещины, отколы с арматурой
+    st = _streaks(N, rng, 0.7)
+    c = lerp(c, col(70, 68, 62), np.clip(st, 0, 1) * 0.55)
+    moss_m = np.clip(1 - zb / (0.6 * PX), 0, 1) * _noise(N, 12, 5, rng) + np.clip((_noise(N, 30, 5, rng) - 0.72) * 3, 0, 1)
+    moss = np.clip(moss_m * 1.4 - 0.3, 0, 1)
+    c = lerp(c, lerp(col(70, 84, 44), col(52, 62, 34), _noise(N, 4, 3, rng)), moss * 0.75)
+    lich = _speckles(rng, 0.006, 3) * (_noise(N, 40, 4, rng) > 0.5)
+    c = lerp(c, col(150, 150, 110), lich * 0.6)
+    cr = _cracks(N, 14, rng, 0.01)
+    c = c * (1 - cr[..., None] * 0.6)
+    spall_m = _noise(N, 25, 5, rng)
+    spall = (spall_m > 0.86).astype(np.float32)
+    c = lerp(c, col(96, 94, 88), spall)
+    rebar = spall * ((np.abs((xx % (0.2 * PX)) - 0.1 * PX) < 0.006 * PX)).astype(np.float32)
+    c = lerp(c, col(110, 60, 32), rebar)
+    c = lerp(c, col(120, 70, 40), np.clip(_streaks(N, rng, 0.25), 0, 1) * 0.3)      # ржавые потёки
+    h = (_noise(N, 6, 4, rng) * 0.1 + fib * 0.06 + _fine(rng, 0.05) - seam * 0.15 - tie * 0.5
+         - cr * 0.25 - spall * 0.35 + rebar * 0.3 + moss * 0.08)
+    spec = 0.05 + st * 0.05
+    gloss = 0.08 + moss * 0.05
+    write(out, "metro_concrete_ext", np.clip(c, 0, 1), h, 8.0, spec, gloss)
+
+
+# ============================================================================ гермодверь, разметка, насыпь (2048)
+
+def _write2k(out, name, co, h, strength, spec, gloss):
+    """то же, что write, но в 2048 (у этих текстур тайл меньше метра — плотность и так высокая)"""
+    def down(a):
+        if a.ndim == 2:
+            img = Image.fromarray(np.clip(a, 0, 1).astype(np.float32), mode="F")
+            return np.asarray(img.resize((N // 2, N // 2), Image.LANCZOS), np.float32)
+        return np.stack([down(a[..., i]) for i in range(a.shape[2])], 2)
+    co2 = down(co)
+    h2 = down(h)
+    save(co2, os.path.join(out, name + "_co.png"))
+    save(height_to_normal(h2, strength), os.path.join(out, name + "_nohq.png"))
+    smdi = np.stack([np.ones_like(h2), np.clip(down(spec), 0, 1), np.clip(down(gloss), 0, 1)], 2)
+    save(smdi, os.path.join(out, name + "_smdi.png"))
+
+
+def painted_metal(out, rng, name, paint, stripes=False):
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32)
+    rust = lerp(col(112, 58, 30), col(66, 36, 22), _noise(N, 6, 5, rng))
+    rust = rust * (1 + _fine(rng, 0.25)[..., None])
+    if stripes:
+        d = ((xx + yy) // (N / 6)) % 2
+        p = np.where(d[..., None] == 0, col(200, 158, 30), col(28, 26, 22))
+    else:
+        p = lerp(col(*paint), col(*paint) * 0.82, _noise(N, 40, 5, rng))
+    p = p * (1 + _fine(rng, 0.05)[..., None])
+    chip_m = _noise(N, 90, 7, rng)                      # крупные пятна облупившейся краски с рваным краем
+    chip = np.clip((chip_m - 0.68) * 14, 0, 1)
+    edge = np.clip(1 - np.abs(chip_m - 0.68) * 35, 0, 1)
+    c = lerp(p, rust, chip)
+    c = c * (1 - edge[..., None] * 0.3)
+    scr = _cracks(N, 40, rng, 0.004, 1)                 # царапины
+    c = lerp(c, col(150, 146, 136), scr * 0.5)
+    run = np.clip(_streaks(N, rng, 0.35), 0, 1)
+    c = lerp(c, col(120, 66, 34), run * 0.45)
+    h = 0.5 + (1 - chip) * 0.25 + _fine(rng, 0.03) - scr * 0.15 + chip * _noise(N, 3, 3, rng) * 0.1
+    spec = (1 - chip) * 0.35 + chip * 0.05
+    gloss = (1 - chip) * 0.45 + 0.05
+    _write2k(out, name, np.clip(c, 0, 1), h, 6.0, spec, gloss)
+
+
+def soil(out, seed=707):
+    rng = np.random.default_rng(seed)
+    c = lerp(col(78, 64, 46), col(104, 88, 64), _noise(N, 30, 6, rng))
+    c = c * (1 + _fine(rng, 0.14)[..., None])
+    peb = _speckles(rng, 0.012, 4)
+    c = lerp(c, lerp(col(130, 126, 116), col(90, 88, 82), _noise(N, 3, 2, rng)), peb * 0.8)
+    grass_m = np.clip((_noise(N, 25, 5, rng) - 0.42) * 3, 0, 1)
+    blades = np.clip(_noise(N, 1.2, 2, rng, stretch=(1, 8)) + _fine(rng, 0.3), 0, 1)
+    grass = grass_m * (blades > 0.5)
+    c = lerp(c, lerp(col(70, 86, 38), col(108, 112, 54), _noise(N, 5, 3, rng)), grass * 0.85)
+    h = _noise(N, 8, 4, rng) * 0.2 + peb * 0.25 + grass * blades * 0.15 + _fine(rng, 0.06)
+    spec = 0.04 + grass * 0.04
+    gloss = 0.06 + grass * 0.05
+    _write2k(out, "metro_dirt", np.clip(c, 0, 1), h, 6.0, spec, gloss)
+
+
 def main(out):
     tile_wall(out)
     brick_wall(out)
     plaster(out)
     concrete_floor(out)
+    concrete_ext(out)
+    rng = np.random.default_rng(808)
+    painted_metal(out, rng, "metro_door", (88, 98, 88))
+    painted_metal(out, rng, "metro_hazard", None, stripes=True)
+    soil(out)
     detail_dt(out)
 
 
