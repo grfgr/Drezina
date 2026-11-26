@@ -610,6 +610,7 @@ class Drezina_Motor extends CarScript
 		}
 		else
 		{
+			m_SyncedTrack = m_TrackId;
 			m_LTrack = m_TrackId;
 			m_LFace = m_Face;
 			m_LPrevTrack = m_PrevTrack;
@@ -621,11 +622,15 @@ class Drezina_Motor extends CarScript
 		Print("[Drezina] motor: стрелка, путь #" + m_PrevTrack + " -> #" + m_TrackId);
 	}
 
+	int m_SyncedTrack = -1;
+
 	override void OnVariablesSynchronized()
 	{
 		super.OnVariablesSynchronized();
+		if (GetGame().IsServer())
+			return;
 		// водитель только что сам перешёл на стрелке, а сервер ещё не прислал этот переход
-		if (!GetGame().IsServer() && IsOwner() && GetGame().GetTime() - m_TransferTime < 3000 && m_TrackId != m_LTrack)
+		if (IsOwner() && GetGame().GetTime() - m_TransferTime < 3000 && m_TrackId != m_LTrack)
 		{
 			m_TrackId = m_LTrack;
 			m_Face = m_LFace;
@@ -634,6 +639,15 @@ class Drezina_Motor extends CarScript
 			m_PrevMove = m_LPrevMove;
 			m_PrevFace = m_LPrevFace;
 			m_EntryD = m_LEntryD;
+		}
+		// путь сменился с сервера: старая дистанция относится к другому пути — ищем заново
+		// (иначе машину бросало по чужой дистанции — «телепорты» на стрелках)
+		if (m_TrackId != m_SyncedTrack)
+		{
+			if (m_TrackId != m_LTrack || GetGame().GetTime() - m_TransferTime >= 3000)
+				m_DistHint = -1;
+			m_SyncedTrack = m_TrackId;
+			m_LTrack = m_TrackId;
 		}
 	}
 

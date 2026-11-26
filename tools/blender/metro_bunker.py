@@ -1307,6 +1307,33 @@ def build_junction_portal(outdir, save_fn, reset_fn):
     save_fn(outdir, "junction_portal")
 
 
+def build_alarm(outdir, save_fn, reset_fn, tex_dir):
+    """Аварийный маячок на стене: кронштейн, корпус-цилиндр, красный светящийся плафон, решётка.
+    Origin — на стене, маячок выступает в +Y."""
+    global TEX_DIR
+    TEX_DIR = tex_dir
+    reset_fn()
+    m = mats()
+    red = hz.tex_material("drezina_redglass_e", "drezina_redglass", 0.2)
+    red["dayz_rvmat"] = "Drezina\\data\\textures\\drezina_redglass_e.rvmat"
+    p = []
+    p.append(box("plate", (0.2, 0.02, 0.2), (0, 0.01, 0), m["rust"]))
+    p.append(box("arm", (0.06, 0.12, 0.06), (0, 0.08, 0), m["paint"]))
+    p.append(cyl("base", 0.085, 0.07, (0, 0.17, -0.04), m["paint"], (0, 0, 0), 24))
+    p.append(cyl("dome", 0.07, 0.13, (0, 0.17, 0.06), red, (0, 0, 0), 24))
+    p.append(sphere("dome_top", 0.07, (0, 0.17, 0.125), red, (1, 1, 0.6), (24, 10)))
+    for k in range(4):
+        a = k * math.pi / 2
+        p.append(box(f"cage{k}", (0.01, 0.01, 0.2), (math.cos(a) * 0.075, 0.17 + math.sin(a) * 0.075, 0.07), m["steel"]))
+    p.append(torus("cage_ring", 0.076, 0.006, (0, 0.17, 0.12), m["steel"], (0, 0, 0), (24, 6)))
+    p.append(cyl("conduit", 0.012, 0.4, (0, 0.02, 0.3), m["steel"], (0, 0, 0), 8))
+    o = join(p, "alarm_lamp")
+    uv_box(o, 0.4)
+    smooth(o)
+    hz.selection(o, "alarm_lamp")
+    save_fn(outdir, "alarm_lamp")
+
+
 def build_all(outdir, tex_dir, save_fn, reset_fn):
     global TEX_DIR
     TEX_DIR = tex_dir
@@ -1323,3 +1350,4 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_junction_portal(outdir, save_fn, reset_fn)
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)
     build_lamp(outdir, save_fn, reset_fn, tex_dir)
+    build_alarm(outdir, save_fn, reset_fn, tex_dir)

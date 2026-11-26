@@ -554,74 +554,65 @@ class DrezinaTunnelManager
 		return gen;
 	}
 
+	// Аварийное освещение (без генераторов): красные вращающиеся маячки на стенах — по одному на станции,
+	// в коридоре и на лестнице, в тоннеле через каждые 100 м. Горят всегда.
 	void SpawnLighting(DrezinaTunnelData t, array<Object> objs)
 	{
 		DrezinaTrack s = GetSpline(t);
 		float len = s.GetLength();
 		vector up = Vector(0, 1, 0);
-
 		for (int end = 0; end <= 1; end++)
 		{
-			int key = Key(t.Id, end);
-			m_Lamps.Remove(key);
-			m_Powered.Set(key, false);
 			if (IsJoined(t, end))
-				continue;              // ни станции, ни генератора — свет этой половины от линии, к которой подключена
-
+				continue;
 			vector e, inward, side;
 			GetBunkerFrame(t, end, e, inward, side);
-
-			// настенные светильники («бочонок» в решётке): лицом от стены
-			// станция: на обеих боковых стенах через 6 м, под трубами
 			vector center = e + inward * (DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK);
-			for (int ly = 0; ly < 4; ly++)
-			{
-				float yy = -9.0 + ly * 6.0;
-				SpawnLamp(key, center + side * -6.0 + inward * yy + up * 1.95, side, objs);
-				SpawnLamp(key, center + side * 6.0 + inward * yy + up * 1.95, side * -1, objs);
-			}
-			// коридор: по светильнику на каждой стене
+			SpawnAlarm(center + side * -6.0 + inward * -4.0 + up * 2.6, side, objs);
+			SpawnAlarm(center + side * 6.0 + inward * 5.0 + up * 2.6, side * -1.0, objs);
 			vector cIn;
 			vector cor = GetCorridorPos(t, end, cIn);
 			vector cSide = Side(cIn);
-			SpawnLamp(key, cor + cIn * -2.0 + cSide * -1.2 + up * 1.95, cSide, objs);
-			SpawnLamp(key, cor + cIn * 2.0 + cSide * 1.2 + up * 1.95, cSide * -1, objs);
-			// лестница: над каждой площадкой, на боковой стене шахты
+			SpawnAlarm(cor + cSide * 1.2 + up * 2.3, cSide * -1.0, objs);
 			vector sIn;
 			vector st = GetStairsPos(t, end, sIn);
 			vector sSide = Side(sIn);
-			float landY[5] = {2.5, -2.5, 2.5, -2.5, 2.5};
-			float landZ[5] = {9.6, 7.2, 4.8, 2.4, 0.0};
-			for (int li = 0; li < 5; li++)
-				SpawnLamp(key, st + sSide * -1.6 + sIn * landY[li] + up * (landZ[li] + 2.1), sSide, objs);
-
-			// генератор
-			EntityAI gen = SpawnGenerator(t, end);
-			if (gen)
-				objs.Insert(gen);
+			SpawnAlarm(st + sSide * -1.6 + sIn * 2.5 + up * 2.3, sSide, objs);
+			SpawnAlarm(st + sSide * -1.6 + sIn * 2.5 + up * 11.9, sSide, objs);
 		}
-
-		// тоннель: каждые LAMP_STEP метров, ближняя половина — к своей станции
-		float d = TunnelStart(t, 0) + 5.0;
-		while (d < len - TunnelStart(t, 1))
+		float d = TunnelStart(t, 0) + 50.0;
+		while (d < len - TunnelStart(t, 1) - 20.0)
 		{
 			vector lp, ld;
 			s.GetPosDir(d, lp, ld);
 			ld[1] = 0;
-			int tkey = PowerKey(t, 0);
-			if (d > len * 0.5)
-				tkey = PowerKey(t, 1);
-			float jr3;
-			// на левой стене (со стороны служебного прохода), над трубами
 			vector lside = Side(ld.Normalized());
-			if (JunctionDist(t.Id, lp, jr3) > jr3 + 1.0)
-				SpawnLamp(tkey, lp + lside * -3.0 + up * 2.05, lside, objs);
-			d += DrezinaConst.LAMP_STEP;
+			float jr;
+			if (JunctionDist(t.Id, lp, jr) > jr + 1.0)
+				SpawnAlarm(lp + lside * -3.0 + up * 2.6, lside, objs);
+			d += 100.0;
 		}
 	}
 
-	// Сервер: генератор работает (заправлен, свеча стоит, включён) — свет в его половине горит.
+	Object SpawnAlarm(vector pos, vector dir, array<Object> objs)
+	{
+		int flags = ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN | ECE_NOLIFETIME | ECE_NOPERSISTENCY_WORLD;
+		Object o = GetGame().CreateObjectEx("Drezina_AlarmLamp", pos, flags, RF_DEFAULT);
+		if (!o)
+			return null;
+		o.SetPosition(pos);
+		o.SetDirection(dir);
+		o.Update();
+		objs.Insert(o);
+		return o;
+	}
+
+	// генераторов больше нет (аварийный свет горит всегда)
 	void UpdatePower(float dt)
+	{
+	}
+
+	void UpdatePowerOld(float dt)
 	{
 		m_PowerTimer += dt;
 		if (m_PowerTimer < DrezinaSettings.Get().MetroPowerCheck)
@@ -1119,7 +1110,8 @@ class DrezinaTunnelManager
 		for (int li = 0; li < 8; li++)
 		{
 			vector lo = ArmDir(DirAngle(j.DirA) + li * Math.PI * 0.25 + Math.PI * 0.125);
-			SpawnLamp(Key(ta.Id, 0), c + lo * R + Vector(0, 2.2, 0), lo * -1.0, j.Objects);
+			if (li % 2 == 0)
+				SpawnAlarm(c + lo * R + Vector(0, 3.0, 0), lo * -1.0, j.Objects);
 		}
 
 		float railY = c[1] + DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset;
@@ -1727,15 +1719,24 @@ class DrezinaTunnelManager
 		if (vector.Dot(toNb, side) < 0)
 			side = side * -1.0;
 		joinPoint = bestX;
+		// три точки на одной прямой, перпендикулярной оси: сплайн до зала строго прямой и входит в портал
 		vector stub = bestX + side * JOIN_STUB;
-		vector approach = bestX + side * (JOIN_STUB + 20.0);
+		vector mid = bestX + side * (JOIN_STUB + 12.0);
+		vector approach = bestX + side * (JOIN_STUB + 30.0);
 		stub[1] = p[1];
+		mid[1] = p[1];
 		approach[1] = p[1];
 		route[idx] = stub;
 		if (end == 0)
+		{
 			route.InsertAt(approach, 1);
+			route.InsertAt(mid, 1);
+		}
 		else
+		{
 			route.InsertAt(approach, route.Count() - 1);
+			route.InsertAt(mid, route.Count() - 1);
+		}
 		return best;
 	}
 

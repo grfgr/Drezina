@@ -125,3 +125,102 @@ class Drezina_TunnelLight extends PointLightBase
 		SetFlickerSpeed(2.5);
 	}
 }
+
+// Аварийный маячок метро: красный плафон на стене, внутри вращается луч (как сигнальная лампа бункера).
+// Горит всегда — генераторы больше не нужны. Свет создаётся только на клиентах.
+class Drezina_AlarmLamp extends ItemBase
+{
+	Drezina_AlarmBeam m_Beam;
+	Drezina_AlarmGlow m_Glow;
+	float m_Angle;
+
+	override void EEInit()
+	{
+		super.EEInit();
+		if (!GetGame().IsDedicatedServer())
+		{
+			GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(StartLight, 300, false);
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(Spin);
+		}
+	}
+
+	void StartLight()
+	{
+		vector p = GetPosition() + GetDirection() * 0.18;
+		m_Glow = Drezina_AlarmGlow.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmGlow, p));
+		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
+		m_Angle = Math.RandomFloat(0, 360);
+	}
+
+	void Spin(float dt)
+	{
+		if (!m_Beam)
+			return;
+		m_Angle += dt * 200.0;           // ~0.55 оборота в секунду
+		if (m_Angle > 360)
+			m_Angle -= 360;
+		// луч ходит по кругу в полусфере перед стеной: поворот вокруг оси стены
+		vector ori = GetOrientation();
+		m_Beam.SetPosition(GetPosition() + GetDirection() * 0.18);
+		m_Beam.SetOrientation(Vector(ori[0] + Math.Sin(m_Angle * Math.DEG2RAD) * 80.0, -15.0 + Math.Cos(m_Angle * Math.DEG2RAD) * 25.0, 0));
+	}
+
+	override void EEDelete(EntityAI parent)
+	{
+		if (GetGame())
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Remove(Spin);
+		if (m_Beam)
+			m_Beam.Destroy();
+		if (m_Glow)
+			m_Glow.Destroy();
+		super.EEDelete(parent);
+	}
+
+	override bool CanPutInCargo(EntityAI parent)
+	{
+		return false;
+	}
+
+	override bool CanPutIntoHands(EntityAI parent)
+	{
+		return false;
+	}
+
+	override bool DisableVicinityIcon()
+	{
+		return true;
+	}
+}
+
+// вращающийся красный луч
+class Drezina_AlarmBeam extends SpotLightBase
+{
+	void Drezina_AlarmBeam()
+	{
+		SetVisibleDuringDaylight(true);
+		SetRadiusTo(22);
+		SetSpotLightAngle(55);
+		SetBrightnessTo(6.0);
+		SetCastShadow(false);
+		SetFlareVisible(false);
+		SetDiffuseColor(1.0, 0.06, 0.03);
+		SetAmbientColor(1.0, 0.06, 0.03);
+	}
+}
+
+// слабый красный ореол вокруг маячка
+class Drezina_AlarmGlow extends PointLightBase
+{
+	void Drezina_AlarmGlow()
+	{
+		SetVisibleDuringDaylight(true);
+		SetRadiusTo(5);
+		SetBrightnessTo(1.2);
+		SetCastShadow(false);
+		SetFlareVisible(false);
+		SetDiffuseColor(1.0, 0.08, 0.04);
+		SetAmbientColor(1.0, 0.08, 0.04);
+		SetFlickerAmplitude(0.15);
+		SetFlickerSpeed(1.5);
+	}
+}

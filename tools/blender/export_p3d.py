@@ -39,6 +39,7 @@ MODELS = {
     "rail_1m": (200.0, False),
     "dispenser": (500.0, False),
     "tunnel_lamp": (2.0, False),
+    "alarm_lamp": (2.0, False),
     "tunnel_10m": (20000.0, False),
     "tunnel_10m_tile": (20000.0, False),
     "tunnel_10m_b": (20000.0, False),
@@ -66,7 +67,7 @@ SURF_CONCRETE = "dz\\structures_bliss\\underground\\storage\\data\\underground_s
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
 SURFACE = {
-    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_CONCRETE, "tunnel_lamp": SURF_CONCRETE,
+    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_CONCRETE, "tunnel_lamp": SURF_CONCRETE, "alarm_lamp": SURF_CONCRETE,
     "rail_10m": SURF_CONCRETE, "rail_2m": SURF_CONCRETE, "rail_1m": SURF_CONCRETE,
 }
 
