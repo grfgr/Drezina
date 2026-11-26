@@ -663,6 +663,18 @@ def write_rvmats(out):
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
             text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.35, 0.35, 0.35, 1};")
+        if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete"):
+            # детальная текстура поверх цвета с повтором x8 — вблизи без «мыла»
+            text = text.replace('''	texture = "#(argb,8,8,3)color(0.5,0.5,0.5,1,DT)";
+	uvSource = "tex";''', '''	texture = "Drezina\\data\\textures\\metro_detail_dt.paa";
+	uvSource = "tex";
+	class uvTransform
+	{
+		aside[] = {8, 0, 0};
+		up[] = {0, 8, 0};
+		dir[] = {0, 0, 0};
+		pos[] = {0, 0, 0};
+	};''')
         if name.startswith("metro_"):
             # поверхность «бетон»: звук шагов и попаданий по всему метро
             text = 'surfaceInfo = "dz\\data\\data\\penetration\\concrete.bisurf";\n' + text
@@ -720,7 +732,7 @@ def main():
     metro_pbr.main(out)
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
-            if name in ("metro_wall", "metro_brick", "metro_plaster"):
+            if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete"):
                 continue
             detail_maps(out, name, strength, shine)
     write_rvmats(out)

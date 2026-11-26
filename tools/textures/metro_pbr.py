@@ -13,10 +13,11 @@
 Для каждого: _co (цвет), _nohq (нормали из карты высот), _smdi (блеск: G — сила, B — глянец).
 Низ текстуры = пол (v = высота / 3 м).
 """
+import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-N = 2048
+N = 4096                             # 4096 на 3 м: ~1365 px/м, вблизи не «мылит»
 METERS = 3.0
 PX = N / METERS                      # пикселей на метр
 
@@ -50,7 +51,7 @@ def _blurf(a, r):
     return b * (hi - lo) + lo
 
 
-def _cracks(size, count, rng, step=0.012, width=1):
+def _cracks(size, count, rng, step=0.012, width=2):
     img = Image.new("L", (size, size), 0)
     d = ImageDraw.Draw(img)
     for _ in range(count):
@@ -61,7 +62,20 @@ def _cracks(size, count, rng, step=0.012, width=1):
             nx, ny = x + np.cos(ang) * size * step, y + np.sin(ang) * size * step
             d.line((x, y, nx, ny), fill=int(rng.integers(160, 255)), width=width)
             x, y = nx, ny
-    return np.asarray(img.filter(ImageFilter.GaussianBlur(0.7)), np.float32) / 255.0
+    return np.asarray(img.filter(ImageFilter.GaussianBlur(0.5)), np.float32) / 255.0
+
+
+def _fine(rng, amp=1.0):
+    """попиксельное зерно (без размытия) — мелкая чёткая фактура"""
+    g = rng.random((N, N)).astype(np.float32) - 0.5
+    return g * amp
+
+
+def _speckles(rng, density, size_px=2):
+    """точки-вкрапления (щебень, раковины): маска 0..1 с чёткими краями"""
+    m = (rng.random((N // size_px, N // size_px)) < density).astype(np.uint8) * 255
+    img = Image.fromarray(m).resize((N, N), Image.NEAREST).filter(ImageFilter.GaussianBlur(0.6))
+    return np.asarray(img, np.float32) / 255.0
 
 
 def _streaks(size, rng, density=0.6):
@@ -93,11 +107,11 @@ def save(arr, path):
 
 
 def write(out, name, co, h, strength, spec, gloss):
-    import os
     save(co, os.path.join(out, name + "_co.png"))
     save(height_to_normal(h, strength), os.path.join(out, name + "_nohq.png"))
     smdi = np.stack([np.ones_like(spec), np.clip(spec, 0, 1), np.clip(gloss, 0, 1)], 2)
-    save(smdi, os.path.join(out, name + "_smdi.png"))
+    img = Image.fromarray((np.clip(smdi, 0, 1) * 255).astype(np.uint8)).resize((N // 2, N // 2), Image.LANCZOS)
+    img.save(os.path.join(out, name + "_smdi.png"))      # блеск — в половину разрешения (его вблизи не видно)
 
 
 # ============================================================================ кафель
@@ -141,7 +155,12 @@ def tile_wall(out, seed=101):
     h = h + (1 - grout) * (_noise(N, 8, 3, rng) - 0.5) * 0.02
 
     grout_col = col(78, 76, 70) * (0.85 + _noise(N, 20, 3, rng)[..., None] * 0.3)
+    grout_col = grout_col * (1 + _fine(rng, 0.35)[..., None])          # песок в шве
+    base = base * (1 + _fine(rng, 0.04)[..., None])                     # микрорябь глазури
+    pin = _speckles(rng, 0.004, 1)                                      # точечные выбоины глазури
+    base = base * (1 - pin[..., None] * 0.35)
     c = lerp(base, grout_col, grout)
+    h = h + grout * _fine(rng, 0.08) - pin * 0.08 * (1 - grout)
     conc = lerp(col(120, 116, 106), col(88, 84, 76), _noise(N, 25, 5, rng))
 
     # выпавшие плитки (~1.2%) — клей и бетон, утоплено; сколы углов; трещины
@@ -175,7 +194,7 @@ def tile_wall(out, seed=101):
     spec = np.where(grout > 0, 0.05, 0.75) * (1 - mm * 0.9) * (1 - floor_dirt * 0.6) * (1 - soot * 0.5)
     spec = np.where(chip, 0.05, spec)
     gloss = np.where(grout > 0, 0.1, 0.9) * (1 - mm * 0.85) * (1 - grime * 0.4)
-    write(out, "metro_wall", np.clip(c, 0, 1), h, 6.0, spec, gloss)
+    write(out, "metro_wall", np.clip(c, 0, 1), h, 9.0, spec, gloss)
 
 
 # ============================================================================ кирпич
@@ -204,15 +223,18 @@ def brick_wall(out, seed=202):
     brick = lerp(b1, b2, np.clip(0.5 + t * 0.35, 0, 1))
     brick = np.where(burnt[..., None], brick * 0.62 + col(30, 20, 18) * 0.3, brick)
     brick = brick * (0.9 + _noise(N, 4, 4, rng)[..., None] * 0.2)
+    brick = brick * (1 + _fine(rng, 0.12)[..., None])                   # зерно обожжённой глины
     pits = (_noise(N, 2, 2, rng) > 0.8).astype(np.float32)
     brick = brick * (1 - pits[..., None] * 0.25)
     mort_c = lerp(col(150, 144, 130), col(110, 104, 94), _noise(N, 3, 3, rng))
+    mort_c = mort_c * (1 + _fine(rng, 0.3)[..., None])
     c = lerp(brick, mort_c, mortar)
     # высота: скруглённые края кирпича, сколы по углам и рёбрам, зернистый утопленный раствор
     edge = np.clip((e - 0.5) / 2.2, 0, 1)
     chips = np.clip((_noise(N, 5, 3, rng) - 0.72) * 6, 0, 1) * (edge < 0.9)
     h = np.where(mortar > 0, 0.15 + _noise(N, 2, 2, rng) * 0.08, 0.55 + 0.45 * np.sqrt(edge) - chips * 0.35)
     h = h + (1 - mortar) * (_noise(N, 6, 3, rng) - 0.5) * 0.06
+    h = h + _fine(rng, 0.06) * (1 + mortar)
     c = np.where((chips > 0.3)[..., None], c * 0.8, c)
     # копоть по всей кладке, высолы у швов, сырость внизу
     soot = 0.25 + _noise(N, 60, 5, rng) * 0.5
@@ -223,7 +245,7 @@ def brick_wall(out, seed=202):
     c = lerp(c, col(40, 32, 28), damp * 0.55)
     spec = (0.12 + damp * 0.3) * (1 - mortar * 0.5)
     gloss = 0.15 + damp * 0.35
-    write(out, "metro_brick", np.clip(c, 0, 1), h, 7.0, spec, gloss)
+    write(out, "metro_brick", np.clip(c, 0, 1), h, 10.0, spec, gloss)
 
 
 # ============================================================================ штукатурка свода
@@ -233,7 +255,8 @@ def plaster(out, seed=303):
     base = lerp(col(176, 172, 162), col(152, 148, 138), _noise(N, 60, 5, rng))
     trowel = _noise(N, 18, 3, rng, stretch=(3, 1)) * 0.6 + _noise(N, 10, 3, rng, stretch=(1, 2)) * 0.4
     c = base * (0.94 + trowel[..., None] * 0.1)
-    h = trowel * 0.25 + _noise(N, 2, 3, rng) * 0.05
+    h = trowel * 0.25 + _noise(N, 2, 3, rng) * 0.05 + _fine(rng, 0.05)
+    c = c * (1 + _fine(rng, 0.06)[..., None])
     # отвалившиеся куски: бетон под штукатуркой, резкий край
     flake_m = _noise(N, 35, 5, rng)
     flake = (flake_m > 0.84).astype(np.float32)
@@ -254,13 +277,65 @@ def plaster(out, seed=303):
     c = lerp(c, col(48, 44, 40), soot * 0.55)
     spec = 0.06 + leak * 0.1
     gloss = 0.1 + leak * 0.15
-    write(out, "metro_plaster", np.clip(c, 0, 1), h, 4.0, spec, gloss)
+    write(out, "metro_plaster", np.clip(c, 0, 1), h, 6.0, spec, gloss)
+
+
+# ============================================================================ бетонный пол
+
+def concrete_floor(out, seed=404):
+    rng = np.random.default_rng(seed)
+    base = lerp(col(124, 120, 112), col(98, 96, 90), _noise(N, 50, 6, rng))
+    c = base * (1 + _fine(rng, 0.10)[..., None])
+    # щебень в бетоне: светлые и тёмные зёрна, раковины
+    light = _speckles(rng, 0.010, 2)
+    dark = _speckles(rng, 0.008, 2)
+    pits = _speckles(rng, 0.003, 3)
+    c = lerp(c, col(160, 156, 146), light * 0.6)
+    c = lerp(c, col(70, 68, 62), dark * 0.6)
+    c = c * (1 - pits[..., None] * 0.45)
+    # швы плит пола через 1.5 м (по ширине и длине), трещины, сколы у швов
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32)
+    step = 1.5 * PX
+    jw = 0.006 * PX
+    jx = (np.minimum(xx % step, step - xx % step) < jw).astype(np.float32)
+    jy = (np.minimum(yy % step, step - yy % step) < jw).astype(np.float32)
+    joint = np.maximum(jx, jy)
+    c = lerp(c, col(50, 48, 44), joint * 0.85)
+    cr = _cracks(N, 18, rng, 0.008)
+    c = c * (1 - cr[..., None] * 0.6)
+    # пятна: масло, сырость, натоптанная полоса посередине
+    oil = np.clip((_noise(N, 40, 4, rng) - 0.7) * 5, 0, 1)
+    c = lerp(c, col(38, 36, 34), oil * 0.55)
+    wet = np.clip((_noise(N, 70, 4, rng) - 0.62) * 4, 0, 1)
+    c = lerp(c, col(70, 66, 60), wet * 0.4)
+    h = _noise(N, 6, 4, rng) * 0.12 + _fine(rng, 0.06) + light * 0.08 + dark * 0.05 - pits * 0.25 - joint * 0.4 - cr * 0.2
+    spec = 0.06 + wet * 0.35 + oil * 0.2
+    gloss = 0.1 + wet * 0.5 + oil * 0.3
+    write(out, "metro_concrete", np.clip(c, 0, 1), h, 8.0, spec, gloss)
+
+
+# ============================================================================ детальная текстура (DT)
+
+def detail_dt(out, seed=505):
+    """512 px, нейтрально-серая (0.5) мелкая фактура: движок кладёт её поверх цвета с повтором x8 —
+    вблизи поверхность не расплывается (так сделаны ванильные материалы)."""
+    rng = np.random.default_rng(seed)
+    n = 512
+    g = rng.random((n, n)).astype(np.float32)
+    img = Image.fromarray((g * 255).astype(np.uint8))
+    f1 = np.asarray(img.filter(ImageFilter.GaussianBlur(0.6)), np.float32) / 255.0
+    f2 = np.asarray(img.resize((n // 4, n // 4)).resize((n, n), Image.BICUBIC), np.float32) / 255.0
+    d = 0.5 + (f1 - 0.5) * 0.35 + (f2 - 0.5) * 0.25
+    d = np.repeat(np.clip(d, 0, 1)[..., None], 3, 2)
+    save(d, os.path.join(out, "metro_detail_dt.png"))
 
 
 def main(out):
     tile_wall(out)
     brick_wall(out)
     plaster(out)
+    concrete_floor(out)
+    detail_dt(out)
 
 
 if __name__ == "__main__":
