@@ -69,6 +69,8 @@ def mats():
         "sign_tp": hz.tex_material("metro_sign_tp", "metro_sign_tp", 0.7, 0.3),
         "wall_b": hz.tex_material("metro_wall_b", "metro_wall_b", 0.9),
         "wall_c": hz.tex_material("metro_wall_c", "metro_wall_c", 0.6),
+        "brick": hz.tex_material("metro_brick", "metro_brick", 0.85),
+        "plaster": hz.tex_material("metro_plaster", "metro_plaster", 0.95),
     })
     return m
 
@@ -537,15 +539,15 @@ def build_stairs(outdir, save_fn, reset_fn):
     # стены шахты
     # снизу (3 м) — крашеная стена, выше — голый бетон в потёках
     for sx in (-1, 1):
-        p.append(box(f"wall_x{sx}", (t, 2 * SH_Y + 2 * t, 3.0), (sx * (SH_X + t / 2), 0, 1.5), m["wall_b"], round_edges=False))
-        p.append(box(f"wall_xc{sx}", (t, 2 * SH_Y + 2 * t, SH_H - 3.0), (sx * (SH_X + t / 2), 0, 3.0 + (SH_H - 3.0) / 2), m["concrete"], round_edges=False))
-    p.append(box("wall_back", (2 * SH_X, t, 3.0), (0, -SH_Y - t / 2, 1.5), m["wall_b"], round_edges=False))
-    p.append(box("wall_backc", (2 * SH_X, t, SH_H - 3.0), (0, -SH_Y - t / 2, 3.0 + (SH_H - 3.0) / 2), m["concrete"], round_edges=False))
+        p.append(box(f"wall_x{sx}", (t, 2 * SH_Y + 2 * t, 3.0), (sx * (SH_X + t / 2), 0, 1.5), m["wall"], round_edges=False))
+        p.append(box(f"wall_xc{sx}", (t, 2 * SH_Y + 2 * t, SH_H - 3.0), (sx * (SH_X + t / 2), 0, 3.0 + (SH_H - 3.0) / 2), m["plaster"], round_edges=False))
+    p.append(box("wall_back", (2 * SH_X, t, 3.0), (0, -SH_Y - t / 2, 1.5), m["wall"], round_edges=False))
+    p.append(box("wall_backc", (2 * SH_X, t, SH_H - 3.0), (0, -SH_Y - t / 2, 3.0 + (SH_H - 3.0) / 2), m["plaster"], round_edges=False))
     front = box("wall_front", (2 * SH_X, t, SH_H), (0, SH_Y + t / 2, SH_H / 2), m["concrete"], round_edges=False)
     cutter = box("cut_front", (1.6, 1.0, 2.4), (0, SH_Y + t / 2, 1.2), m["wall"], round_edges=False)
     p.append(boolean_cut(front, cutter))
     p.append(box("floor", (2 * SH_X + 2 * t, 2 * SH_Y + 2 * t, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False))
-    p.append(box("ceiling", (2 * SH_X + 2 * t, 2 * SH_Y + 2 * t, 0.3), (0, 0, SH_H + 0.15), m["concrete"], round_edges=False))
+    p.append(box("ceiling", (2 * SH_X + 2 * t, 2 * SH_Y + 2 * t, 0.3), (0, 0, SH_H + 0.15), m["plaster"], round_edges=False))
 
     run = 2 * SH_Y - 2.0                      # 4 м марш между площадками
     steps = 16
@@ -633,9 +635,9 @@ def build_corridor(outdir, save_fn, reset_fn):
     p = []
     L = COR_LEN
     for sx in (-1, 1):
-        p.append(box(f"wall{sx}", (WALL_T, L, COR_H), (sx * (COR_W / 2 + WALL_T / 2), 0, COR_H / 2), m["wall_c"], round_edges=False))
+        p.append(box(f"wall{sx}", (WALL_T, L, COR_H), (sx * (COR_W / 2 + WALL_T / 2), 0, COR_H / 2), m["wall"], round_edges=False))
     p.append(box("floor", (COR_W + 2 * WALL_T, L, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False))
-    p.append(box("ceiling", (COR_W + 2 * WALL_T, L, 0.3), (0, 0, COR_H + 0.15), m["concrete"], round_edges=False))
+    p.append(box("ceiling", (COR_W + 2 * WALL_T, L, 0.3), (0, 0, COR_H + 0.15), m["plaster"], round_edges=False))
     for i in range(5):
         y = -L / 2 + 0.2 + i * (L - 0.4) / 4
         p.append(box(f"beam{i}", (COR_W, 0.2, 0.22), (0, y, COR_H - 0.11), m["concrete"]))
@@ -657,7 +659,7 @@ def build_station(outdir, save_fn, reset_fn):
     reset_fn()
     m = mats()
     p = [box("floor", (ST_W + 2 * WALL_T, ST_LEN, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False)]
-    p += vault("st", ST_W, ST_WALL_H, ST_RISE, ST_LEN, 0, m["wall"], m["concrete"])
+    p += vault("st", ST_W, ST_WALL_H, ST_RISE, ST_LEN, 0, m["wall"], m["plaster"])      # кафель + штукатурка свода
     total_h = ST_WALL_H + ST_RISE + WALL_T
     # задний торец с проходом в коридор
     back = box("back", (ST_W + 2 * WALL_T, WALL_T, total_h), (0, -ST_LEN / 2 - WALL_T / 2, total_h / 2), m["wall"], round_edges=False)
@@ -727,7 +729,7 @@ def station_details(m):
         # колонна до самого свода (по внутренней кромке, с запасом в бетон), с капителью и базой
         cxp = px1 - 0.6
         ch = vault_z(cxp - 0.225) + 0.1
-        p.append(box(f"col{y}", (0.45, 0.45, ch), (cxp, y, ch / 2), m["wall"]))
+        p.append(box(f"col{y}", (0.45, 0.45, ch), (cxp, y, ch / 2), m["plaster"]))
         p.append(box(f"col_cap{y}", (0.62, 0.62, 0.18), (cxp, y, vault_z(cxp + 0.31) - 0.12), m["concrete"]))
         p.append(box(f"col_base{y}", (0.55, 0.55, 0.15), (cxp, y, 0.075), m["concrete"]))
     # --- справа: зона выдачи дрезин
@@ -934,22 +936,46 @@ def build_dispenser(outdir, save_fn, reset_fn, tex_dir):
 # ============================================================================ светильник
 
 def build_lamp(outdir, save_fn, reset_fn, tex_dir):
-    """Шахтный светильник в решётке на кронштейне. Origin — точка крепления к своду, лампа ниже."""
+    """Настенный светильник «бочонок» (как в московском метро и бункерах): овальный корпус на стене,
+    мутное стекло-купол, ржавая решётка из обода и трёх полос, трубка проводки сверху.
+    Origin — точка на поверхности стены, светильник выступает в +Y."""
     global TEX_DIR
     TEX_DIR = tex_dir
     reset_fn()
     m = mats()
-    p = [box("mount", (0.2, 0.2, 0.04), (0, 0, -0.02), m["rust"]),
-         cyl("stem", 0.015, 0.25, (0, 0, -0.15), m["steel"]),
-         cyl("housing", 0.09, 0.08, (0, 0, -0.3), m["paint"]),
-         sphere("glass", 0.075, (0, 0, -0.38), m["glass"], (1, 1, 1.2), (16, 10))]
-    hz.selection(p[-1], "glass")          # hiddenSelection: скрипт включает светящийся материал
-    for k in range(4):
-        a = k * math.pi / 2
-        p.append(box(f"cage{k}", (0.008, 0.008, 0.17), (math.cos(a) * 0.085, math.sin(a) * 0.085, -0.41), m["steel"]))
-    p.append(torus("cage_ring", 0.085, 0.005, (0, 0, -0.49), m["steel"], (0, 0, 0), (16, 6)))
+    p = []
+    p.append(box("plate", (0.2, 0.025, 0.3), (0, 0.0125, 0), m["rust"]))
+    p.append(sphere("body", 1, (0, 0.04, 0), m["paint"], (0.095, 0.035, 0.145), (20, 12)))
+    glass = sphere("glass", 1, (0, 0.06, 0), m["glass"], (0.078, 0.07, 0.125), (24, 14))
+    hz.selection(glass, "glass")          # hiddenSelection: скрипт включает светящийся материал
+    p.append(glass)
+    # решётка: овальный обод у стены, две горизонтальные и одна вертикальная полосы по куполу
+    import mathutils
+
+    def rod(name, a, b, r=0.006):
+        d = mathutils.Vector(b) - mathutils.Vector(a)
+        o = cyl(name, r, d.length + 0.003, tuple((mathutils.Vector(a) + mathutils.Vector(b)) / 2), m["rust"], (0, 0, 0), 6)
+        o.rotation_mode = "QUATERNION"
+        o.rotation_quaternion = mathutils.Vector((0, 0, 1)).rotation_difference(d.normalized())
+        return o
+
+    def ring(prefix, pts, r=0.006):
+        for i in range(len(pts) - 1):
+            p.append(rod(f"{prefix}{i}", pts[i], pts[i + 1], r))
+
+    n = 20
+    ring("rim", [(0.092 * math.cos(t), 0.045, 0.14 * math.sin(t)) for t in [2 * math.pi * k / n for k in range(n + 1)]], 0.008)
+    for k, zz in enumerate((-0.05, 0.05)):      # горизонтальные полосы по куполу (полуэллипс от стены до стены)
+        sx = 0.078 * math.sqrt(max(0.0, 1 - (zz / 0.125) ** 2))
+        sy = 0.07 * math.sqrt(max(0.0, 1 - (zz / 0.125) ** 2))
+        ring(f"band{k}_", [(sx * math.cos(t), 0.06 + sy * math.sin(t), zz) for t in [math.pi * j / 10 for j in range(11)]])
+    ring("band_v", [(0, 0.06 + 0.072 * math.sin(t), 0.127 * math.cos(t)) for t in [math.pi * j / 10 for j in range(11)]])
+    p.append(cyl("conduit", 0.012, 0.35, (0, 0.02, 0.32), m["steel"], (0, 0, 0), 8))
+    p.append(cyl("gland", 0.02, 0.04, (0, 0.03, 0.16), m["rust"], (0, 0, 0), 10))
+    for zz in (-0.12, 0.12):
+        p.append(hz.bolt(f"screw{zz}", (0.07, 0.027, zz), "y", m["steel"], 0.008))
     o = join(p, "tunnel_lamp")
-    uv_box(o, 1.0)
+    uv_box(o, 0.5)
     smooth(o)
     hz.selection(o, "tunnel_lamp")
     save_fn(outdir, "tunnel_lamp")
@@ -1142,8 +1168,9 @@ def build_tunnel(outdir, save_fn, reset_fn, L=10.0, name="tunnel_10m", variant="
     floor_len = 2.02 if short else L
     wall_len = 2.2 if short else L
     p = [box("floor", (TUN_W + 2 * WALL_T, floor_len, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False)]
-    wall_mat = m[{"a": "wall", "b": "wall_b", "c": "wall_c", "d": "wall", "e": "wall_b", "f": "wall_c", "g": "wall"}.get(variant, "wall")]
-    p += vault("t", TUN_W, TUN_WALL_H, TUN_RISE, wall_len, 0, wall_mat, m["concrete"])
+    # у станций (первые 10 м) — кафель, дальше — кирпичная кладка; свод — штукатурка
+    wall_mat = m["wall"] if variant == "tile" else m["brick"]
+    p += vault("t", TUN_W, TUN_WALL_H, TUN_RISE, wall_len, 0, wall_mat, m["plaster"])
     ribs = [0.0] if short else [-3.75, -1.25, 1.25, 3.75]
     for i, y in enumerate(ribs):
         p += rib(f"rib{i}", TUN_W, TUN_WALL_H, TUN_RISE, y, m["tubing"], depth=0.2)
@@ -1196,7 +1223,7 @@ def build_junction_hall(outdir, save_fn, reset_fn):
     m = mats()
     p = []
     p.append(cyl("floor", JUNC_R + 0.6, 0.3, (0, 0, -0.15), m["concrete"], (0, 0, 0), 64))
-    p.append(cyl("ceiling", JUNC_R + 0.6, 0.4, (0, 0, JUNC_H + 0.2), m["concrete"], (0, 0, 0), 64))
+    p.append(cyl("ceiling", JUNC_R + 0.6, 0.4, (0, 0, JUNC_H + 0.2), m["plaster"], (0, 0, 0), 64))
     for k in range(16):
         a = k * math.pi / 8
         L = JUNC_R - 1.0
@@ -1267,6 +1294,7 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_corridor(outdir, save_fn, reset_fn)
     build_station(outdir, save_fn, reset_fn)
     build_tunnel(outdir, save_fn, reset_fn)
+    build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_tile", "tile")   # у станций, в кафеле
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_junction_hall(outdir, save_fn, reset_fn)
     build_junction_wall(outdir, save_fn, reset_fn)

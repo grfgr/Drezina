@@ -11,6 +11,7 @@ import os
 import sys
 
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 rng = np.random.default_rng(17)
@@ -575,7 +576,9 @@ RVMAT_PARAMS = {
     "metro_sign_tp": (0.12, 40, 0.3, 0.35, "0, 0, 0, 1"),
     "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
-    "metro_wall": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
+    "metro_wall": (0.35, 60, 0.0, 0.9, "0, 0, 0, 1"),          # кафель (metro_pbr.py)
+    "metro_brick": (0.1, 15, 0.0, 0.2, "0, 0, 0, 1"),
+    "metro_plaster": (0.05, 10, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_wall_b": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
     "metro_wall_c": (0.12, 30, 0.0, 0.3, "0, 0, 0, 1"),
     "metro_hazard": (0.1, 30, 0.2, 0.3, "0, 0, 0, 1"),
@@ -603,6 +606,8 @@ DETAIL_MAPS = {
     "drezina_plate": (0.8, 0.3),
     "metro_concrete": (1.4, 0.05),
     "metro_wall": (0.9, 0.12),
+    "metro_brick": (1.0, 0.1),
+    "metro_plaster": (1.0, 0.05),
     "metro_wall_b": (0.9, 0.15),
     "metro_wall_c": (1.1, 0.3),
     "metro_door": (1.0, 0.3),
@@ -658,6 +663,9 @@ def write_rvmats(out):
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
             text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.35, 0.35, 0.35, 1};")
+        if name.startswith("metro_"):
+            # поверхность «бетон»: звук шагов и попаданий по всему метро
+            text = 'surfaceInfo = "dz\\data\\data\\penetration\\concrete.bisurf";\n' + text
         with open(os.path.join(out, name + ".rvmat"), "w") as f:
             f.write(text)
 
@@ -707,8 +715,13 @@ def main():
     save(vanilla_grade(painted_board_tex(size, ["СТОЙ!", "ПРОПУСК"], (150, 25, 20), seed=10), 0.4), os.path.join(out, "metro_sign_board10_co.png"))
     save(vanilla_grade(painted_board_tex(size, ["ОПАСНО!", "ОБРУШЕНИЕ"], (25, 25, 22), seed=11), 0.4), os.path.join(out, "metro_sign_board11_co.png"))
     save(sign_tex(size // 2, ["ТП-4", "380 В  НЕ ВКЛЮЧАТЬ"], bg=(60, 70, 64), fg=(220, 210, 60)), os.path.join(out, "metro_sign_tp_co.png"))
+    # кафель, кирпич и штукатурка метро — с настоящей картой высот (metro_pbr.py), остальное — из яркости
+    import metro_pbr
+    metro_pbr.main(out)
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
+            if name in ("metro_wall", "metro_brick", "metro_plaster"):
+                continue
             detail_maps(out, name, strength, shine)
     write_rvmats(out)
     print("[Drezina] textures written to", out)

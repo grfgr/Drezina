@@ -371,6 +371,9 @@ class DrezinaTunnelManager
 			if (!nearJ && d + DrezinaConst.TUNNEL_PIECE_LEN <= tEnd && DrezinaTrackManager.IsStraight(s, d, d + DrezinaConst.TUNNEL_PIECE_LEN))
 			{
 				type = variants[(piece10 * 5 + t.Id) % variants.Count()];
+				// первые 10 м от каждой станции — в кафеле, дальше кирпич
+				if (d < tStart + 1.0 || d + DrezinaConst.TUNNEL_PIECE_LEN > tEnd - 1.0)
+					type = "Drezina_Tunnel10Tile";
 				piece10++;
 				piece = DrezinaConst.TUNNEL_PIECE_LEN;
 			}
@@ -515,27 +518,29 @@ class DrezinaTunnelManager
 			vector e, inward, side;
 			GetBunkerFrame(t, end, e, inward, side);
 
-			// станция: 2 ряда по 4 светильника под сводом
+			// настенные светильники («бочонок» в решётке): лицом от стены
+			// станция: на обеих боковых стенах через 6 м, под трубами
 			vector center = e + inward * (DrezinaConst.STATION_LEN * 0.5 - DrezinaConst.STATION_BACK);
 			for (int ly = 0; ly < 4; ly++)
 			{
-				float yy = -8.0 + ly * 6.0;
-				SpawnLamp(key, center + side * -3.0 + inward * yy + up * 5.2, inward, objs);
-				SpawnLamp(key, center + side * 3.0 + inward * yy + up * 5.2, inward, objs);
+				float yy = -9.0 + ly * 6.0;
+				SpawnLamp(key, center + side * -6.0 + inward * yy + up * 1.95, side, objs);
+				SpawnLamp(key, center + side * 6.0 + inward * yy + up * 1.95, side * -1, objs);
 			}
-			// коридор
+			// коридор: по светильнику на каждой стене
 			vector cIn;
 			vector cor = GetCorridorPos(t, end, cIn);
-			SpawnLamp(key, cor + cIn * -2.0 + up * 2.78, cIn, objs);
-			SpawnLamp(key, cor + cIn * 2.0 + up * 2.78, cIn, objs);
-			// лестница: над каждой площадкой, на боковой стене
+			vector cSide = Side(cIn);
+			SpawnLamp(key, cor + cIn * -2.0 + cSide * -1.2 + up * 1.95, cSide, objs);
+			SpawnLamp(key, cor + cIn * 2.0 + cSide * 1.2 + up * 1.95, cSide * -1, objs);
+			// лестница: над каждой площадкой, на боковой стене шахты
 			vector sIn;
 			vector st = GetStairsPos(t, end, sIn);
 			vector sSide = Side(sIn);
 			float landY[5] = {2.5, -2.5, 2.5, -2.5, 2.5};
 			float landZ[5] = {9.6, 7.2, 4.8, 2.4, 0.0};
 			for (int li = 0; li < 5; li++)
-				SpawnLamp(key, st + sSide * -1.45 + sIn * landY[li] + up * (landZ[li] + 2.3), sIn, objs);
+				SpawnLamp(key, st + sSide * -1.6 + sIn * landY[li] + up * (landZ[li] + 2.1), sSide, objs);
 
 			// генератор
 			EntityAI gen = SpawnGenerator(t, end);
@@ -555,8 +560,10 @@ class DrezinaTunnelManager
 			if (d > len * 0.5)
 				tkey = Key(t.Id, 1);
 			float jr3;
+			// на левой стене (со стороны служебного прохода), над трубами
+			vector lside = Side(ld.Normalized());
 			if (JunctionDist(t.Id, lp, jr3) > jr3 + 1.0)
-				SpawnLamp(tkey, lp + up * 4.85, ld.Normalized(), objs);
+				SpawnLamp(tkey, lp + lside * -3.0 + up * 2.05, lside, objs);
 			d += DrezinaConst.LAMP_STEP;
 		}
 	}
@@ -1010,11 +1017,11 @@ class DrezinaTunnelManager
 				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", c + o * (R + 0.25), o * -1.0));
 		}
 		AddObj(j.Objects, DrezinaUnderground.AddZone(c + Vector(0, 3.4, 0), Vector(R * 2 + 1, 7.2, R * 2 + 1), j.DirA, "drezina junction " + j.A + "x" + j.B));
-		// свет зала — от генератора ближней станции линии A
+		// свет зала — от генератора ближней станции линии A; светильники на стене между входами
 		for (int li = 0; li < 8; li++)
 		{
 			vector lo = ArmDir(DirAngle(j.DirA) + li * Math.PI * 0.25 + Math.PI * 0.125);
-			SpawnLamp(Key(ta.Id, 0), c + lo * (R - 5.0) + Vector(0, 6.4, 0), lo, j.Objects);
+			SpawnLamp(Key(ta.Id, 0), c + lo * R + Vector(0, 2.2, 0), lo * -1.0, j.Objects);
 		}
 
 		float railY = c[1] + DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset;

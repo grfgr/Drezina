@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel10E", "Drezina_Tunnel10F", "Drezina_Tunnel10G", "Drezina_Tunnel2", "Drezina_JunctionHall", "Drezina_JunctionWall", "Drezina_JunctionPortal", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
+		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10Tile", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel10E", "Drezina_Tunnel10F", "Drezina_Tunnel10G", "Drezina_Tunnel2", "Drezina_JunctionHall", "Drezina_JunctionWall", "Drezina_JunctionPortal", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
@@ -702,7 +702,12 @@ class CfgVehicles
 		model = "\Drezina\data\tunnel_10m.p3d";
 	};
 
-	// Варианты звена 10 м с антуражем: обвал и разбитая лампа (B), вагонетка и бочки (C), протечка и заначка (D).
+	// звено у станции: стены в кафеле (дальше по тоннелю — кирпич)
+	class Drezina_Tunnel10Tile: Drezina_Tunnel10
+	{
+		model = "\Drezina\data\tunnel_10m_tile.p3d";
+	};
+	// (старые варианты звена; сейчас не используются)
 	class Drezina_Tunnel10B: Drezina_Tunnel10
 	{
 		model = "\Drezina\data\tunnel_10m_b.p3d";

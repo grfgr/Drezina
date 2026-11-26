@@ -39,6 +39,7 @@ MODELS = {
     "dispenser": (500.0, False),
     "tunnel_lamp": (2.0, False),
     "tunnel_10m": (20000.0, False),
+    "tunnel_10m_tile": (20000.0, False),
     "tunnel_10m_b": (20000.0, False),
     "tunnel_10m_c": (20000.0, False),
     "tunnel_10m_d": (20000.0, False),

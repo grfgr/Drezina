@@ -15,6 +15,7 @@ class Drezina_MetroLadder extends House
 }
 
 class Drezina_Tunnel10 extends House {}
+class Drezina_Tunnel10Tile extends Drezina_Tunnel10 {}
 class Drezina_Tunnel10B extends Drezina_Tunnel10 {}
 class Drezina_Tunnel10C extends Drezina_Tunnel10 {}
 class Drezina_Tunnel10D extends Drezina_Tunnel10 {}
@@ -74,7 +75,8 @@ class Drezina_TunnelLamp extends ItemBase
 			SetObjectMaterial(0, "Drezina\\data\\textures\\drezina_glass.rvmat");
 		if (m_On && !m_Light)
 		{
-			m_Light = Drezina_TunnelLight.Cast(ScriptedLightBase.CreateLight(Drezina_TunnelLight, GetPosition() - Vector(0, 0.45, 0)));
+			// светильник настенный: свет перед стеклом
+			m_Light = Drezina_TunnelLight.Cast(ScriptedLightBase.CreateLight(Drezina_TunnelLight, GetPosition() + GetDirection() * 0.3));
 		}
 		else if (!m_On && m_Light)
 		{
