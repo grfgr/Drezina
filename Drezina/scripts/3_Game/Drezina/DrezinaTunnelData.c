@@ -7,6 +7,8 @@ class DrezinaTunnelData
 	float  FloorY;   // высота пола тоннеля
 	bool   Zone;     // true — тоннель в отдельной локации за картой
 	int    TrackId;  // путь (DrezinaTrack) внутри тоннеля
+	vector FaceA;    // куда смотрит вход A (взгляд админа при /metro a | /rail start); 0 — вдоль линии
+	vector FaceB;    // куда смотрит выход B
 }
 
 class DrezinaTunnelsDB

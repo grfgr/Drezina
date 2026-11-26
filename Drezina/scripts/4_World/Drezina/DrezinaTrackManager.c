@@ -172,7 +172,11 @@ class DrezinaTrackManager extends Managed
 		vector side = Vector(dir[2], 0, -dir[0]).Normalized();
 		if (!atStart)
 			side = side * -1;
-		vector dPos = pos + side * st.DispenserSideOffset;
+		float sideOff = st.DispenserSideOffset;
+		// в метро — вплотную к стене станции (стена в 6 м от оси пути, будка глубиной 0.9 м)
+		if (t.m_Data.Name.IndexOf("Метро") == 0)
+			sideOff = 5.02;
+		vector dPos = pos + side * sideOff;
 
 		// Станция смотрит на путь.
 		Drezina_Dispenser disp = Drezina_Dispenser.Cast(SpawnStatic("Drezina_Dispenser", dPos, side * -1));

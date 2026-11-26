@@ -60,7 +60,7 @@ LOD_RES = [1.0, 4.0, 10.0, 25.0]
 
 # Материал граней в Geometry / Fire Geometry / Roadway: по нему игра выбирает звук шагов,
 # следы попаданий и пробиваемость (ванильные penetration-rvmat ссылаются на свой .bisurf).
-SURF_CONCRETE = "dz\\data\\data\\penetration\\concrete.rvmat"
+SURF_CONCRETE = "Drezina\\data\\textures\\drezina_surface_concrete.rvmat"   # свой rvmat с concrete.bisurf
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
 SURFACE = {
@@ -231,7 +231,7 @@ def components_lod(geoms, resolution, mass=None, roadway=False, proxies=(), surf
         points += pts
         f0 = len(faces)
         for q in quads:
-            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], "", surface))
+            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], "#(argb,8,8,3)color(0.5,0.5,0.5,1,co)" if roadway else "", surface))
         comp.append((range(base, base + len(pts)), range(f0, len(faces))))
         if not roadway and "sel" in o:
             for sname in str(o["sel"]).split(","):

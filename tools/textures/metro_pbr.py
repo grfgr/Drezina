@@ -128,8 +128,8 @@ def tile_wall(out, seed=101):
     nx, ny = int(np.ceil(N / T)) + 1, int(np.ceil(N / T)) + 1
     # раскладка цвета по рядам (как на фото): 0-4 зелёные, 5 белый, 6 зелёный, выше белые
     green_rows = np.isin(iy, [0, 1, 2, 3, 4, 6])
-    white = col(214, 212, 202)
-    green = col(22, 92, 54)
+    white = col(196, 192, 178)
+    green = col(20, 80, 48)
     base = np.where(green_rows[..., None], green, white)
     # тон и глазурь у каждой плитки свои
     jit = rng.normal(0, 1, (ny, nx, 3)).astype(np.float32)
@@ -187,8 +187,15 @@ def tile_wall(out, seed=101):
     c = lerp(c, col(52, 46, 38), floor_dirt * 0.65)
     st = _streaks(N, rng, 0.4) * np.clip(zb / N, 0.2, 1)
     c = lerp(c, col(110, 96, 74), np.clip(st, 0, 1) * 0.35)
-    soot = _noise(N, 90, 5, rng) ** 4
-    c = lerp(c, col(60, 56, 50), soot * 0.3)
+    soot = _noise(N, 90, 5, rng) ** 3
+    c = lerp(c, col(56, 52, 46), soot * 0.45)
+    # крупные водяные разводы сверху вниз и пожелтение старой глазури
+    stain = np.clip(_streaks(N, rng, 0.75) * 1.3, 0, 1) * np.clip(zb / N + 0.2, 0, 1)
+    c = lerp(c, col(128, 112, 82), stain * 0.4)
+    c = lerp(c, col(170, 156, 120), _noise(N, 120, 4, rng) * 0.25)
+    # затенение у пола и под сводом (как ambient occlusion)
+    ao = np.clip(zb / (0.35 * PX), 0, 1) * np.clip((N - zb) / (0.3 * PX), 0, 1)
+    c = c * (0.62 + 0.38 * ao[..., None])
     grime = np.clip(grout * 0.5 + floor_dirt, 0, 1)
 
     spec = np.where(grout > 0, 0.05, 0.75) * (1 - mm * 0.9) * (1 - floor_dirt * 0.6) * (1 - soot * 0.5)
@@ -252,7 +259,7 @@ def brick_wall(out, seed=202):
 
 def plaster(out, seed=303):
     rng = np.random.default_rng(seed)
-    base = lerp(col(176, 172, 162), col(152, 148, 138), _noise(N, 60, 5, rng))
+    base = lerp(col(150, 146, 136), col(118, 114, 106), _noise(N, 60, 5, rng))
     trowel = _noise(N, 18, 3, rng, stretch=(3, 1)) * 0.6 + _noise(N, 10, 3, rng, stretch=(1, 2)) * 0.4
     c = base * (0.94 + trowel[..., None] * 0.1)
     h = trowel * 0.25 + _noise(N, 2, 3, rng) * 0.05 + _fine(rng, 0.05)
@@ -273,8 +280,9 @@ def plaster(out, seed=303):
     ring = np.clip(1 - np.abs(_noise(N, 70, 4, rng) - 0.62) * 25, 0, 1)
     c = lerp(c, col(150, 120, 80), leak * 0.4)
     c = lerp(c, col(120, 90, 55), ring * 0.35)
-    soot = _noise(N, 80, 5, rng) ** 2.5
-    c = lerp(c, col(48, 44, 40), soot * 0.55)
+    soot = _noise(N, 80, 5, rng) ** 2
+    c = lerp(c, col(44, 40, 36), soot * 0.6)
+    c = lerp(c, col(100, 92, 74), np.clip(_streaks(N, rng, 0.6), 0, 1) * 0.35)
     spec = 0.06 + leak * 0.1
     gloss = 0.1 + leak * 0.15
     write(out, "metro_plaster", np.clip(c, 0, 1), h, 6.0, spec, gloss)
@@ -355,9 +363,11 @@ def concrete_ext(out, seed=606):
     c = c * (1 - tie[..., None] * 0.55)
     # дождевые потёки сверху, мох и лишайник у земли и пятнами, трещины, отколы с арматурой
     st = _streaks(N, rng, 0.7)
-    c = lerp(c, col(70, 68, 62), np.clip(st, 0, 1) * 0.55)
+    c = lerp(c, col(58, 56, 50), np.clip(st, 0, 1) * 0.7)
+    c = c * (0.82 + _noise(N, 50, 4, rng)[..., None] * 0.18)          # потемневший старый бетон
     moss_m = np.clip(1 - zb / (0.6 * PX), 0, 1) * _noise(N, 12, 5, rng) + np.clip((_noise(N, 30, 5, rng) - 0.72) * 3, 0, 1)
-    moss = np.clip(moss_m * 1.4 - 0.3, 0, 1)
+    moss_m = moss_m + np.clip(zb / N - 0.75, 0, 1) * 2.5 * _noise(N, 10, 5, rng)      # мох и сверху (с насыпи)
+    moss = np.clip(moss_m * 1.6 - 0.25, 0, 1)
     c = lerp(c, lerp(col(70, 84, 44), col(52, 62, 34), _noise(N, 4, 3, rng)), moss * 0.75)
     lich = _speckles(rng, 0.006, 3) * (_noise(N, 40, 4, rng) > 0.5)
     c = lerp(c, col(150, 150, 110), lich * 0.6)
@@ -420,23 +430,49 @@ def painted_metal(out, rng, name, paint, stripes=False):
 
 def soil(out, seed=707):
     rng = np.random.default_rng(seed)
-    c = lerp(col(78, 64, 46), col(104, 88, 64), _noise(N, 30, 6, rng))
+    c = lerp(col(66, 54, 38), col(92, 78, 54), _noise(N, 30, 6, rng))
     c = c * (1 + _fine(rng, 0.14)[..., None])
     peb = _speckles(rng, 0.012, 4)
     c = lerp(c, lerp(col(130, 126, 116), col(90, 88, 82), _noise(N, 3, 2, rng)), peb * 0.8)
-    grass_m = np.clip((_noise(N, 25, 5, rng) - 0.42) * 3, 0, 1)
+    grass_m = np.clip((_noise(N, 25, 5, rng) - 0.25) * 3, 0, 1)
     blades = np.clip(_noise(N, 1.2, 2, rng, stretch=(1, 8)) + _fine(rng, 0.3), 0, 1)
     grass = grass_m * (blades > 0.5)
-    c = lerp(c, lerp(col(70, 86, 38), col(108, 112, 54), _noise(N, 5, 3, rng)), grass * 0.85)
+    dry = lerp(col(128, 112, 62), col(96, 94, 50), _noise(N, 5, 3, rng))          # сухая осенняя трава
+    c = lerp(c, dry, grass * 0.9)
+    leaves = _speckles(rng, 0.004, 6) * (_noise(N, 20, 4, rng) > 0.4)
+    c = lerp(c, col(150, 98, 40), leaves * 0.7)
     h = _noise(N, 8, 4, rng) * 0.2 + peb * 0.25 + grass * blades * 0.15 + _fine(rng, 0.06)
     spec = 0.04 + grass * 0.04
     gloss = 0.06 + grass * 0.05
     _write2k(out, "metro_dirt", np.clip(c, 0, 1), h, 6.0, spec, gloss)
 
 
+def tubing_iron(out, seed=909):
+    """Чугунные рёбра-тюбинги: литая рябь, ржавчина пятнами и потёками, известковые натёки, болтовые отверстия."""
+    rng = np.random.default_rng(seed)
+    c = lerp(col(54, 52, 50), col(34, 33, 32), _noise(N, 20, 5, rng))
+    c = c * (1 + _fine(rng, 0.12)[..., None])
+    cast = _noise(N, 3, 3, rng)
+    c = c * (0.9 + cast[..., None] * 0.16)
+    rust_m = np.clip((_noise(N, 40, 6, rng) - 0.5) * 3, 0, 1)
+    rust = lerp(col(110, 56, 28), col(70, 38, 22), _noise(N, 4, 3, rng))
+    c = lerp(c, rust, rust_m * 0.8)
+    run = np.clip(_streaks(N, rng, 0.5), 0, 1)
+    c = lerp(c, col(120, 64, 30), run * 0.5)
+    lime = np.clip(_streaks(N, rng, 0.3) * 1.3, 0, 1)
+    c = lerp(c, col(176, 170, 152), lime * 0.5)
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32)
+    g = N / 8
+    holes = (((xx % g) - g / 2) ** 2 + ((yy % g) - g / 2) ** 2 < (N / 140) ** 2).astype(np.float32)
+    c = c * (1 - holes[..., None] * 0.7)
+    h = cast * 0.15 + _fine(rng, 0.05) + rust_m * _noise(N, 2, 2, rng) * 0.15 - holes * 0.6
+    spec = 0.2 * (1 - rust_m) + 0.04
+    gloss = 0.3 * (1 - rust_m) + 0.05
+    _write2k(out, "metro_tubing", np.clip(c, 0, 1), h, 7.0, spec, gloss)
+
+
 def main(out):
     tile_wall(out)
-    brick_wall(out)
     plaster(out)
     concrete_floor(out)
     concrete_ext(out)
@@ -444,6 +480,7 @@ def main(out):
     painted_metal(out, rng, "metro_door", (88, 98, 88))
     painted_metal(out, rng, "metro_hazard", None, stripes=True)
     soil(out)
+    tubing_iron(out)
     detail_dt(out)
 
 

@@ -578,7 +578,6 @@ RVMAT_PARAMS = {
     "drezina_ballast": (0.02, 8, 0.0, 0.05, "0, 0, 0, 1"),
     "drezina_railtop": (0.6, 120, 1.0, 0.75, "0, 0, 0, 1"),
     "metro_wall": (0.35, 60, 0.0, 0.9, "0, 0, 0, 1"),          # кафель (metro_pbr.py)
-    "metro_brick": (0.1, 15, 0.0, 0.2, "0, 0, 0, 1"),
     "metro_plaster": (0.05, 10, 0.0, 0.1, "0, 0, 0, 1"),
     "metro_wall_b": (0.05, 15, 0.0, 0.15, "0, 0, 0, 1"),
     "metro_wall_c": (0.12, 30, 0.0, 0.3, "0, 0, 0, 1"),
@@ -608,7 +607,6 @@ DETAIL_MAPS = {
     "metro_concrete": (1.4, 0.05),
     "metro_concrete_ext": (1.4, 0.05),
     "metro_wall": (0.9, 0.12),
-    "metro_brick": (1.0, 0.1),
     "metro_plaster": (1.0, 0.05),
     "metro_wall_b": (0.9, 0.15),
     "metro_wall_c": (1.1, 0.3),
@@ -665,7 +663,7 @@ def write_rvmats(out):
             text = text.replace('"#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)"', '"%s_nohq.paa"' % tex)
             text = text.replace('"#(argb,8,8,3)color(%s,%s,1,1,SMDI)"' % (metal, gloss), '"%s_smdi.paa"' % tex)
             text = text.replace("specular[] = {%s, %s, %s, 1};" % (spec, spec, spec), "specular[] = {0.35, 0.35, 0.35, 1};")
-        if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt"):
+        if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt", "metro_tubing"):
             # детальная текстура поверх цвета с повтором x8 — вблизи без «мыла»
             text = text.replace('''	texture = "#(argb,8,8,3)color(0.5,0.5,0.5,1,DT)";
 	uvSource = "tex";''', '''	texture = "Drezina\\data\\textures\\metro_detail_dt.paa";
@@ -734,10 +732,16 @@ def main():
     metro_pbr.main(out)
     if USE_DETAIL_MAPS:
         for name, (strength, shine) in DETAIL_MAPS.items():
-            if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt"):
+            if name in ("metro_wall", "metro_brick", "metro_plaster", "metro_concrete", "metro_concrete_ext", "metro_door", "metro_hazard", "metro_dirt", "metro_tubing"):
                 continue
             detail_maps(out, name, strength, shine)
     write_rvmats(out)
+    # материал поверхности для Geometry / Roadway метро: звук шагов «бетон» (без него — звук земли сверху)
+    with open(os.path.join(out, "drezina_surface_concrete.rvmat"), "w") as f:
+        f.write('surfaceInfo = "dz\\data\\data\\penetration\\concrete.bisurf";\n'
+                'ambient[] = {1, 1, 1, 1};\ndiffuse[] = {1, 1, 1, 1};\nforcedDiffuse[] = {0, 0, 0, 0};\n'
+                'emmisive[] = {0, 0, 0, 1};\nspecular[] = {0, 0, 0, 1};\nspecularPower = 1;\n'
+                'PixelShaderID = "Normal";\nVertexShaderID = "Basic";\n')
     print("[Drezina] textures written to", out)
 
 
