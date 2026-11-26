@@ -1756,30 +1756,36 @@ class DrezinaTunnelManager
 		}
 		if (best == 0)
 			return 0;
-		// с какой стороны оси подходит линия
-		vector side = Side(bestDir);
+		// линия идёт от точки развязки прямо к своей следующей точке маршрута (как она и задумана),
+		// а не перпендикулярно оси: так нет крюка перед залом. Слишком острый угол (< 45° к оси)
+		// доворачиваем до 45°, иначе съезды на основную линию выходят слишком крутыми.
 		vector toNb = route[nb] - bestX;
 		toNb[1] = 0;
-		if (vector.Dot(toNb, side) < 0)
+		vector dir = toNb.Normalized();
+		vector side = Side(bestDir);
+		if (vector.Dot(dir, side) < 0)
 			side = side * -1.0;
+		float along = vector.Dot(dir, bestDir);
+		float c45 = 0.7071;
+		if (Math.AbsFloat(along) > c45)
+		{
+			float sa = 1;
+			if (along < 0)
+				sa = -1;
+			dir = (side * c45 + bestDir * (sa * c45)).Normalized();
+		}
 		joinPoint = bestX;
-		// три точки на одной прямой, перпендикулярной оси: сплайн до зала строго прямой и входит в портал
-		vector stub = bestX + side * JOIN_STUB;
-		vector mid = bestX + side * (JOIN_STUB + 12.0);
-		vector approach = bestX + side * (JOIN_STUB + 30.0);
+		vector stub = bestX + dir * JOIN_STUB;
+		vector mid = bestX + dir * (JOIN_STUB + 14.0);
 		stub[1] = p[1];
 		mid[1] = p[1];
-		approach[1] = p[1];
 		route[idx] = stub;
-		if (end == 0)
+		if (toNb.Length() > JOIN_STUB + 24.0)          // промежуточная точка — только если до следующей далеко
 		{
-			route.InsertAt(approach, 1);
-			route.InsertAt(mid, 1);
-		}
-		else
-		{
-			route.InsertAt(approach, route.Count() - 1);
-			route.InsertAt(mid, route.Count() - 1);
+			if (end == 0)
+				route.InsertAt(mid, 1);
+			else
+				route.InsertAt(mid, route.Count() - 1);
 		}
 		return best;
 	}
