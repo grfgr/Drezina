@@ -32,6 +32,63 @@ class Drezina_Trailer extends CarScript
 		RegisterNetSyncVariableBool("m_OffRail");
 		s_All.Insert(this);
 		GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(Follow);
+		if (!GetGame().IsDedicatedServer())
+			SetEventMask(EntityEvent.FRAME | EntityEvent.POSTSIMULATE);
+	}
+
+	// Клиент: прицеп — по той дрезине, которую видит этот игрок, каждый кадр и после шага физики
+	// (последним — чтобы поправки с сервера не перебивали). Положение с сервера приходит с задержкой
+	// сети, а своя дрезина у водителя — без неё: отставание = скорость × задержка, отсюда дребезг,
+	// тем сильнее, чем быстрее едешь.
+	override void EOnPostSimulate(IEntity other, float timeSlice)
+	{
+		super.EOnPostSimulate(other, timeSlice);
+		if (!GetGame().IsServer())
+			ClientFollow();
+	}
+
+	override void EOnFrame(IEntity other, float timeSlice)
+	{
+		super.EOnFrame(other, timeSlice);
+		if (!GetGame().IsServer())
+			ClientFollow();
+	}
+
+	void ClientFollow()
+	{
+		if (m_OffRail)
+			return;
+		Drezina_Motor lead = Leader();
+		if (!lead || lead.m_OffRail)
+			return;
+		DrezinaTrack t = lead.GetTrack();
+		if (!t)
+			return;
+		float ld = m_LeadHint;
+		if (m_LeadHintTrack != t.GetId())
+			ld = -1;
+		m_LeadHintTrack = t.GetId();
+		vector lp = lead.GetPosition();
+		if (ld < 0)
+		{
+			float off;
+			ld = t.ClosestDistance(lp, off);
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			vector p, dir;
+			t.GetPosDir(ld, p, dir);
+			ld = Math.Clamp(ld + vector.Dot(lp - p, dir), 0, t.GetLength());
+		}
+		m_LeadHint = ld;
+		DrezinaTrack tt;
+		float td;
+		int tface;
+		lead.TrailerPose(t, ld, tt, td, tface);
+		vector pm[4];
+		Drezina_Motor.TrackTransformFace(tt, Math.Clamp(td, 0, tt.GetLength()), tface, pm);
+		float lv = vector.Dot(GetVelocity(lead), lead.GetDirection());
+		FollowAt(tt, td, tface, pm[2] * lv);
 	}
 
 	void ~Drezina_Trailer()
