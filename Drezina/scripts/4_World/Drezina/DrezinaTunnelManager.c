@@ -428,31 +428,7 @@ class DrezinaTunnelManager
 				AddObj(objs, DrezinaTrackManager.SpawnStatic(type, pos, dir.Normalized()));
 			d += piece;
 		}
-		// у станции тоннель может сразу уходить в поворот: первое звено повёрнуто, и между торцом
-		// станции и тоннелем снаружи поворота оставалась щель. Короткое звено по оси станции её закрывает.
-		for (int se = 0; se <= 1; se++)
-		{
-			if (IsJoined(t, se))
-				continue;
-			float md = tStart;
-			float mOff = tStart;
-			vector sIn = iA;
-			vector sEnd = pA;
-			if (se == 1)
-			{
-				md = tEnd;
-				mOff = len - tEnd;
-				sIn = iB;
-				sEnd = pB;
-			}
-			vector mp, mdir;
-			s.GetPosDir(md, mp, mdir);
-			sIn[1] = 0;
-			sIn = sIn.Normalized();
-			vector mouth = sEnd + sIn * mOff;          // торец станции — по её оси (станция прямая)
-			mouth[1] = mp[1];
-			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", mouth + sIn * 1.0, sIn));
-		}
+		// (короткое звено по оси станции у её торца убрано: дрезина в него упиралась у входа на станцию)
 
 		// бункер у обоих концов: коридор + лестничная шахта (освещения нет — нужен фонарь)
 		for (int be = 0; be <= 1; be++)

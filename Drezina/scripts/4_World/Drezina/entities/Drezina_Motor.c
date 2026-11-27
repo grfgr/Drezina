@@ -217,6 +217,12 @@ class Drezina_Motor extends CarScript
 			int n = pSeatSelection.Substring(10, pSeatSelection.Length() - 10).ToInt();
 			if (n >= 3)
 			{
+				if (GetGame().GetTime() - m_DbgSeatTime > 1000)
+				{
+					m_DbgSeatTime = GetGame().GetTime();
+					vector dbgWs = ModelToWorld(GetMemoryPointPos("pos_cargo" + n));
+					Print("[Drezina] посадка в прицеп: место " + pSeatSelection + ", прицеп=" + m_TrailerType + ", точка есть=" + MemoryPointExists("pos_cargo" + n) + ", до точки " + vector.Distance(Vector(pFromPos[0], 0, pFromPos[2]), Vector(dbgWs[0], 0, dbgWs[2])) + " м");
+				}
 				if (m_TrailerType != 1)
 					return false;
 				string pos = "pos_cargo" + n;
@@ -793,6 +799,7 @@ class Drezina_Motor extends CarScript
 	int m_CliTime = 0;
 	int m_SentTransferTrack = -1;
 	float m_DbgPrevV;
+	int m_DbgSeatTime;
 	int m_DbgTime;
 	int m_SentTransferTime = 0;
 	Drezina_LanternLight m_Lantern;
