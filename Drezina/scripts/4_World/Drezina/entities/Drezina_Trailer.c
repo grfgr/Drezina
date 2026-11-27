@@ -380,6 +380,8 @@ class Drezina_Trailer extends CarScript
 		}
 		if (!lead || m_OffRail || lead.m_OffRail)
 			return;
+		if (!GetGame().IsServer())
+			ClientFollow();      // и в очереди кадра: если события кадра у этой машины не приходят
 		// колёса крутятся со скоростью ведущей
 		if (!GetGame().IsDedicatedServer() && dt > 0 && dt < 0.5)
 		{

@@ -1873,6 +1873,8 @@ class DrezinaTunnelManager
 		int best = 0;
 		float bestDist = JOIN_RADIUS;
 		vector bestX, bestDir;
+		float bestD = 0;
+		DrezinaTrack bestS;
 		foreach (int id, DrezinaTunnelData ot : m_Tunnels)
 		{
 			if (ot.Zone)
@@ -1890,6 +1892,8 @@ class DrezinaTunnelManager
 			bestDist = off;
 			bestX = x;
 			bestDir = Flat(sdir);
+			bestD = d;
+			bestS = s;
 			floorY = ot.FloorY;
 		}
 		if (best == 0)
@@ -1899,6 +1903,21 @@ class DrezinaTunnelManager
 		// доворачиваем до 45°, иначе съезды на основную линию выходят слишком крутыми.
 		vector toNb = route[nb] - bestX;
 		toNb[1] = 0;
+		// острый угол (< 45° к оси): сдвигаем сам зал вдоль основной линии так, чтобы линия шла к нему
+		// прямо под 45°, без поворота у зала (иначе тоннель ломался у портала и рельсы были кривые)
+		float aAlong = vector.Dot(toNb, bestDir);
+		float hSide = Math.AbsFloat(vector.Dot(toNb, Side(bestDir)));
+		if (bestS && Math.AbsFloat(aAlong) > hSide)
+		{
+			float shiftD = aAlong - Math.Sign(aAlong) * hSide;
+			float newD = Math.Clamp(bestD + shiftD, JUNC_END_CLEAR, bestS.GetLength() - JUNC_END_CLEAR);
+			vector nx, ndir;
+			bestS.GetPosDir(newD, nx, ndir);
+			bestX = nx;
+			bestDir = Flat(ndir);
+			toNb = route[nb] - bestX;
+			toNb[1] = 0;
+		}
 		vector dir = toNb.Normalized();
 		vector side = Side(bestDir);
 		if (vector.Dot(dir, side) < 0)
