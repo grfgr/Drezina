@@ -202,6 +202,23 @@ class Drezina_Motor extends CarScript
 		return !m_OffRail;   // дверей нет; снятую с рельсов сначала ставят обратно
 	}
 
+	// у мест прицепа «дверь» — просто бок платформы; ванильная проверка свободного места
+	// задевает саму платформу/картинку прицепа и прячет действие «сесть»
+	override bool IsAreaAtDoorFree(int currentSeat, float maxAllowedObjHeight, inout vector extents, out vector transform[4])
+	{
+		bool free = super.IsAreaAtDoorFree(currentSeat, maxAllowedObjHeight, extents, transform);
+		if (currentSeat >= 3)
+		{
+			if (GetGame().GetTime() - m_DbgDoorTime > 1000)
+			{
+				m_DbgDoorTime = GetGame().GetTime();
+				Print("[Drezina] посадка в прицеп: проверка места " + currentSeat + ", прицеп=" + m_TrailerType + ", свободно(ваниль)=" + free + ", с рельс=" + m_OffRail);
+			}
+			return m_TrailerType == 1;
+		}
+		return free;
+	}
+
 	// места 3..6 — пассажирский прицеп: только когда он прицеплен
 	override bool CanReachSeatFromSeat(int currentSeat, int nextSeat)
 	{
@@ -800,6 +817,7 @@ class Drezina_Motor extends CarScript
 	int m_SentTransferTrack = -1;
 	float m_DbgPrevV;
 	int m_DbgSeatTime;
+	int m_DbgDoorTime;
 	int m_DbgTime;
 	int m_SentTransferTime = 0;
 	Drezina_LanternLight m_Lantern;
