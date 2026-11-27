@@ -380,7 +380,7 @@ def brakes_and_guards(m, out):
     заклёпочные накладки и раскосы рамы, песочница."""
     import bmesh
     R = hz.WHEEL_R
-    for ay in (hz.AXLE_Y, -hz.AXLE_Y):
+    for ay in (hz.AXLE_Y, -hz.AXLE_Y, AX3):
         inner = -1 if ay > 0 else 1                      # колодка с внутренней стороны базы
         by = ay + inner * (R + 0.03)
         for sx in (-1, 1):
@@ -393,8 +393,10 @@ def brakes_and_guards(m, out):
     # продольная тяга от балок к рычагу тормоза
     rod("brake_rod", (0.1, -hz.AXLE_Y + R + 0.06, R - 0.02), (0.1, hz.AXLE_Y - R - 0.06, R - 0.02), 0.009, m["steel"], out)
     rod("brake_rod_up", (0.1, -0.12 + 0.66, R - 0.02), (0.17, -0.12 + 0.66, DECK + 0.08), 0.009, m["steel"], out)
+    # тяга к тормозу третьей оси
+    rod("brake_rod3", (0.1, -hz.AXLE_Y - R - 0.06, R - 0.02), (0.1, AX3 + R + 0.06, R - 0.02), 0.009, m["steel"], out)
     # крылья над колёсами: дуга из листа с отбортовкой и кронштейнами
-    for ay in (hz.AXLE_Y, -hz.AXLE_Y):
+    for ay in (hz.AXLE_Y, -hz.AXLE_Y, AX3):
         for sx in (-1, 1):
             x = sx * (hz.HALF + 0.01)
             bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=R + 0.07, depth=0.16, location=(x, ay, R), rotation=(0, math.radians(90), 0))
@@ -503,7 +505,7 @@ def lamps(m, out, sel_parts):
         for g in glass:
             sel_parts.append((g, sel))
     parts = []
-    hz.headlamp("hl_back", (0.0, -1.29, DECK + 0.02), -1, m, parts)
+    hz.headlamp("hl_back", (0.0, END_Y - 0.12, DECK + 0.02), -1, m, parts)
     for p in parts:
         out.append(p)
         if p.name.endswith("_glass"):
@@ -533,37 +535,105 @@ def extension(m, body, wood):
         body.append(box(f"ax3_hanger{sx}", (0.06, 0.08, DECK - R - 0.05), (x, AX3, (DECK + R) / 2), m["rust"]))
         body.append(box(f"ax3_spring{sx}", (0.06, 0.5, 0.03), (x, AX3, DECK - 0.2), m["steel"]))
     body.append(cyl("ax3_axle", 0.04, 2 * hz.HALF - 0.1, (0, AX3, R), m["rust"], ROT_Y, 12))
+    # заклёпки по швеллерам, карманы для стоек по бортам, раскосы, болты на досках
+    for sx in (-1, 1):
+        hz.bolt_row(f"ext_rv{sx}", (sx * (hz.SILL_X + 0.012), -1.18, DECK - 0.08), (sx * (hz.SILL_X + 0.012), END_Y + 0.08, DECK - 0.08), 9,
+                    "x" if sx > 0 else "-x", m["steel"], body)
+        for k in range(3):
+            y = -1.25 - k * (EXT - 0.2) / 2
+            body.append(box(f"ext_pocket{sx}{k}", (0.05, 0.07, 0.12), (sx * (hz.SILL_X + 0.045), y, DECK - 0.07), m["rust"]))
+        rod(f"ext_diag{sx}", (sx * hz.SILL_X, -1.15, DECK - 0.17), (sx * hz.SILL_X * 0.3, END_Y + 0.05, DECK - 0.17), 0.012, m["rust"], body)
+    for i in range(int(EXT / 0.245)):
+        y = -(1.10 + 0.13 + i * 0.245)
+        for sx in (-1, 1):
+            body.append(hz.bolt(f"ext_db{i}{sx}", (sx * hz.SILL_X, y, DECK + 0.002), "z", m["steel"], 0.011))
+    # задний буферный брус с двумя тарелками и крюк сцепки
+    body.append(box("rear_beam", (1.5, 0.1, 0.16), (0, END_Y - 0.05, DECK - 0.12), m["wood"]))
+    for sx in (-1, 1):
+        body.append(cyl(f"rear_buffer_rod{sx}", 0.03, 0.14, (sx * 0.55, END_Y - 0.16, DECK - 0.12), m["steel"], (math.radians(90), 0, 0), 12))
+        body.append(cyl(f"rear_buffer{sx}", 0.09, 0.025, (sx * 0.55, END_Y - 0.24, DECK - 0.12), m["rust"], (math.radians(90), 0, 0), 20))
+    # ящик с инструментом под настилом и канистра в держателе на борту
+    body.append(box("tool_box", (0.5, 0.3, 0.22), (0.3, -1.95, DECK - 0.24), m["paint"]))
+    body.append(box("tool_box_lid", (0.52, 0.32, 0.02), (0.3, -1.95, DECK - 0.12), m["rust"]))
+    body.append(box("tool_box_lock", (0.05, 0.01, 0.04), (0.3, -1.95 - 0.16, DECK - 0.17), m["steel"]))
+    body.append(box("jerry_holder", (0.03, 0.4, 0.3), (-(hz.SILL_X + 0.09), -1.55, DECK - 0.02), m["rust"]))
+    body.append(box("jerry_can", (0.12, 0.34, 0.42), (-(hz.SILL_X + 0.17), -1.55, DECK + 0.05), m["paint2"]))
+    body.append(cyl("jerry_cap", 0.025, 0.04, (-(hz.SILL_X + 0.17), -1.42, DECK + 0.28), m["steel"], (0, 0, 0), 10))
+
+
+BENCH_SEATS = [(-1, 0.3), (-1, -0.3), (1, 0.3), (1, -0.3)]   # (сторона, сдвиг по длине): места 3..6
 
 
 def module_bench(m, out, y0=None, z0=None):
-    """Модуль «лавочка»: лавка вдоль, спинка посередине — двое сидят лицом наружу, ноги за бортом."""
+    """Модуль «лавочка»: лавка вдоль, спинка посередине — четверо сидят лицом наружу (по двое
+    с каждой стороны), ноги за бортом. Подушка на каждое место, подлокотники, поручень сверху."""
     y0 = MOD_Y if y0 is None else y0
     z0 = DECK if z0 is None else z0
     h = 0.42
-    L = EXT - 0.2
+    L = EXT - 0.12
+    ROTY90 = (0, math.radians(90), 0)
     for sx in (-1, 1):
-        out.append(box(f"mb_seat{sx}", (0.36, L, 0.05), (sx * 0.24, y0, z0 + h - 0.025), m["wood"]))
-        out.append(box(f"mb_cushion{sx}", (0.32, L - 0.1, 0.04), (sx * 0.25, y0, z0 + h + 0.015), m["canvas"]))
+        out.append(box(f"mb_seat{sx}", (0.38, L, 0.05), (sx * 0.24, y0, z0 + h - 0.025), m["wood"]))
+        for dy in (-0.3, 0.3):
+            out.append(box(f"mb_cushion{sx}{dy}", (0.33, 0.52, 0.045), (sx * 0.25, y0 + dy, z0 + h + 0.02), m["canvas"]))
         for dy in (-L / 2 + 0.06, 0.0, L / 2 - 0.06):
-            out.append(box(f"mb_leg{sx}{dy:.2f}", (0.05, 0.05, h - 0.05), (sx * 0.38, y0 + dy, z0 + (h - 0.05) / 2), m["rust"]))
+            out.append(box(f"mb_leg{sx}{dy:.2f}", (0.05, 0.05, h - 0.05), (sx * 0.39, y0 + dy, z0 + (h - 0.05) / 2), m["rust"]))
+            # подлокотники по краям и посередине (делят лавку на два места)
+            out.append(cyl(f"mb_arm{sx}{dy:.2f}", 0.016, 0.34, (sx * 0.25, y0 + dy, z0 + h + 0.2), m["rust"], ROTY90, 8))
+            out.append(cyl(f"mb_arm_post{sx}{dy:.2f}", 0.014, 0.2, (sx * 0.4, y0 + dy, z0 + h + 0.1), m["rust"], (0, 0, 0), 8))
+        out.append(box(f"mb_foot{sx}", (0.12, L, 0.03), (sx * 0.6, y0, z0 + 0.04), m["steel"], (0, math.radians(-15 * sx), 0)))
     for dy in (-L / 2 + 0.06, 0.0, L / 2 - 0.06):
-        out.append(box(f"mb_mid_leg{dy:.2f}", (0.06, 0.06, h + 0.5), (0, y0 + dy, z0 + (h + 0.5) / 2), m["rust"]))
-    for k, z in enumerate((0.2, 0.4)):
-        out.append(box(f"mb_back{k}", (0.035, L, 0.12), (0, y0, z0 + h + z), m["wood"]))
+        out.append(box(f"mb_mid_leg{dy:.2f}", (0.06, 0.06, h + 0.55), (0, y0 + dy, z0 + (h + 0.55) / 2), m["rust"]))
+    for k, z in enumerate((0.18, 0.36)):
+        out.append(box(f"mb_back{k}", (0.04, L, 0.12), (0, y0, z0 + h + z), m["wood"]))
+    out.append(cyl("mb_rail", 0.018, L, (0, y0, z0 + h + 0.55), m["rust"], (math.radians(90), 0, 0), 10))
     out.append(box("mb_base", (0.9, L, 0.03), (0, y0, z0 + 0.015), m["steel"]))
+    for sx in (-1, 1):
+        for dy in (-L / 2 + 0.03, L / 2 - 0.03):
+            out.append(hz.bolt(f"mb_bolt{sx}{dy:.2f}", (sx * 0.4, y0 + dy, z0 + 0.032), "z", m["steel"], 0.012))
 
 
 def module_barrels(m, out, y0=None, z0=None):
-    """Модуль «две бочки»: поддон с гнёздами и ремнями, две ванильного вида бочки поперёк."""
+    """Модуль «две бочки»: поддон с гнёздами, по бокам и с торцов — стальной каркас с сеткой
+    (бочки не выпадут на ходу), поверх бочек ремень с пряжкой."""
     import trailers as tr_mod
     y0 = MOD_Y if y0 is None else y0
     z0 = DECK if z0 is None else z0
-    out.append(box("mbr_pallet", (1.2, EXT - 0.15, 0.05), (0, y0, z0 + 0.025), m["wood"]))
+    L = EXT - 0.12
+    out.append(box("mbr_pallet", (1.36, L, 0.05), (0, y0, z0 + 0.025), m["wood"]))
     for x in (-0.33, 0.33):
         tr_mod.barrel(f"mbr_barrel{x}", x, y0, m, out, z0 + 0.05)
+        out.append(cyl(f"mbr_socket{x}", 0.305, 0.06, (x, y0, z0 + 0.08), m["rust"], (0, 0, 0), 24))
+    H = 0.8
+    xs = 0.66
+    ys = L / 2 - 0.02
     for sx in (-1, 1):
-        out.append(cyl(f"mbr_post{sx}", 0.018, 0.7, (sx * 0.66, y0, z0 + 0.4), m["rust"]))
-    out.append(cyl("mbr_strap", 0.012, 1.32, (0, y0, z0 + 0.7), m["rust"], ROT_Y, 8))
+        for sy in (-1, 0, 1):
+            out.append(box(f"mbr_post{sx}{sy}", (0.04, 0.04, H), (sx * xs, y0 + sy * ys, z0 + 0.05 + H / 2), m["paint"]))
+    for sy in (-1, 1):
+        out.append(box(f"mbr_post_mid_end{sy}", (0.04, 0.04, H), (0, y0 + sy * ys, z0 + 0.05 + H / 2), m["paint"]))
+    for z in (0.12, 0.45, H + 0.03):
+        for sx in (-1, 1):
+            out.append(box(f"mbr_rail_side{sx}{z}", (0.035, 2 * ys, 0.035), (sx * xs, y0, z0 + z), m["paint"]))
+        for sy in (-1, 1):
+            out.append(box(f"mbr_rail_end{sy}{z}", (2 * xs, 0.035, 0.035), (0, y0 + sy * ys, z0 + z), m["paint"]))
+    # сетка по бортам и торцам: вертикальные и горизонтальные прутки
+    for sx in (-1, 1):
+        for k in range(1, 12):
+            yy = y0 - ys + 2 * ys * k / 12
+            out.append(box(f"mbr_mesh_v{sx}{k}", (0.008, 0.008, H - 0.1), (sx * xs, yy, z0 + 0.1 + (H - 0.1) / 2), m["steel"]))
+        for k in range(1, 6):
+            zz = z0 + 0.12 + (H - 0.1) * k / 6
+            out.append(box(f"mbr_mesh_h{sx}{k}", (0.008, 2 * ys, 0.008), (sx * xs, y0, zz), m["steel"]))
+    for sy in (-1, 1):
+        for k in range(1, 12):
+            xx = -xs + 2 * xs * k / 12
+            out.append(box(f"mbr_end_v{sy}{k}", (0.008, 0.008, H - 0.1), (xx, y0 + sy * ys, z0 + 0.1 + (H - 0.1) / 2), m["steel"]))
+        for k in range(1, 6):
+            zz = z0 + 0.12 + (H - 0.1) * k / 6
+            out.append(box(f"mbr_end_h{sy}{k}", (2 * xs, 0.008, 0.008), (0, y0 + sy * ys, zz), m["steel"]))
+    out.append(cyl("mbr_strap", 0.012, 2 * xs, (0, y0, z0 + 0.72), m["rust"], (0, math.radians(90), 0), 8))
+    out.append(box("mbr_buckle", (0.06, 0.03, 0.05), (0.0, y0, z0 + 0.72), m["steel"]))
 
 
 def build(outdir, tex_dir, save_fn, reset_fn):
@@ -629,13 +699,15 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
     proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
     proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
-    # места на модуле «лавочка» (crewCargo3 — лицом налево, crewCargo4 — направо); садиться можно, только
+    # места на модуле «лавочка»: 3..6, по двое лицом наружу с каждой стороны; садиться можно, только
     # когда стоит лавочка (проверяет скрипт)
-    for n, sx in ((3, -1), (4, 1)):
-        proxy(f"proxy_cargo{n}", P + "crew_cargo", f"crewCargo{n}", (sx * 0.27, MOD_Y, DECK + 0.45), (sx, 0, 0))
-        mem_point(f"mem_pos_cargo{n}", (sx * 1.15, MOD_Y, 0.05))
-        mem_point(f"mem_pos_cargo{n}_dir", (sx * 0.5, MOD_Y, 0.05))
-        g = geo(f"geometry_seat_cargo{n}", (0.4, 0.6, 0.45), (sx * 0.24, MOD_Y, DECK + 0.22), f"seat_cargo{n}", m)
+    for k, (sx, dy) in enumerate(BENCH_SEATS):
+        n = k + 3
+        y = MOD_Y + dy
+        proxy(f"proxy_cargo{n}", P + "crew_cargo", f"crewCargo{n}", (sx * 0.27, y, DECK + 0.45), (sx, 0, 0))
+        mem_point(f"mem_pos_cargo{n}", (sx * 1.15, y, 0.05))
+        mem_point(f"mem_pos_cargo{n}_dir", (sx * 0.5, y, 0.05))
+        g = geo(f"geometry_seat_cargo{n}", (0.4, 0.5, 0.45), (sx * 0.24, y, DECK + 0.22), f"seat_cargo{n}", m)
         g["viewonly"] = 1          # коробка выбора места: в Geometry/View/Fire, но не в Roadway
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
@@ -670,7 +742,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     mem_point("mem_light_left_dir", (-0.45, 2.36, DECK - 0.03))
     mem_point("mem_light_right", (0.45, 1.36, DECK + 0.02))
     mem_point("mem_light_right_dir", (0.45, 2.36, DECK - 0.03))
-    mem_point("mem_light_reverse", (0.0, -1.36, DECK + 0.02))
+    mem_point("mem_light_reverse", (0.0, END_Y - 0.19, DECK + 0.02))
     mem_point("mem_drown_engine", (0.22, 0.72, DECK + 0.2))
     mem_point("mem_ptcEnginePos", (0.22, 0.72, DECK + 0.45))
     mem_point("mem_ptcExhaust_start", (0.5, -1.0, DECK + 0.08))

@@ -338,8 +338,19 @@ class Drezina_Motor extends CarScript
 		return 3.5;
 	}
 
+	// камера (от третьего лица) — над своим местом: у пассажиров лавочки сзади она была над водителем
 	override vector GetTransportCameraOffset()
 	{
+		Man me = GetGame().GetPlayer();
+		if (me)
+		{
+			int idx = CrewMemberIndex(Human.Cast(me));
+			if (idx >= 3 && MemoryPointExists("pos_cargo" + idx))
+			{
+				vector mp = GetMemoryPointPos("pos_cargo" + idx);
+				return Vector(0, 1.6, mp[2]);
+			}
+		}
 		return "0 1.6 0";
 	}
 

@@ -250,6 +250,20 @@ class CfgVehicles
 				getInPos = "pos_cargo4";
 				getInDir = "pos_cargo4_dir";
 			};
+			class Cargo5
+			{
+				actionSel = "seat_cargo5";
+				proxyPos = "crewCargo5";
+				getInPos = "pos_cargo5";
+				getInDir = "pos_cargo5_dir";
+			};
+			class Cargo6
+			{
+				actionSel = "seat_cargo6";
+				proxyPos = "crewCargo6";
+				getInPos = "pos_cargo6";
+				getInDir = "pos_cargo6_dir";
+			};
 		};
 
 		class SimulationModule
@@ -723,7 +737,7 @@ class CfgVehicles
 	{
 		scope = 2;
 		displayName = "Модуль: лавочка";
-		descriptionShort = "Лавка на двоих для задней части мотодрезины. Поставь в слот «Модуль».";
+		descriptionShort = "Лавка на четверых для задней части мотодрезины. Поставь в слот «Модуль».";
 		model = "\Drezina\data\drezina_module_bench.p3d";
 	};
 	class Drezina_ModuleBarrels: Drezina_ModuleBase

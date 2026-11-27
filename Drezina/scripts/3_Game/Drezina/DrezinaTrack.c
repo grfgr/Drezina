@@ -104,12 +104,53 @@ class DrezinaTrack
 				m_Points.Insert(CatmullRom(p0, p1, p2, p3, t));
 			}
 		}
+		RemoveLoops();
 
 		m_Cum.Insert(0);
 		for (int k = 1; k < m_Points.Count(); k++)
 		{
 			m_Length += vector.Distance(m_Points[k - 1], m_Points[k]);
 			m_Cum.Insert(m_Length);
+		}
+	}
+
+	// Кривая через близкие узлы с резким поворотом даёт маленькую петлю (путь возвращается назад и снова
+	// вперёд) — дрезину на ней разворачивало на 180°. Выкидываем точки, которые идут назад относительно
+	// последнего направления (по горизонтали), пока линия снова не уйдёт вперёд.
+	void RemoveLoops()
+	{
+		if (m_Points.Count() < 3)
+			return;
+		array<vector> q = new array<vector>;
+		q.Insert(m_Points[0]);
+		q.Insert(m_Points[1]);
+		int dropped = 0;
+		for (int k = 2; k < m_Points.Count(); k++)
+		{
+			vector p = m_Points[k];
+			vector a = q[q.Count() - 1] - q[q.Count() - 2];
+			vector b = p - q[q.Count() - 1];
+			a[1] = 0;
+			b[1] = 0;
+			bool last = k == m_Points.Count() - 1;
+			if (b.Length() < 0.02 && !last)
+			{
+				dropped++;
+				continue;
+			}
+			if (a.Length() > 0.001 && vector.Dot(a.Normalized(), b.Normalized()) < -0.2)
+			{
+				dropped++;
+				continue;            // точка позади — часть петли
+			}
+			q.Insert(p);
+		}
+		if (dropped > 0)
+		{
+			Print("[Drezina] путь #" + m_Data.Id + ": убрана петля/излом назад, точек " + dropped);
+			m_Points.Clear();
+			foreach (vector v : q)
+				m_Points.Insert(v);
 		}
 	}
 
