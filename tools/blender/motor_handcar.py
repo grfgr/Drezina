@@ -26,8 +26,10 @@ SEAT_H = DECK + 0.46          # верх подушки сиденья води�
 BENCH_H = DECK + 0.42         # верх лавок пассажиров
 BENCH_Y = -0.98               # лавки у заднего торца (за задними колёсами ноги не цепляют)
 DRIVER_Y = -0.12
-# сиденье и сам водитель — на 15 см дальше от рычагов (назад): руки ложатся на рукоятки, ноги — на площадку
-SEAT_Y = DRIVER_Y - 0.15
+# сиденье и сам водитель — на 30 см назад (ноги водителя иначе упирались в мотор); рычаги — за ним,
+# на 15 см назад (рукоятки под руками), под ноги — приподнятая подставка
+SEAT_Y = DRIVER_Y - 0.30
+LEVER_Y = DRIVER_Y - 0.15
 # анимации мотоцикла: начало прокси — у земли под седлом, седло примерно на 0.8 м выше
 RIDER_DROP = 0.8
 # удлинение рамы назад (за лавкой пассажиров, до разворота модели это -Y; спереди мотор): третья ось
@@ -207,8 +209,8 @@ def driver_place(m, out):
     # два рычага управления (газ слева, тормоз справа) — рукоятки там, где руки водителя
     # в анимации машины (руль Нивы): ~0.4 м перед сиденьем, ~0.4 м над подушкой, ±0.17 м от оси
     for sx, name in ((-1, "lever_throttle"), (1, "lever_brake")):
-        grip = (sx * 0.17, DRIVER_Y + 0.40, SEAT_H + 0.40)
-        pivot = (sx * 0.17, DRIVER_Y + 0.66, DECK + 0.08)
+        grip = (sx * 0.17, LEVER_Y + 0.40, SEAT_H + 0.40)
+        pivot = (sx * 0.17, LEVER_Y + 0.66, DECK + 0.08)
         rod(name, pivot, grip, 0.014, m["steel"], out)
         # рукоятка: обмотана изолентой, с шариком на конце
         top = (grip[0], grip[1] - 0.02, grip[2] + 0.05)
@@ -218,16 +220,19 @@ def driver_place(m, out):
         out.append(box(name + "_pivot", (0.06, 0.08, 0.06), pivot, m["rust"]))
         out.append(cyl(name + "_axle", 0.012, 0.12, pivot, m["steel"], ROT_X, 12))
         # тяга к мотору
-        rod(name + "_link", (sx * 0.17, DRIVER_Y + 0.6, DECK + 0.2), (0.22 * (1 if sx > 0 else 0.6), 0.55, DECK + 0.12), 0.006, m["steel"], out)
+        rod(name + "_link", (sx * 0.17, LEVER_Y + 0.6, DECK + 0.2), (0.22 * (1 if sx > 0 else 0.6), 0.55, DECK + 0.12), 0.006, m["steel"], out)
     # сектор-гребёнка рычага газа (фиксирует положение)
-    sector_c = (-0.24, DRIVER_Y + 0.6, DECK + 0.3)
+    sector_c = (-0.24, LEVER_Y + 0.6, DECK + 0.3)
     out.append(box("throttle_sector", (0.008, 0.22, 0.07), sector_c, m["rust"], (math.radians(-35), 0, 0)))
     for k in range(6):
-        out.append(box(f"sector_tooth{k}", (0.012, 0.01, 0.014), (-0.24, DRIVER_Y + 0.52 + k * 0.03, DECK + 0.26 + k * 0.02), m["steel"]))
-    # педальная площадка под ноги
-    out.append(box("footrest", (0.5, 0.2, 0.02), (0, DRIVER_Y + 0.42, DECK + 0.04), m["steel"], (math.radians(12), 0, 0)))
+        out.append(box(f"sector_tooth{k}", (0.012, 0.01, 0.014), (-0.24, LEVER_Y + 0.52 + k * 0.03, DECK + 0.26 + k * 0.02), m["steel"]))
+    # подставка под ноги: рифлёная площадка на стойках, приподнята и наклонена к водителю
+    out.append(box("footrest", (0.5, 0.26, 0.02), (0, LEVER_Y + 0.5, DECK + 0.16), m["steel"], (math.radians(18), 0, 0)))
+    for sx in (-0.2, 0.2):
+        for dy in (0.4, 0.6):
+            out.append(box(f"footrest_leg{sx}{dy}", (0.03, 0.03, 0.16), (sx, LEVER_Y + dy, DECK + 0.08), m["rust"]))
     for k in range(5):
-        out.append(box(f"footrest_rib{k}", (0.46, 0.01, 0.008), (0, DRIVER_Y + 0.35 + k * 0.035, DECK + 0.045 + k * 0.007), m["steel"]))
+        out.append(box(f"footrest_rib{k}", (0.46, 0.01, 0.008), (0, LEVER_Y + 0.42 + k * 0.035, DECK + 0.16 + (k * 0.035 - 0.08) * 0.325 + 0.012), m["steel"], (math.radians(18), 0, 0)))
 
 
 def rod(name, a, b, r, mat, out):
@@ -265,7 +270,7 @@ def passenger_benches(m, out):
         out.append(cyl(f"bench_arm{dx}", 0.016, 0.4, (dx, BENCH_Y, BENCH_H + 0.2), m["rust"], ROT_Y))
         out.append(cyl(f"bench_arm_post{dx}", 0.014, 0.2, (dx, BENCH_Y + 0.18, BENCH_H + 0.1), m["rust"]))
     # упор для ног пассажиров
-    out.append(box("bench_footrest", (w, 0.12, 0.03), (0, BENCH_Y + 0.62, DECK + 0.04), m["steel"], (math.radians(15), 0, 0)))
+    out.append(box("bench_footrest", (w, 0.12, 0.03), (0, BENCH_Y + 0.42, DECK + 0.04), m["steel"], (math.radians(15), 0, 0)))
 
 
 def bag(m, out):
@@ -489,12 +494,11 @@ def details(m, out):
     rod("crowbar_m", (sx - 0.03, -0.9, DECK - 0.04), (sx - 0.03, 0.5, DECK - 0.04), 0.012, m["rust"], out)
     for y in (-0.5, 0.2):
         out.append(box(f"tool_clip{y}", (0.05, 0.03, 0.06), (sx + 0.005, y, DECK), m["steel"]))
-    # моток верёвки на крыле и аптечка-жестянка на спинке водителя
+    # моток верёвки на крыле
     out.append(torus("rope_coil", 0.1, 0.014, (0.4, -0.45, DECK + 0.015), m["canvas"], (0, 0, 0), (24, 8)))
     out.append(torus("rope_coil2", 0.085, 0.012, (0.41, -0.44, DECK + 0.04), m["canvas"], (0.08, 0.05, 0), (24, 8)))
-    out.append(box("medkit", (0.16, 0.05, 0.11), (0, -0.12 - 0.22, SEAT_H + 0.1), m["plate"], (math.radians(-12), 0, 0)))
     # тряпка на рукоятке тормоза
-    out.append(box("rag", (0.05, 0.012, 0.14), (0.2, -0.12 + 0.38, SEAT_H + 0.33), m["canvas"], (math.radians(10), 0, math.radians(15))))
+    out.append(box("rag", (0.05, 0.012, 0.14), (0.2, LEVER_Y + 0.38, SEAT_H + 0.33), m["canvas"], (math.radians(10), 0, math.radians(15))))
 
 
 def lamps(m, out, sel_parts):

@@ -247,6 +247,21 @@ class Drezina_Motor extends CarScript
 				return vector.Distance(pFromPos, ws) <= 2.2;
 			}
 		}
+		// за руль — с любого борта: достаточно стоять рядом с сиденьем водителя (слева или справа)
+		if (pSeatSelection == "seat_driver")
+		{
+			vector sw = ModelToWorld(Vector(0, 0, 0));
+			if (MemoryPointExists("pos_driver"))
+			{
+				vector pd = GetMemoryPointPos("pos_driver");
+				sw = ModelToWorld(Vector(0, pd[1], pd[2]));      // середина дрезины напротив сиденья
+			}
+			vector fp = pFromPos;
+			fp[1] = 0;
+			sw[1] = 0;
+			if (vector.Distance(fp, sw) <= 1.9)
+				return true;
+		}
 		return super.CanReachSeatFromDoors(pSeatSelection, pFromPos, pDistance);
 	}
 
@@ -367,8 +382,16 @@ class Drezina_Motor extends CarScript
 				axisW.Normalize();
 				vector camW = axisW * vector.Dot(seatW, axisW) + Vector(0, 1.6, 0);
 				// …а сам сдвиг игра откладывает в осях игрока (пассажиры лавочки сидят лицом в разные
-				// стороны — поэтому на одной стороне было правильно, на другой камера уезжала вперёд)
-				return me.VectorToLocal(camW);
+				// стороны). Оси берём по месту, а не по игроку: камера создаётся ещё во время посадки,
+				// когда игрок стоит у борта и смотрит иначе (от третьего лица камера улетала)
+				string ps = "pos_cargo" + idx;
+				vector face = ModelToWorld(GetMemoryPointPos(ps)) - ModelToWorld(GetMemoryPointPos(ps + "_dir"));
+				face[1] = 0;
+				if (face.Length() < 0.01)
+					return me.VectorToLocal(camW);
+				face.Normalize();
+				vector right = Vector(face[2], 0, -face[0]);
+				return Vector(vector.Dot(camW, right), camW[1], vector.Dot(camW, face));
 			}
 		}
 		return "0 1.6 0";

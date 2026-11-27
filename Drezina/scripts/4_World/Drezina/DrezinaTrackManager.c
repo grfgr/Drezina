@@ -365,8 +365,9 @@ class DrezinaTrackManager extends Managed
 		car.ServerFitWheels();
 		car.ServerPlaceOnTrack(t.GetId(), startDist, face);
 		car.GetInventory().CreateAttachment("SparkPlug");
+		car.Fill(CarFluid.FUEL, car.GetFluidCapacity(CarFluid.FUEL));     // выдаётся с полным баком
 		Print("[Drezina] take: мотодрезина создана на " + pos);
-		Notify(player.GetIdentity(), "Мотодрезина подана. Бак пустой — заправьте канистрой. Аккумулятор не нужен. Садитесь как в машину. Модуль сзади (лавочка или две бочки) — берите на терминале и ставьте в слот «Модуль» в инвентаре дрезины.");
+		Notify(player.GetIdentity(), "Мотодрезина подана, бак полный (дозаправка — канистрой). Аккумулятор не нужен. Садитесь как в машину. Модуль сзади (лавочка или две бочки) — берите на терминале и ставьте в слот «Модуль» в инвентаре дрезины.");
 	}
 
 	// ------------------------------------------------------------------ сервер: тик
