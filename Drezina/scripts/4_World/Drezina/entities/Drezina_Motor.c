@@ -296,6 +296,9 @@ class Drezina_Motor extends CarScript
 		AddAction(ActionDrezinaTurnAround);
 		AddAction(ActionDrezinaOffRail);
 		AddAction(ActionDrezinaOnRail);
+		// действие фар должно быть у любой машины: без него ванильный ввод падал с ошибкой каждый кадр,
+		// пока сидишь в дрезине (жуткие лаги и прыжки). Фары разбиты: свет у профиля нулевой.
+		AddAction(ActionSwitchLights);
 		AddAction(ActionVehicleHornShort);
 		AddAction(ActionVehicleHornLong);
 	}
@@ -626,7 +629,15 @@ class Drezina_Motor extends CarScript
 			if ((sw.D - d) * md <= 0 || (nd - sw.D) * md < 0)
 				continue;                       // эту стрелку в этом шаге не пересекли
 			if (sw.Side != 2 && steer * sw.Side < 0.35)
-				continue;                       // руль не в сторону ветки — едем прямо
+			{
+				// у конца линии с двумя съездами руль не тронут — уходим направо, а не в упор
+				float swEnd = 0;
+				if (sw.Dir > 0)
+					swEnd = t.GetLength();
+				bool atEnd = Math.AbsFloat(sw.D - swEnd) < 1.0;
+				if (!(atEnd && sw.Side == 1 && Math.AbsFloat(steer) < 0.35))
+					continue;
+			}                       // руль не в сторону ветки — едем прямо
 			DrezinaTrack b = tm.GetTrack(sw.Branch);
 			if (!b)
 				continue;
@@ -1222,8 +1233,12 @@ class Drezina_MotorLightProfileFront : Motorbike_01LightProfileFront
 {
 	void Drezina_MotorLightProfileFront()
 	{
-		m_SegregatedBrightness 	= 8.0 / 3.0;
-		m_AggregatedBrightness 	= 10;
+		// фары разбиты: даже «включённые» не светят
+		m_SegregatedBrightness 	= 0;
+		m_AggregatedBrightness 	= 0;
+		m_SegregatedRadius 		= 0.1;
+		m_AggregatedRadius 		= 0.1;
+		m_FlaresVisible 		= false;
 	}
 }
 

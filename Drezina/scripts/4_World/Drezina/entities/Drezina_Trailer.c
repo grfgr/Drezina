@@ -212,6 +212,7 @@ class Drezina_Trailer extends CarScript
 	override void SetActions()
 	{
 		AddAction(ActionGetInTransport);
+		AddAction(ActionSwitchLights);   // нужно ванильному вводу машин (иначе ошибка каждый кадр у пассажира)
 	}
 
 	// колёса Нивы (невидимые, для физики машины) и бочки не снимаются
@@ -332,9 +333,9 @@ class Drezina_Trailer extends CarScript
 		vector mat[4];
 		Drezina_Motor.TrackTransformFace(t, d, face, mat);
 		SetTransform(mat);
-		// скорость — как у ведущей, вдоль пути: клиенты досчитывают движение между пакетами плавно
-		// (с нулевой скоростью прицеп у клиентов двигался ступеньками — дребезг)
-		SetVelocity(this, vel);
+		// без скорости: клиенты ставят прицеп сами каждый кадр; со скоростью он обгонял дрезину и улетал,
+		// когда дрезина вставала (скорость оставалась, а ставить его было уже некому)
+		SetVelocity(this, vector.Zero);
 	}
 
 	// Ставит ведущая (сервер), сразу после себя, в том же шаге физики: прицеп не отстаёт и не обгоняет.
