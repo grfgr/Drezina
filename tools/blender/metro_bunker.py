@@ -1274,6 +1274,58 @@ def build_junction_hall(outdir, save_fn, reset_fn):
     save_fn(outdir, "junction_hall")
 
 
+JUNC_TEE_CUT = 6.5     # зал Т-развязки: пустая половина срезана прямой стеной в 6.5 м от оси главной линии
+
+
+def build_junction_hall_tee(outdir, save_fn, reset_fn):
+    """Зал Т-развязки: тот же круг R=24, но со стороны, где нет примыкающей линии, срезан прямой стеной
+    в JUNC_TEE_CUT м от оси главной линии (ось — вдоль +Y, примыкающая линия — со стороны +X).
+    Прямую стену из панелей ставит скрипт, как и круглые."""
+    reset_fn()
+    m = mats()
+    C = JUNC_TEE_CUT
+    p = []
+    for name, z, h, mat in (("floor", -0.15, 0.3, m["concrete"]), ("ceiling", JUNC_H + 0.2, 0.4, m["plaster"])):
+        o = cyl(name, JUNC_R + 0.6, h, (0, 0, z), mat, (0, 0, 0), 64)
+        cutter = box(name + "_cut", (JUNC_R * 2, JUNC_R * 3, h + 1.0), (-C - 0.6 - JUNC_R, 0, z), mat, round_edges=False)
+        p.append(boolean_cut(o, cutter))
+    for k in range(16):
+        a = k * math.pi / 8
+        L = JUNC_R - 1.0
+        sa = math.sin(a)
+        if sa < -0.01:
+            L = min(L, (C - 0.4) / -sa)
+        p.append(box(f"beam{k}", (0.4, L, 0.5), (math.sin(a) * L / 2, math.cos(a) * L / 2, JUNC_H - 0.25), m["concrete"], (0, 0, -a)))
+    for r, w in ((12.0, 0.5), (JUNC_R - 0.6, 0.6)):
+        n = 48
+        for k in range(n):
+            a0 = k * 2 * math.pi / n
+            a1 = (k + 1) * 2 * math.pi / n
+            mx, my = (math.sin(a0) + math.sin(a1)) / 2 * r, (math.cos(a0) + math.cos(a1)) / 2 * r
+            if mx < -C + 0.5:
+                continue
+            ln = 2 * r * math.sin(math.pi / n) + 0.05
+            p.append(box(f"ringbeam{r}_{k}", (ln, w, 0.55), (mx, my, JUNC_H - 0.28), m["tubing"], (0, 0, -(a0 + a1) / 2 + math.pi / 2)))
+    chord = math.sqrt(JUNC_R ** 2 - C ** 2)
+    p.append(box("cut_beam", (0.6, 2 * chord, 0.55), (-C + 0.3, 0, JUNC_H - 0.28), m["tubing"]))
+    p.append(cyl("hub", 1.2, 0.6, (0, 0, JUNC_H - 0.3), m["tubing"], (0, 0, 0), 32))
+    n = 64
+    for k in range(n):
+        a0 = k * 2 * math.pi / n
+        a1 = (k + 1) * 2 * math.pi / n
+        r = JUNC_R - 0.4
+        mx, my = (math.sin(a0) + math.sin(a1)) / 2 * r, (math.cos(a0) + math.cos(a1)) / 2 * r
+        if mx < -C + 0.4:
+            continue
+        ln = 2 * r * math.sin(math.pi / n) + 0.02
+        p.append(box(f"drain{k}", (ln, 0.3, 0.02), (mx, my, 0.01), m["steel"], (0, 0, -(a0 + a1) / 2 + math.pi / 2), round_edges=False))
+    p.append(box("cut_drain", (0.3, 2 * chord, 0.02), (-C + 0.4, 0, 0.01), m["steel"], round_edges=False))
+    finish(p, "junction_hall_tee")
+    geo("geometry_floor", (JUNC_R + C + 1, 2 * JUNC_R + 1, 0.4), ((JUNC_R - C) / 2, 0, -0.2))
+    geo("geometry_ceiling", (JUNC_R + C + 1, 2 * JUNC_R + 1, 0.5), ((JUNC_R - C) / 2, 0, JUNC_H + 0.25))
+    save_fn(outdir, "junction_hall_tee")
+
+
 def build_junction_wall(outdir, save_fn, reset_fn):
     """Стеновая панель зала: 2.75 м, лицом в +Y (внутрь зала), с кабелями и трубой вдоль стены."""
     reset_fn()
@@ -1351,6 +1403,7 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_tunnel(outdir, save_fn, reset_fn, 10.0, "tunnel_10m_tile", "tile")   # у станций, в кафеле
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_junction_hall(outdir, save_fn, reset_fn)
+    build_junction_hall_tee(outdir, save_fn, reset_fn)
     build_junction_wall(outdir, save_fn, reset_fn)
     build_junction_portal(outdir, save_fn, reset_fn)
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)

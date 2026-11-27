@@ -755,6 +755,7 @@ class DrezinaTunnelManager
 	// два плавных съезда с линии на линию. Острее 20° — без развязки (тоннели слились бы надолго).
 
 	static const float JUNC_RADIUS = 24.0;
+	static const float TEE_CUT = 6.5;        // зал Т-развязки срезан прямой стеной в 6.5 м от оси главной линии
 	static const float JUNC_END_CLEAR = 60.0;
 	static const float JUNC_RING_R = 11.0;
 	static const float JUNC_ARM_R = 20.0;
@@ -1162,8 +1163,21 @@ class DrezinaTunnelManager
 		vector c = j.Center;
 		float R = j.Radius;
 
-		// зал: пол, свод на балках; стены панелями по кругу, у входа каждой ветки — портал под тоннель
-		AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHall", c, j.DirA));
+		// зал: пол, свод на балках; стены панелями по кругу, у входа каждой ветки — портал под тоннель.
+		// Т-развязка: со стороны, где нет примыкающей линии, круг срезан прямой стеной в TEE_CUT от оси A
+		vector nB = Side(j.DirA);                  // от оси A в сторону линии B (только для Т-развязки)
+		if (vector.Dot(j.DirB, nB) < 0)
+			nB = nB * -1.0;
+		if (j.Tee)
+		{
+			// модель: срез со стороны -X; +X модели = Side(направления) — разворачиваем, чтобы +X смотрел к B
+			vector hallDir = j.DirA;
+			if (vector.Dot(Side(j.DirA), nB) < 0)
+				hallDir = j.DirA * -1.0;
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHallTee", c, hallDir));
+		}
+		else
+			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHall", c, j.DirA));
 		// порталы ставим там, где ось линии на самом деле пересекает стену зала, и по направлению линии
 		// в этом месте (линия может подходить не по прямой — раньше портал оказывался рядом с тоннелем)
 		array<vector> arms = new array<vector>;      // направления от центра на порталы (для стен)
@@ -1204,15 +1218,35 @@ class DrezinaTunnelManager
 				if (vector.Dot(o, a2) > Math.Cos(gap))
 					skip = true;
 			}
+			if (j.Tee && vector.Dot(o, nB) * (R + 0.25) < -(TEE_CUT - 0.3))
+				skip = true;                       // за прямой стеной среза
 			if (!skip)
 				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", c + o * (R + 0.25), o * -1.0));
+		}
+		if (j.Tee)
+		{
+			// прямая стена среза: панели вдоль оси A
+			float chordHalf = Math.Sqrt((R + 0.25) * (R + 0.25) - TEE_CUT * TEE_CUT);
+			int nPanels = Math.Ceil(2.0 * chordHalf / 2.7);
+			float pStep = 2.0 * chordHalf / nPanels;
+			for (int pi = 0; pi < nPanels; pi++)
+			{
+				float tAlong = -chordHalf + pStep * (pi + 0.5);
+				vector wp = c - nB * (TEE_CUT + 0.25) + j.DirA * tAlong;
+				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", wp, nB));
+			}
+			for (int la = -1; la <= 1; la += 2)
+			{
+				float fla = la;
+				SpawnAlarm(c - nB * TEE_CUT + j.DirA * (fla * 9.0) + Vector(0, 3.0, 0), nB, j.Objects);
+			}
 		}
 		AddObj(j.Objects, DrezinaUnderground.AddZone(c + Vector(0, 3.4, 0), Vector(R * 2 + 1, 7.2, R * 2 + 1), j.DirA, "drezina junction " + j.A + "x" + j.B));
 		// свет зала — от генератора ближней станции линии A; светильники на стене между входами
 		for (int li = 0; li < 8; li++)
 		{
 			vector lo = ArmDir(DirAngle(j.DirA) + li * Math.PI * 0.25 + Math.PI * 0.125);
-			if (li % 2 == 0)
+			if (li % 2 == 0 && !(j.Tee && vector.Dot(lo, nB) * R < -TEE_CUT))
 				SpawnAlarm(c + lo * R + Vector(0, 3.0, 0), lo * -1.0, j.Objects);
 		}
 

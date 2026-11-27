@@ -335,6 +335,10 @@ class Drezina_Motor extends CarScript
 
 	override float GetTransportCameraDistance()
 	{
+		// пассажиры лавочки сзади — камера ближе (иначе уходит в колонны и стены станции)
+		Man me = GetGame().GetPlayer();
+		if (me && CrewMemberIndex(Human.Cast(me)) >= 3)
+			return 2.5;
 		return 3.5;
 	}
 
@@ -347,8 +351,9 @@ class Drezina_Motor extends CarScript
 			int idx = CrewMemberIndex(Human.Cast(me));
 			if (idx >= 3 && MemoryPointExists("pos_cargo" + idx))
 			{
+				// сдвиг камеры игра берёт в мировых осях: переводим сдвиг вдоль дрезины в мир
 				vector mp = GetMemoryPointPos("pos_cargo" + idx);
-				return Vector(0, 1.6, mp[2]);
+				return VectorToParent(Vector(0, 0, mp[2])) + Vector(0, 1.6, 0);
 			}
 		}
 		return "0 1.6 0";
