@@ -1332,11 +1332,7 @@ def build_junction_wall(outdir, save_fn, reset_fn):
     m = mats()
     p = [box("panel", (2.75, 0.5, JUNC_H + 0.5), (0, 0, (JUNC_H + 0.5) / 2), m["wall"], round_edges=False)]
     p.append(box("plinth", (2.75, 0.06, 0.3), (0, 0.27, 0.15), m["concrete"], round_edges=False))
-    for k in range(3):
-        p.append(cyl(f"cable{k}", 0.018, 2.8, (0, 0.3, 2.6 - k * 0.05), m["tape"], ROT_Y, 8))
-    p.append(box("cable_hook", (0.02, 0.1, 0.02), (0.3, 0.29, 2.65), m["steel"]))
-    p.append(cyl("pipe", 0.06, 2.8, (0, 0.35, 3.3), m["rust"], ROT_Y, 12))
-    p.append(box("pipe_bracket", (0.05, 0.12, 0.18), (-0.6, 0.3, 3.3), m["steel"]))
+    # (труб и кабелей на панели нет: на круглой стене их прямые концы торчали из соседних панелей)
     finish(p, "junction_wall")
     geo("geometry_panel", (2.75, 0.5, JUNC_H + 0.5), (0, 0, (JUNC_H + 0.5) / 2))
     save_fn(outdir, "junction_wall")

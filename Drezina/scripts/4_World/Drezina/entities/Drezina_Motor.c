@@ -351,9 +351,13 @@ class Drezina_Motor extends CarScript
 			int idx = CrewMemberIndex(Human.Cast(me));
 			if (idx >= 3 && MemoryPointExists("pos_cargo" + idx))
 			{
-				// сдвиг камеры игра берёт в мировых осях: переводим сдвиг вдоль дрезины в мир
-				vector mp = GetMemoryPointPos("pos_cargo" + idx);
-				return VectorToParent(Vector(0, 0, mp[2])) + Vector(0, 1.6, 0);
+				// сдвиг камеры игра берёт в мировых осях: берём, где место на самом деле (в мире), и
+				// оставляем только сдвиг вдоль дрезины (камера над серединой, на высоте 1.6 м)
+				vector seatW = ModelToWorld(GetMemoryPointPos("pos_cargo" + idx)) - GetPosition();
+				vector axisW = GetDirection();
+				axisW[1] = 0;
+				axisW.Normalize();
+				return axisW * vector.Dot(seatW, axisW) + Vector(0, 1.6, 0);
 			}
 		}
 		return "0 1.6 0";
