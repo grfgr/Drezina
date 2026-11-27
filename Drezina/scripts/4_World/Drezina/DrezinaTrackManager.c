@@ -115,7 +115,9 @@ class DrezinaTrackManager extends Managed
 		{
 			string type = "Drezina_Rail";
 			float piece = DrezinaConst.RAIL_PIECE_LEN;
-			if (d + 10.0 <= len && IsStraight(t, d, d + 10.0))
+			// на съездах — только звенья по 1 м: их начало почти прямое, и прямое звено 10 м уходило
+			// вперёд, пока съезд уже поворачивал (лишние обрывающиеся рельсы посреди развязки)
+			if (!t.IsService() && d + 10.0 <= len && IsStraight(t, d, d + 10.0))
 			{
 				type = "Drezina_Rail10";
 				piece = 10.0;
