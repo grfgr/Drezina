@@ -214,10 +214,18 @@ class Drezina_Motor extends CarScript
 		return free;
 	}
 
+	// пересесть на лавочке можно только к соседу на своей стороне (3<->4 слева, 5<->6 справа):
+	// пересадка через всю дрезину шла не туда и подвешивала игрока в воздухе
 	override bool CanReachSeatFromSeat(int currentSeat, int nextSeat)
 	{
 		if (nextSeat >= 3 && !HasBench())
 			return false;
+		if (currentSeat >= 3 || nextSeat >= 3)
+		{
+			if (currentSeat < 3 || nextSeat < 3)
+				return false;
+			return (currentSeat - 3) / 2 == (nextSeat - 3) / 2;
+		}
 		return true;
 	}
 
@@ -357,7 +365,10 @@ class Drezina_Motor extends CarScript
 				vector axisW = GetDirection();
 				axisW[1] = 0;
 				axisW.Normalize();
-				return axisW * vector.Dot(seatW, axisW) + Vector(0, 1.6, 0);
+				vector camW = axisW * vector.Dot(seatW, axisW) + Vector(0, 1.6, 0);
+				// …а сам сдвиг игра откладывает в осях игрока (пассажиры лавочки сидят лицом в разные
+				// стороны — поэтому на одной стороне было правильно, на другой камера уезжала вперёд)
+				return me.VectorToLocal(camW);
 			}
 		}
 		return "0 1.6 0";

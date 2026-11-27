@@ -26,6 +26,8 @@ SEAT_H = DECK + 0.46          # верх подушки сиденья води�
 BENCH_H = DECK + 0.42         # верх лавок пассажиров
 BENCH_Y = -0.98               # лавки у заднего торца (за задними колёсами ноги не цепляют)
 DRIVER_Y = -0.12
+# сиденье и сам водитель — на 15 см дальше от рычагов (назад): руки ложатся на рукоятки, ноги — на площадку
+SEAT_Y = DRIVER_Y - 0.15
 # анимации мотоцикла: начало прокси — у земли под седлом, седло примерно на 0.8 м выше
 RIDER_DROP = 0.8
 # удлинение рамы назад (за лавкой пассажиров, до разворота модели это -Y; спереди мотор): третья ось
@@ -194,13 +196,14 @@ def engine(m, out):
 
 def driver_place(m, out):
     """Тракторное сиденье на стойке, перед ним рулевая колонка с рычагами газа/тормоза."""
-    out.append(cyl("seat_post", 0.03, SEAT_H - DECK - 0.06, (0, DRIVER_Y - 0.05, (SEAT_H + DECK) / 2 - 0.03), m["rust"]))
-    out.append(box("seat_spring", (0.05, 0.3, 0.012), (0, DRIVER_Y, SEAT_H - 0.07), m["steel"], (math.radians(-8), 0, 0)))
-    pan = sphere("seat_pan", 1, (0, DRIVER_Y, SEAT_H - 0.03), m["paint2"], (0.22, 0.2, 0.04), (24, 12))
+    out.append(cyl("seat_post", 0.03, SEAT_H - DECK - 0.06, (0, SEAT_Y - 0.05, (SEAT_H + DECK) / 2 - 0.03), m["rust"]))
+    out.append(box("seat_spring", (0.05, 0.3, 0.012), (0, SEAT_Y, SEAT_H - 0.07), m["steel"]))
+    pan = sphere("seat_pan", 1, (0, SEAT_Y, SEAT_H - 0.03), m["paint2"], (0.22, 0.2, 0.04), (24, 12))
     out.append(pan)
-    out.append(box("seat_back", (0.36, 0.04, 0.22), (0, DRIVER_Y - 0.19, SEAT_H + 0.12), m["paint2"], (math.radians(-12), 0, 0)))
+    # спинка ровная, вертикальная
+    out.append(box("seat_back", (0.36, 0.04, 0.22), (0, SEAT_Y - 0.19, SEAT_H + 0.14), m["paint2"]))
     for sx in (-0.12, 0.12):                    # стойки спинки к сиденью
-        rod(f"seat_back_strut{sx}", (sx, DRIVER_Y - 0.12, SEAT_H - 0.05), (sx, DRIVER_Y - 0.2, SEAT_H + 0.06), 0.012, m["steel"], out)
+        rod(f"seat_back_strut{sx}", (sx, SEAT_Y - 0.12, SEAT_H - 0.05), (sx, SEAT_Y - 0.19, SEAT_H + 0.04), 0.012, m["steel"], out)
     # два рычага управления (газ слева, тормоз справа) — рукоятки там, где руки водителя
     # в анимации машины (руль Нивы): ~0.4 м перед сиденьем, ~0.4 м над подушкой, ±0.17 м от оси
     for sx, name in ((-1, "lever_throttle"), (1, "lever_brake")):
@@ -696,7 +699,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
-    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
+    proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, SEAT_Y, SEAT_H), (0, 1, 0))
     proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
     proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
     # места на модуле «лавочка»: 3..6, по двое лицом наружу с каждой стороны; садиться можно, только
@@ -719,13 +722,13 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     proxy("proxy_wheel_4", W, "wheel_2_2_proxy", (hz.HALF, -hz.AXLE_Y, hz.WHEEL_R), (0, 1, 0))
 
     # ---- точки (Memory)
-    mem_point("mem_pos_driver", (-1.05, DRIVER_Y, 0.05))
-    mem_point("mem_pos_driver_dir", (-0.4, DRIVER_Y, 0.05))
+    mem_point("mem_pos_driver", (-1.05, SEAT_Y, 0.05))
+    mem_point("mem_pos_driver_dir", (-0.4, SEAT_Y, 0.05))
     mem_point("mem_pos_cargo1", (-1.15, BENCH_Y, 0.05))
     mem_point("mem_pos_cargo1_dir", (-0.5, BENCH_Y, 0.05))
     mem_point("mem_pos_cargo2", (-0.15, BENCH_Y + 0.55, DECK))
     mem_point("mem_pos_cargo2_dir", (0.25, BENCH_Y + 0.55, DECK))
-    mem_point("mem_seat_con_1_1", (-0.95, DRIVER_Y, DECK))
+    mem_point("mem_seat_con_1_1", (-0.95, SEAT_Y, DECK))
     mem_point("mem_seat_con_1_2", (-0.95, BENCH_Y, DECK))
     mem_point("mem_seat_con_2_2", (0.95, BENCH_Y, DECK))
     for name, x, y in (("wheel_1_1", -hz.HALF, hz.AXLE_Y), ("wheel_2_1", hz.HALF, hz.AXLE_Y),
@@ -759,7 +762,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     geo("geometry_tank", (0.28, 0.5, 0.2), (0.22, 0.72, DECK + 0.6), "dmgZone_fuelTank,refill", m)
     mem_point("mem_refill", (0.22, 0.8, DECK + 0.7))
     geo("geometry_bag", (0.46, 0.66, 0.38), (-0.36, 0.72, DECK + 0.19), "dmgZone_bag", m)
-    geo("geometry_seat_driver", (0.42, 0.42, 0.5), (0, DRIVER_Y, DECK + 0.25), "seat_driver", m)
+    geo("geometry_seat_driver", (0.42, 0.42, 0.5), (0, SEAT_Y, DECK + 0.25), "seat_driver", m)
     geo("geometry_seat_cargo1", (0.55, 0.4, 0.42), (-0.32, BENCH_Y, DECK + 0.21), "seat_cargo1", m)
     geo("geometry_seat_cargo2", (0.55, 0.4, 0.42), (0.32, BENCH_Y, DECK + 0.21), "seat_cargo2", m)
     for name, x, y in (("1_1", -hz.HALF, hz.AXLE_Y), ("2_1", hz.HALF, hz.AXLE_Y),
