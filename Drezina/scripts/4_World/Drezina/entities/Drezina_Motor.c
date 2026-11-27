@@ -1016,7 +1016,7 @@ class Drezina_Motor extends CarScript
 	}
 
 	// ------------------------------------------------------------------ видимый прицеп (клиент)
-	// Прицеп — только картинка: каждый клиент держит у себя локальную модель и ставит её за дрезиной
+	// Прицеп — локальная модель (со столкновениями): каждый клиент держит её у себя и ставит за дрезиной
 	// после каждого кадра (по положению дрезины, которое он сам видит). По сети отдельно не ходит —
 	// значит, не дребезжит и не отстаёт; на поворотах и кольцах встаёт по пути (изгибается со стрелкой).
 	Object m_TrVis;
@@ -1041,7 +1041,8 @@ class Drezina_Motor extends CarScript
 			string cls = "Drezina_TrailerVisPassenger";
 			if (m_TrailerType == 2)
 				cls = "Drezina_TrailerVisCargo";
-			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), ECE_LOCAL);
+			// с физикой: у прицепа есть столкновения (у каждого клиента свой, локальный)
+			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), ECE_LOCAL | ECE_CREATEPHYSICS);
 			m_TrVisType = m_TrailerType;
 			m_TrBrake = false;
 			if (!m_TrVis)
@@ -1081,6 +1082,7 @@ class Drezina_Motor extends CarScript
 			mat[3] = mat[3] - mat[2] * TRAILER_GAP;
 		}
 		m_TrVis.SetTransform(mat);
+		m_TrVis.Update();         // столкновения — на новое место вместе с моделью
 
 		// колёса
 		int now = GetGame().GetTime();
