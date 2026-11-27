@@ -481,6 +481,18 @@ class Drezina_Motor extends CarScript
 		float faceSign = m_Face;
 		vector fwd = dir * faceSign;
 		float v = vector.Dot(GetVelocity(this), fwd);
+		// дрезину ведёт путь, а не физика: если физика за один шаг «съела» скорость (зацепились
+		// коробкой за стену станции/тоннеля, рельс и т.п.), берём скорость прошлого шага.
+		// Другие дрезины проверяет IsBlocked ниже, торцы пути — упор ниже.
+		if (m_LastVValid && Math.AbsFloat(m_LastV) > 1.0 && Math.AbsFloat(v) < Math.AbsFloat(m_LastV) - 1.5)
+		{
+			if (!server && GetGame().GetTime() - m_DbgBumpTime > 3000)
+			{
+				m_DbgBumpTime = GetGame().GetTime();
+				Print("[Drezina] физика пыталась остановить: путь #" + m_TrackId + " d=" + d + " было v=" + m_LastV + " физика=" + v + " — едем дальше");
+			}
+			v = m_LastV;
+		}
 
 		// управление: газ работает только с заведённым мотором и включённой передачей
 		float throttle = 0;
@@ -610,6 +622,8 @@ class Drezina_Motor extends CarScript
 				v = 0;
 		}
 		m_DistHint = nd;
+		m_LastV = v;
+		m_LastVValid = true;
 
 		vector mat[4];
 		TrackTransform(t, nd, mat);
@@ -816,6 +830,9 @@ class Drezina_Motor extends CarScript
 	int m_CliTime = 0;
 	int m_SentTransferTrack = -1;
 	float m_DbgPrevV;
+	float m_LastV;
+	bool m_LastVValid;
+	int m_DbgBumpTime;
 	int m_DbgSeatTime;
 	int m_DbgDoorTime;
 	int m_DbgTime;
@@ -847,6 +864,7 @@ class Drezina_Motor extends CarScript
 	protected override event void RewindState(PawnOwnerState pState, /*inout*/ PawnMove pMove, inout NetworkRewindType pRewindType)
 	{
 		super.RewindState(pState, pMove, pRewindType);
+		m_LastVValid = false;   // после отката скорость берём ту, что вернул сервер
 		Drezina_MotorOwnerState st = Drezina_MotorOwnerState.Cast(pState);
 		if (!st || st.m_dTrack < 0.5)
 			return;
@@ -1034,6 +1052,7 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		m_LastVValid = false;
 		Wake();
 		m_TrailerType = type;
 		if (type == 2)
@@ -1350,6 +1369,7 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		m_LastVValid = false;
 		Wake();
 		SetSynchDirty();
 		Print("[Drezina] motor: развёрнута, нос " + m_Face);
@@ -1407,6 +1427,7 @@ class Drezina_Motor extends CarScript
 		m_OffRail = true;
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		m_LastVValid = false;
 		// физика включена и с гравитацией: машина садится на пол и её новое место уходит всем клиентам
 		// (раньше тело сразу усыплялось — положение не обновлялось, дрезина оставалась на рельсах)
 		dBodyEnableGravity(this, true);
@@ -1458,6 +1479,7 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
+		m_LastVValid = false;
 		Wake();
 		SetSynchDirty();
 		Print("[Drezina] motor: поставлена на путь #" + found);
