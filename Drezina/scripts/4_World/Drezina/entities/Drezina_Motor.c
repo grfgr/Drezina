@@ -1136,12 +1136,6 @@ class Drezina_Motor extends CarScript
 		m_TrVisType = 0;
 	}
 
-	override void EOnPostFrame(IEntity other, int extra)
-	{
-		super.EOnPostFrame(other, extra);
-		UpdateTrailerVis();
-	}
-
 	// поставить машину с ориентацией face (общая формула и для прицепа)
 	static void TrackTransformFace(DrezinaTrack t, float d, int face, out vector mat[4])
 	{
@@ -1171,6 +1165,7 @@ class Drezina_Motor extends CarScript
 		super.EOnPostFrame(other, extra);
 		if (GetGame().IsDedicatedServer())
 			return;
+		UpdateTrailerVis();      // видимый прицеп — после кадра, за дрезиной
 		int now = GetGame().GetTime();
 		float dt = (now - m_LastFrameTime) * 0.001;
 		m_LastFrameTime = now;
