@@ -146,7 +146,7 @@ class Drezina_AlarmLamp extends ItemBase
 
 	void StartLight()
 	{
-		vector p = GetPosition() + GetDirection() * 0.45;
+		vector p = GetPosition() - GetDirection() * 0.45;
 		m_Glow = Drezina_AlarmGlow.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmGlow, p));
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
@@ -159,10 +159,11 @@ class Drezina_AlarmLamp extends ItemBase
 		m_Angle += dt * 200.0;           // ~0.55 оборота в секунду
 		if (m_Angle > 360)
 			m_Angle -= 360;
-		// луч ходит по кругу в полусфере перед стеной: поворот вокруг оси стены
+		// луч ходит по кругу в полусфере перед стеной: поворот вокруг оси стены.
+		// модель маячка выступает в -GetDirection() (объект ставится «спиной» к залу), поэтому +180°
 		vector ori = GetOrientation();
-		m_Beam.SetPosition(GetPosition() + GetDirection() * 0.45);
-		m_Beam.SetOrientation(Vector(ori[0] + Math.Sin(m_Angle * Math.DEG2RAD) * 80.0, -15.0 + Math.Cos(m_Angle * Math.DEG2RAD) * 25.0, 0));
+		m_Beam.SetPosition(GetPosition() - GetDirection() * 0.45);
+		m_Beam.SetOrientation(Vector(ori[0] + 180.0 + Math.Sin(m_Angle * Math.DEG2RAD) * 80.0, -15.0 + Math.Cos(m_Angle * Math.DEG2RAD) * 25.0, 0));
 	}
 
 	override void EEDelete(EntityAI parent)

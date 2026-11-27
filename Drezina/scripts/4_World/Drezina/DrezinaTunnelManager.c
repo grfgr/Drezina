@@ -602,7 +602,9 @@ class DrezinaTunnelManager
 		if (!o)
 			return null;
 		o.SetPosition(pos);
-		o.SetDirection(dir);
+		// плафон модели в игре смотрит в -направление объекта: разворачиваем, чтобы он был внутри зала,
+		// а не торчал наружу из стены тоннеля
+		o.SetDirection(dir * -1.0);
 		o.Update();
 		objs.Insert(o);
 		return o;
@@ -1925,17 +1927,42 @@ class DrezinaTunnelManager
 		mid[1] = p[1];
 		mid2[1] = p[1];
 		route[idx] = stub;
-		bool far2 = clamped || toNb.Length() > JOIN_STUB + 20.0;
+		// следующие точки маршрута, что оказались ближе к залу, чем конец пути (или чуть дальше), убираем:
+		// иначе путь доходил до точки, разворачивался и шёл обратно к залу — дрезину крутило на 180°
+		while (route.Count() > 2)
+		{
+			int nIdx = 1;
+			if (end == 1)
+				nIdx = route.Count() - 2;
+			vector toN = route[nIdx] - bestX;
+			toN[1] = 0;
+			if (vector.Dot(toN, dir) > JOIN_STUB + 4.0)
+				break;
+			route.RemoveOrdered(nIdx);
+		}
+		int nIdx2 = 1;
+		if (end == 1)
+			nIdx2 = route.Count() - 2;
+		vector toN2 = route[nIdx2] - bestX;
+		toN2[1] = 0;
+		float projN = vector.Dot(toN2, dir);
+		if (route.Count() <= 2)
+			projN = 100000;                            // дальше только другой конец линии
+		// промежуточные точки — только если следующая точка маршрута дальше них (с запасом 4 м)
+		bool addMid = projN > JOIN_STUB + 6.0 + 4.0;
+		bool far2 = (clamped || toNb.Length() > JOIN_STUB + 20.0) && projN > JOIN_STUB + leg2 + 4.0;
 		if (end == 0)
 		{
-			route.InsertAt(mid, 1);
-			if (far2)
+			if (addMid)
+				route.InsertAt(mid, 1);
+			if (addMid && far2)
 				route.InsertAt(mid2, 2);
 		}
 		else
 		{
-			route.InsertAt(mid, route.Count() - 1);
-			if (far2)
+			if (addMid)
+				route.InsertAt(mid, route.Count() - 1);
+			if (addMid && far2)
 				route.InsertAt(mid2, route.Count() - 2);
 		}
 		return best;
