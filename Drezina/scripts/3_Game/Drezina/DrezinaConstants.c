@@ -12,6 +12,8 @@ class DrezinaRPC
 	static const int HC_THROTTLE     = 8817020; // -1 тормоз, 0 отпустил, 1 качаю
 	static const int HC_REVERSE      = 8817021; // сменить направление
 	static const int HC_LEAVE        = 8817022; // сойти с дрезины
+	static const int MOTOR_TRANSFER  = 8817030; // водитель мотодрезины перешёл на стрелке (путь, дистанция, сторона)
+	static const int MOTOR_POS       = 8817031; // водитель: где дрезина на пути (сервер подтягивает свою копию)
 	// сервер -> клиент: метро (для карты КПК)
 	static const int TUNNELS_FULL    = 8817004;
 	static const int CHAT_MSG        = 8817005; // сообщение мода в чат игрока

@@ -185,13 +185,13 @@ class CfgVehicles
 		displayName = "Мотодрезина";
 		descriptionShort = "Дрезина с мотоциклетным мотором. Заправь, вставь свечу и аккумулятор — и по рельсам.";
 		model = "\Drezina\data\motor_handcar.p3d";
-		attachments[] = {"SparkPlug", "Reflector_1_1", "Reflector_2_1", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
+		attachments[] = {"SparkPlug", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
 		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
 		// свои стёкла фар: мутно-белое (спереди) и красное (стоп сзади); _e — светящийся вариант
-		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_co.paa", "Drezina\data\textures\drezina_glass_co.paa", "Drezina\data\textures\drezina_redglass_co.paa", "", "", "", "", "", ""};
-		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_glass.rvmat", "Drezina\data\textures\drezina_redglass.rvmat", "", "", "", "", "", ""};
-		frontReflectorMatOn = "Drezina\data\textures\drezina_glass_e.rvmat";
-		frontReflectorMatOff = "Drezina\data\textures\drezina_glass.rvmat";
+		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_redglass_co.paa", "", "", "", "", "", ""};
+		hiddenSelectionsMaterials[] = {"Drezina\data\textures\drezina_glass_broken.rvmat", "Drezina\data\textures\drezina_glass_broken.rvmat", "Drezina\data\textures\drezina_redglass.rvmat", "", "", "", "", "", ""};
+		frontReflectorMatOn = "Drezina\data\textures\drezina_glass_broken.rvmat";
+		frontReflectorMatOff = "Drezina\data\textures\drezina_glass_broken.rvmat";
 		brakeReflectorMatOn = "Drezina\data\textures\drezina_redglass_e.rvmat";
 		brakeReflectorMatOff = "Drezina\data\textures\drezina_redglass.rvmat";
 		ReverseReflectorMatOn = "Drezina\data\textures\drezina_glass_e.rvmat";
@@ -461,25 +461,6 @@ class CfgVehicles
 					};
 					inventorySlots[] = {};
 				};
-				class Reflector_1_1
-				{
-					fatalInjuryCoef = -1;
-					memoryPoints[] = {"dmgZone_lights_1_1"};
-					componentNames[] = {};
-					class Health
-					{
-						hitpoints = 10;
-						transferToGlobalCoef = 0;
-						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
-					};
-					inventorySlots[] = {"Reflector_1_1"};
-					inventorySlotsCoefs[] = {1};
-				};
-				class Reflector_2_1: Reflector_1_1
-				{
-					memoryPoints[] = {"dmgZone_lights_2_1"};
-					inventorySlots[] = {"Reflector_2_1"};
-				};
 			};
 		};
 
@@ -491,13 +472,6 @@ class CfgVehicles
 				description = "";
 				icon = "set:dayz_inventory image:cat_vehicle_engine";
 				attachmentSlots[] = {"SparkPlug"};
-			};
-			class Body
-			{
-				name = "$STR_attachment_Body0";
-				description = "";
-				icon = "set:dayz_inventory image:cat_vehicle_body";
-				attachmentSlots[] = {"Reflector_1_1", "Reflector_2_1"};
 			};
 		};
 	};

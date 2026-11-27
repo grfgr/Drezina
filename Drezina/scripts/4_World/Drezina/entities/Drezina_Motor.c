@@ -74,12 +74,18 @@ class Drezina_Motor extends CarScript
 		SetEnginePos("0.22 0.82 0.72");
 		s_All.Insert(this);
 		GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(WakeWatch);
+		if (!GetGame().IsDedicatedServer())
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(LanternTick);
 	}
 
 	void ~Drezina_Motor()
 	{
 		if (GetGame())
 			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Remove(WakeWatch);
+		if (GetGame())
+			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Remove(LanternTick);
+		if (m_Lantern)
+			m_Lantern.Destroy();
 		if (s_All)
 			s_All.RemoveItem(this);
 	}
@@ -242,7 +248,6 @@ class Drezina_Motor extends CarScript
 		AddAction(ActionDrezinaTurnAround);
 		AddAction(ActionDrezinaOffRail);
 		AddAction(ActionDrezinaOnRail);
-		AddAction(ActionSwitchLights);
 		AddAction(ActionVehicleHornShort);
 		AddAction(ActionVehicleHornLong);
 	}
@@ -251,7 +256,7 @@ class Drezina_Motor extends CarScript
 	// Базовая машина требует аккумулятор, поэтому раньше работал только стоп-сигнал.
 	override bool OnBeforeLightOn()
 	{
-		return true;
+		return true;   // только стоп-сигнал: фары разбиты, включателя нет
 	}
 
 	// почему не заводится — в лог
@@ -468,6 +473,21 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
+
+		// водитель сообщает серверу, где дрезина: серверная копия не уходит вперёд/назад
+		if (!server)
+		{
+			m_PosSendTimer -= dt;
+			if (m_PosSendTimer <= 0 && (v != 0 || m_PosSendTimer < -2))
+			{
+				m_PosSendTimer = 0.25;
+				ScriptRPC prpc = new ScriptRPC();
+				prpc.Write(m_TrackId);
+				prpc.Write(nd);
+				prpc.Write(v);
+				prpc.Send(this, DrezinaRPC.MOTOR_POS, false, null);
+			}
+		}
 		// прицеп ставит только сервер: если ставить его ещё и на клиенте, позиция с сервера (с задержкой
 		// сети) спорит с клиентской и прицеп дёргается взад-вперёд на полметра
 		if (server && tr && !tr.m_OffRail)
@@ -546,6 +566,10 @@ class Drezina_Motor extends CarScript
 		if (CrewDriver())
 			steer = GetSteering();
 		m_SinceTransfer += Math.AbsFloat(nd - d);
+		// сервер с живым водителем стрелки сам не переводит: его копия дрезины может быть на десятки
+		// метров впереди и проскочить стрелку до того, как водитель повернёт руль. Переход присылает клиент.
+		if (GetGame().IsServer() && RemoteDriver())
+			return false;
 		foreach (DrezinaSwitch sw : t.m_Switches)
 		{
 			if (sw.Dir != md)
@@ -623,11 +647,106 @@ class Drezina_Motor extends CarScript
 			m_LPrevMove = m_PrevMove;
 			m_LPrevFace = m_PrevFace;
 			m_LEntryD = m_EntryD;
+			ScriptRPC rpc = new ScriptRPC();
+			rpc.Write(m_TrackId);
+			rpc.Write(toD);
+			rpc.Write(m_Face);
+			rpc.Write(m_PrevTrack);
+			rpc.Write(m_PrevD);
+			rpc.Write(m_PrevMove);
+			rpc.Write(m_PrevFace);
+			rpc.Write(m_EntryD);
+			rpc.Send(this, DrezinaRPC.MOTOR_TRANSFER, true, null);
 		}
 		Print("[Drezina] motor: стрелка, путь #" + m_PrevTrack + " -> #" + m_TrackId);
 	}
 
 	int m_SyncedTrack = -1;
+	float m_PosSendTimer = 0;
+	Drezina_LanternLight m_Lantern;
+
+	// водитель — игрок (на сервере у него всегда есть identity)
+	Human RemoteDriver()
+	{
+		Human h = CrewDriver();
+		if (h && h.GetIdentity())
+			return h;
+		return null;
+	}
+
+	bool IsSenderDriver(PlayerIdentity sender)
+	{
+		Human h = RemoteDriver();
+		return sender && h && h.GetIdentity().GetId() == sender.GetId();
+	}
+
+	override void OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)
+	{
+		super.OnRPC(sender, rpc_type, ctx);
+		if (!GetGame().IsServer())
+			return;
+		if (rpc_type == DrezinaRPC.MOTOR_TRANSFER)
+		{
+			int toId, face, prevTrack, prevMove, prevFace;
+			float toD, prevD, entryD;
+			if (!ctx.Read(toId) || !ctx.Read(toD) || !ctx.Read(face) || !ctx.Read(prevTrack) || !ctx.Read(prevD) || !ctx.Read(prevMove) || !ctx.Read(prevFace) || !ctx.Read(entryD))
+				return;
+			if (!IsSenderDriver(sender) || m_OffRail)
+				return;
+			DrezinaTrack nt = DrezinaTrackManager.Get().GetTrack(toId);
+			if (!nt)
+				return;
+			m_PrevTrack = prevTrack;
+			m_PrevD = prevD;
+			m_PrevMove = prevMove;
+			m_PrevFace = prevFace;
+			m_EntryD = entryD;
+			m_TrackId = toId;
+			m_Face = face;
+			m_TransferTime = GetGame().GetTime();
+			m_SinceTransfer = 0;
+			ServerSnapTo(nt, toD);
+			SetSynchDirty();
+			Print("[Drezina] motor: стрелка (от водителя), путь #" + prevTrack + " -> #" + toId);
+			return;
+		}
+		if (rpc_type == DrezinaRPC.MOTOR_POS)
+		{
+			int pid;
+			float pd, pv;
+			if (!ctx.Read(pid) || !ctx.Read(pd) || !ctx.Read(pv))
+				return;
+			if (!IsSenderDriver(sender) || m_OffRail || pid != m_TrackId)
+				return;
+			DrezinaTrack pt = GetTrack();
+			if (!pt)
+				return;
+			ServerSnapTo(pt, Math.Clamp(pd, 0, pt.GetLength()));
+			vector pm[4];
+			TrackTransform(pt, m_DistHint, pm);
+			SetVelocity(this, pm[2] * pv);
+		}
+	}
+
+	// серверная копия — на дистанцию d пути t (по данным водителя)
+	void ServerSnapTo(DrezinaTrack t, float d)
+	{
+		m_DistHint = d;
+		vector mat[4];
+		TrackTransform(t, d, mat);
+		SetTransform(mat);
+		Wake();
+	}
+
+	// керосиновый фонарь на штанге (правый передний угол): горит всегда, тускло — видно на пару корпусов вокруг
+	void LanternTick(float dt)
+	{
+		if (m_Lantern)
+			return;
+		m_Lantern = Drezina_LanternLight.Cast(ScriptedLightBase.CreateLight(Drezina_LanternLight, GetPosition()));
+		if (m_Lantern)
+			m_Lantern.AttachOnObject(this, Vector(0.64, 1.5, 1.26), vector.Zero);
+	}
 
 	override void OnVariablesSynchronized()
 	{
@@ -995,5 +1114,20 @@ class Drezina_MotorLightProfileFront : Motorbike_01LightProfileFront
 	{
 		m_SegregatedBrightness 	= 8.0 / 3.0;
 		m_AggregatedBrightness 	= 10;
+	}
+}
+
+// Свет фонаря «летучая мышь»: тёплый, тусклый, без тени
+class Drezina_LanternLight extends PointLightBase
+{
+	void Drezina_LanternLight()
+	{
+		SetVisibleDuringDaylight(false);
+		SetRadiusTo(6.5);
+		SetBrightnessTo(1.1);
+		SetCastShadow(false);
+		SetFlareVisible(false);
+		SetDiffuseColor(1.0, 0.68, 0.36);
+		SetAmbientColor(1.0, 0.68, 0.36);
 	}
 }
