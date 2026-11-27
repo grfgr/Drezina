@@ -220,21 +220,22 @@ class Drezina_Trailer extends CarScript
 		SetSynchDirty();
 	}
 
-	bool SideFree(float sgn, float off)
+	// side — направление вбок в мире (то же, что у дрезины): прицеп сходит в ту же сторону
+	bool SideFree(vector side, float off)
 	{
 		vector mat[4];
 		GetTransform(mat);
 		vector center = mat[3] + Vector(0, 0.8, 0);
 		vector hitPos, hitDir;
 		int hitComp;
-		return !DayZPhysics.RaycastRV(center, center + mat[0] * sgn * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom);
+		return !DayZPhysics.RaycastRV(center, center + side.Normalized() * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom);
 	}
 
-	void ServerTakeOffRail(float sgn, float off)
+	void ServerTakeOffRail(vector side, float off)
 	{
 		vector mat[4];
 		GetTransform(mat);
-		vector place = mat[3] + mat[0] * sgn * off;
+		vector place = mat[3] + side.Normalized() * off;
 		vector hitPos, hitDir;
 		int hitComp;
 		if (DayZPhysics.RaycastRV(place + Vector(0, 1.5, 0), place - Vector(0, 3.0, 0), hitPos, hitDir, hitComp, null, null, this))

@@ -1077,6 +1077,61 @@ class DrezinaTunnelManager
 	}
 
 	// съезд: узлы по кривой Эрмита от p0 (касательная t0) до p1 (касательная t1)
+	// длина касательных Эрмита под угол поворота: так кривая близка к дуге окружности, без излома
+	static float TangentScale(vector t0, vector t1)
+	{
+		float c = Math.Clamp(vector.Dot(Flat(t0), Flat(t1)), -0.999, 1.0);
+		float th = Math.Acos(c);
+		if (th < 0.01)
+			return 1.0;
+		return 2.0 * Math.Tan(th / 4.0) / Math.Sin(th / 2.0);
+	}
+
+	// самый крутой изгиб съезда (радиус, м)
+	static float ConnectorMinRadius(vector p0, vector t0, vector p1, vector t1, float fm)
+	{
+		vector a0 = Vector(p0[0], 0, p0[2]);
+		vector a1 = Vector(p1[0], 0, p1[2]);
+		float m = FlatDistance(p0, p1) * TangentScale(t0, t1) * fm;
+		vector ft0 = Flat(t0) * m;
+		vector ft1 = Flat(t1) * m;
+		float rmin = 100000;
+		vector prev = Hermite(a0, ft0, a1, ft1, 0);
+		vector cur = Hermite(a0, ft0, a1, ft1, 0.025);
+		for (int i = 2; i <= 40; i++)
+		{
+			float sp = i;
+			vector nxt = Hermite(a0, ft0, a1, ft1, sp / 40.0);
+			vector v1 = cur - prev;
+			vector v2 = nxt - cur;
+			float l1 = v1.Length();
+			float l2 = v2.Length();
+			if (l1 > 0.001 && l2 > 0.001)
+			{
+				float cs = Math.Clamp(vector.Dot(v1, v2) / (l1 * l2), -1, 1);
+				float ang = Math.Acos(cs);
+				if (ang > 0.0001)
+					rmin = Math.Min(rmin, (l1 + l2) * 0.5 / ang);
+			}
+			prev = cur;
+			cur = nxt;
+		}
+		return rmin;
+	}
+
+	static void ConnectorNodesF(vector p0, vector t0, vector p1, vector t1, float y, array<vector> nodes, float fm)
+	{
+		float L = FlatDistance(p0, p1) * TangentScale(t0, t1) * fm;
+		for (int i = 0; i <= 10; i++)
+		{
+			float sp = i;
+			sp = sp / 10.0;
+			vector q = Hermite(p0, Flat(t0) * L, p1, Flat(t1) * L, sp);
+			q[1] = y;
+			nodes.Insert(q);
+		}
+	}
+
 	static void ConnectorNodes(vector p0, vector t0, vector p1, vector t1, float y, array<vector> nodes)
 	{
 		float L = FlatDistance(p0, p1);
@@ -1282,12 +1337,37 @@ class DrezinaTunnelManager
 		for (int k = -1; k <= 1; k += 2)
 		{
 			float fk = k;
-			float d1 = dXA + fk * 16.0;
+			// линия B входит наискосок: съезду в дальнюю сторону поворачивать до 135°. Подбираем, где он
+			// вливается в A (8..22 м от центра, внутри зала) и форму кривой — чтобы изгиб был самым плавным
+			float bestR = -1;
+			float bestOff = 16;
+			float bestF = 1;
+			for (int oi = 0; oi < 8; oi++)
+			{
+				float offC = 8 + oi * 2;
+				if (offC > j.Radius - 2)
+					break;
+				vector Qc, qdc;
+				ma.GetPosDir(dXA + fk * offC, Qc, qdc);
+				vector t1c = Flat(qdc) * fk;
+				for (int fi = 0; fi < 4; fi++)
+				{
+					float fmC = 0.8 + fi * 0.2;
+					float rC = ConnectorMinRadius(P, t0, Qc, t1c, fmC);
+					if (rC > bestR)
+					{
+						bestR = rC;
+						bestOff = offC;
+						bestF = fmC;
+					}
+				}
+			}
+			float d1 = dXA + fk * bestOff;
 			vector Q, qd;
 			ma.GetPosDir(d1, Q, qd);
 			vector t1 = Flat(qd) * fk;                  // по линии A в сторону съезда
 			array<vector> nodes = new array<vector>;
-			ConnectorNodes(P, t0, Q, t1, railY, nodes);
+			ConnectorNodesF(P, t0, Q, t1, railY, nodes, bestF);
 			array<ref DrezinaLink> cl = new array<ref DrezinaLink>;
 			DrezinaLink a = new DrezinaLink();
 			a.End = 0;

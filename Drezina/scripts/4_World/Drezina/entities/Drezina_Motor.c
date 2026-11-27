@@ -441,6 +441,19 @@ class Drezina_Motor extends CarScript
 			t = GetTrack();
 			nd = m_DistHint;
 		}
+		// сервер: плавно к положению, которое прислал водитель (с поправкой на время в пути пакета);
+		// рывком — только если разошлись далеко. Резкие поправки дёргали прицеп.
+		if (server && m_CliTime > 0 && m_CliTrack == t.GetId() && RemoteDriver())
+		{
+			float age = Math.Min((GetGame().GetTime() - m_CliTime) / 1000.0, 0.6);
+			float pred = m_CliD + m_CliV * m_Face * age;
+			float err = pred - nd;
+			if (Math.AbsFloat(err) > 20)
+				nd = pred;
+			else
+				nd = nd + err * Math.Min(1.0, dt * 4.0);
+			v = v + (m_CliV - v) * Math.Min(1.0, dt * 4.0);
+		}
 		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
 		float hi = Math.Max(t.GetLength() - END_GAP, lo);
@@ -663,6 +676,11 @@ class Drezina_Motor extends CarScript
 
 	int m_SyncedTrack = -1;
 	float m_PosSendTimer = 0;
+	// последнее положение от водителя (сервер плавно подтягивает к нему свою копию)
+	int m_CliTrack = -1;
+	float m_CliD;
+	float m_CliV;
+	int m_CliTime = 0;
 	Drezina_LanternLight m_Lantern;
 
 	// водитель — игрок (на сервере у него всегда есть identity)
@@ -705,6 +723,9 @@ class Drezina_Motor extends CarScript
 			m_Face = face;
 			m_TransferTime = GetGame().GetTime();
 			m_SinceTransfer = 0;
+			m_CliTrack = toId;
+			m_CliD = toD;
+			m_CliTime = GetGame().GetTime();
 			ServerSnapTo(nt, toD);
 			SetSynchDirty();
 			Print("[Drezina] motor: стрелка (от водителя), путь #" + prevTrack + " -> #" + toId);
@@ -718,13 +739,12 @@ class Drezina_Motor extends CarScript
 				return;
 			if (!IsSenderDriver(sender) || m_OffRail || pid != m_TrackId)
 				return;
-			DrezinaTrack pt = GetTrack();
-			if (!pt)
-				return;
-			ServerSnapTo(pt, Math.Clamp(pd, 0, pt.GetLength()));
-			vector pm[4];
-			TrackTransform(pt, m_DistHint, pm);
-			SetVelocity(this, pm[2] * pv);
+			m_CliTrack = pid;
+			m_CliD = pd;
+			m_CliV = pv;
+			m_CliTime = GetGame().GetTime();
+			if (m_Sleeping)
+				Wake();
 		}
 	}
 
@@ -990,7 +1010,7 @@ class Drezina_Motor extends CarScript
 				// луч до дальнего борта дрезины в стоящем положении (+0.85 м); с прицепом — и у прицепа
 				if (DayZPhysics.RaycastRV(center, center + side * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom))
 					continue;
-				if (tr && !tr.SideFree(sgn, off))
+				if (tr && !tr.SideFree(side, off))
 					continue;
 				place = mat[3] + side * off;
 				break;
@@ -999,7 +1019,7 @@ class Drezina_Motor extends CarScript
 		if (place == vector.Zero)
 			return false;
 		if (tr)
-			tr.ServerTakeOffRail(sgn, off);
+			tr.ServerTakeOffRail(mat[0] * sgn, off);
 		// земля под новым местом
 		vector top = place + Vector(0, 1.5, 0);
 		if (DayZPhysics.RaycastRV(top, place - Vector(0, 3.0, 0), hitPos, hitDir, hitComp, null, null, this))
