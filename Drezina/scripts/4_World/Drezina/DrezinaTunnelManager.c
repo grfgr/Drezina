@@ -1920,12 +1920,17 @@ class DrezinaTunnelManager
 		// две точки на одной прямой с концом: последние ~12 м перед залом путь строго прямой (иначе
 		// поворот начинался у самого портала — щель между тоннелем и порталом, излом рельсов на съезде)
 		vector mid = bestX + dir * (JOIN_STUB + 6.0);
-		vector mid2 = bestX + dir * (JOIN_STUB + 12.0);
+		// под острым углом (довёрнуто до 45°) прямой участок длиннее: линия успевает отойти от основной,
+		// прежде чем повернуть к своему маршруту, — иначе её тоннель резал портал и тоннель основной
+		float leg2 = 12.0;
+		if (clamped)
+			leg2 = 20.0;
+		vector mid2 = bestX + dir * (JOIN_STUB + leg2);
 		stub[1] = p[1];
 		mid[1] = p[1];
 		mid2[1] = p[1];
 		route[idx] = stub;
-		bool far2 = toNb.Length() > JOIN_STUB + 20.0;
+		bool far2 = clamped || toNb.Length() > JOIN_STUB + 20.0;
 		if (end == 0)
 		{
 			route.InsertAt(mid, 1);
