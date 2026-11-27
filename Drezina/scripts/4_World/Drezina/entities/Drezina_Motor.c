@@ -187,6 +187,11 @@ class Drezina_Motor extends CarScript
 			// сиденье Нивы). Анимация рассчитана на вход справа: правый садится снаружи, левый — с пола в центре.
 			case 1:
 			case 2:
+			// места пассажирского прицепа (без анимации посадки игра место не принимала — сесть было нельзя)
+			case 3:
+			case 4:
+			case 5:
+			case 6:
 				return DayZPlayerConstants.VEHICLESEAT_CODRIVER;
 		}
 		return 0;
@@ -511,7 +516,7 @@ class Drezina_Motor extends CarScript
 			v = 0;
 
 		// диагностика: резко встали с газом (во что-то упёрлись) — что впереди
-		if (!server && throttle > 0.5 && m_DbgPrevV > 5.0 && Math.AbsFloat(v) < 1.0 && GetGame().GetTime() - m_DbgTime > 3000)
+		if (!server && Math.AbsFloat(m_DbgPrevV) > 5.0 && Math.AbsFloat(v) < Math.AbsFloat(m_DbgPrevV) - 3.0 && GetGame().GetTime() - m_DbgTime > 3000)
 		{
 			m_DbgTime = GetGame().GetTime();
 			vector dbgFrom = GetPosition() + Vector(0, 0.6, 0);
@@ -526,7 +531,16 @@ class Drezina_Motor extends CarScript
 				if (dbgObjs.Count() > 0 && dbgObjs[0])
 					what = dbgObjs[0].GetType();
 			}
-			Print("[Drezina] резкая остановка: путь #" + m_TrackId + " d=" + d + " было v=" + m_DbgPrevV + " стало " + v + ", впереди: " + what + ", заблокирован=" + IsBlocked(t, d, m_DbgPrevV));
+			// и всё, что рядом впереди (в 3 м)
+			array<Object> near = new array<Object>;
+			GetGame().GetObjectsAtPosition3D(GetPosition() + fwd * Math.Sign(m_DbgPrevV) * 2.5, 3.0, near, null);
+			string list = "";
+			foreach (Object no : near)
+			{
+				if (no && no != this && no.GetType() != "")
+					list = list + no.GetType() + " ";
+			}
+			Print("[Drezina] резкая остановка: путь #" + m_TrackId + " d=" + d + " было v=" + m_DbgPrevV + " стало " + v + ", газ=" + throttle + ", впереди: " + what + ", заблокирован=" + IsBlocked(t, d, m_DbgPrevV) + ", рядом: " + list);
 		}
 		m_DbgPrevV = v;
 		float nd = d + v * m_Face * dt;
@@ -659,6 +673,10 @@ class Drezina_Motor extends CarScript
 		if (CrewDriver())
 			steer = GetSteering();
 		m_SinceTransfer += Math.AbsFloat(nd - d);
+		// сервер с живым водителем стрелки сам не переводит: переход присылает водитель (у сервера своя
+		// копия, она проходит стрелку в другой момент — иначе после поправок дрезину дёргало и разворачивало)
+		if (GetGame().IsServer() && RemoteDriver())
+			return false;
 		foreach (DrezinaSwitch sw : t.m_Switches)
 		{
 			if (sw.Dir != md)
