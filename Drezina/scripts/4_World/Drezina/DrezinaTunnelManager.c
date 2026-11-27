@@ -1387,6 +1387,19 @@ class DrezinaTunnelManager
 			if (!both && k != onlyK)
 				continue;
 			float fk = k;
+			// два съезда сразу расходятся на ±15° (как настоящая стрелка): иначе первые метров десять они
+			// шли друг по другу и посередине виднелся лишний обрывающийся путь
+			vector ts = t0;
+			if (both)
+			{
+				vector qSide, qSideDir;
+				ma.GetPosDir(dXA + fk * 14.0, qSide, qSideDir);
+				vector perp = Side(t0);
+				float ps = 1;
+				if (vector.Dot(qSide - P, perp) < 0)
+					ps = -1;
+				ts = (t0 * 0.966 + perp * (ps * 0.259)).Normalized();
+			}
 			// линия B входит наискосок: съезду в дальнюю сторону поворачивать до 135°. Подбираем, где он
 			// вливается в A (8..22 м от центра, внутри зала) и форму кривой — чтобы изгиб был самым плавным
 			float bestR = -1;
@@ -1403,7 +1416,7 @@ class DrezinaTunnelManager
 				for (int fi = 0; fi < 4; fi++)
 				{
 					float fmC = 0.8 + fi * 0.2;
-					float rC = ConnectorMinRadius(P, t0, Qc, t1c, fmC);
+					float rC = ConnectorMinRadius(P, ts, Qc, t1c, fmC);
 					if (rC > bestR)
 					{
 						bestR = rC;
@@ -1417,7 +1430,7 @@ class DrezinaTunnelManager
 			ma.GetPosDir(d1, Q, qd);
 			vector t1 = Flat(qd) * fk;                  // по линии A в сторону съезда
 			array<vector> nodes = new array<vector>;
-			ConnectorNodesF(P, t0, Q, t1, railY, nodes, bestF);
+			ConnectorNodesF(P, ts, Q, t1, railY, nodes, bestF);
 			array<ref DrezinaLink> cl = new array<ref DrezinaLink>;
 			DrezinaLink a = new DrezinaLink();
 			a.End = 0;
