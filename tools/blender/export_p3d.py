@@ -64,7 +64,18 @@ LOD_RES = [1.0, 4.0, 10.0, 25.0]
 # следы попаданий и пробиваемость (ванильные penetration-rvmat ссылаются на свой .bisurf).
 # ванильный материал пола бункера Ливонии: по нему в бункере звучат шаги по бетону
 # текстура граней Roadway — тоже ванильная из бункера (поверхность для шагов может браться по текстуре)
-ROADWAY_TEX = "dz\\structures_bliss\\underground\\storage\\data\\underground_storage_big_floor_mc.paa"
+# Звук шагов: игра выбирает поверхность из CfgSurfaces (DZ_Surfaces) по началу ИМЕНИ ФАЙЛА текстуры
+# граней Roadway LOD (files="concrete_int*" и т.п.), без материала на этих гранях.
+ROADWAY_DIR = "Drezina\\data\\textures\\"
+ROADWAY_TEX = ROADWAY_DIR + "concrete_int_drezina_co.paa"
+ROADWAY_BY_MODEL = {
+    "bunker_stairs": ROADWAY_DIR + "concrete_stairs_int_drezina_co.paa",
+    "handcar": ROADWAY_DIR + "wood_planks_int_drezina_co.paa",
+    "motor_handcar": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
+    "trailer_passenger": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
+    "trailer_cargo": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
+    "trailer_barrel": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
+}
 SURF_CONCRETE = "dz\\structures_bliss\\underground\\storage\\data\\underground_storage_big_floor.rvmat"
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
@@ -225,7 +236,7 @@ def box_faces(o, top_only=False):
     return pts, quads
 
 
-def components_lod(geoms, resolution, mass=None, roadway=False, proxies=(), surface=SURF_CONCRETE):
+def components_lod(geoms, resolution, mass=None, roadway=False, proxies=(), surface=SURF_CONCRETE, roadtex=None):
     points, faces = [], []
     taggs = b""
     comp = []
@@ -236,7 +247,7 @@ def components_lod(geoms, resolution, mass=None, roadway=False, proxies=(), surf
         points += pts
         f0 = len(faces)
         for q in quads:
-            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], ROADWAY_TEX if roadway else "", surface))
+            faces.append(([(base + i, 0, 0.0, 0.0) for i in q], (roadtex or ROADWAY_TEX) if roadway else "", "" if roadway else surface))
         comp.append((range(base, base + len(pts)), range(f0, len(faces))))
         if not roadway and "sel" in o:
             for sname in str(o["sel"]).split(","):
@@ -323,7 +334,7 @@ def export_model(src_dir, out_dir, name, mass, shadow):
         lods.append(components_lod(geometry, 1e13, mass, surface=surf))
         lods.append(components_lod(geometry, 6e15, proxies=prx, surface=surf))
         lods.append(components_lod(geometry, 7e15, proxies=prx, surface=surf))
-        lods.append(components_lod(geometry, 3e15, roadway=True, surface=surf))
+        lods.append(components_lod(geometry, 3e15, roadway=True, surface=surf, roadtex=ROADWAY_BY_MODEL.get(name)))
     else:
         xs, ys, zs = zip(*pts0)
         bpy.ops.mesh.primitive_cube_add(size=1)
