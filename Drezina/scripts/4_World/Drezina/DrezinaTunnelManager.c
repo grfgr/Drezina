@@ -1262,10 +1262,14 @@ class DrezinaTunnelManager
 			// короткие звенья тоннеля вплотную к порталу — без щели между залом и тоннелем
 			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", ap + ad * 1.0, ad));
 		}
-		float stepA = 2.7 / (R + 0.25);
+		// панели (2.75 м) ровно по кругу: целое число с одинаковым шагом ~2.6 м (раньше шаг 2.7 не делил
+		// окружность, и между последней и первой панелью оставалась щель до 1.3 м)
+		int nWall = Math.Ceil(Math.PI2 * (R + 0.25) / 2.6);
+		float stepA = Math.PI2 / nWall;
 		float gap = Math.Asin(4.4 / R);          // панели с центром ближе 4.4 м к оси входа — за порталом (он 12 м)
-		for (float ang = 0; ang < Math.PI2 - stepA * 0.5; ang += stepA)
+		for (int wi = 0; wi < nWall; wi++)
 		{
+			float ang = wi * stepA;
 			vector o = ArmDir(ang);
 			bool skip = false;
 			foreach (vector a2 : arms)
