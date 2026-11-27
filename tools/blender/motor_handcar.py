@@ -781,7 +781,8 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     print(f"[Drezina] motor_handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
     # бюджет LOD0: ~40 тыс. треугольников (в LOD у DayZ есть предел вершин) — упрощаем корпус и колёса
     for o in meshes:
-        ratio = 0.6 if o.name == "body" else (0.75 if o.name.startswith("wheel") else (0.8 if o.name.startswith("module") else 1.0))
+        # (лимит LOD у DayZ: модель на ~59 тыс. граней уже не создавалась — держим меньше ~48 тыс.)
+        ratio = 0.5 if o.name == "body" else (0.6 if o.name.startswith("wheel") else (0.6 if o.name.startswith("module") else 1.0))
         if ratio < 1.0:
             mod = o.modifiers.new("decimate0", "DECIMATE")
             mod.ratio = ratio
