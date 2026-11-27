@@ -1348,17 +1348,21 @@ class DrezinaTunnelManager
 	{
 		DrezinaTrackManager tm = DrezinaTrackManager.Get();
 		float lenB = mb.GetLength();
-		float dB = 2.5;          // точка съезда на пути B (у конца, перед упором)
+		float dB = 0.3;          // съезды начинаются у самого конца пути B (без «хвоста» в зале)
 		int sB = -1;              // движение по B к залу: к началу пути (-1) или к концу (+1)
 		if (j.EndB == 1)
 		{
-			dB = lenB - 2.5;
+			dB = lenB - 0.3;
 			sB = 1;
 		}
 		vector P, pd;
 		mb.GetPosDir(dB, P, pd);
 		float fsB = sB;
 		vector t0 = Flat(pd) * fsB;                    // направление к линии A
+		vector toC = j.Center - P;
+		toC[1] = 0;
+		if (vector.Dot(t0, toC) < 0)
+			t0 = t0 * -1.0;                            // всегда внутрь зала, к оси A
 		// под каким углом B подходит к A: почти поперёк (60..120°) — два съезда, налево и направо (руль
 		// выбирает); под острым углом — один, в ту сторону, куда B и так смотрит (второй пришлось бы
 		// разворачивать на 120°+ — дрезину проще развернуть руками)
@@ -1366,9 +1370,18 @@ class DrezinaTunnelManager
 		ma.GetPosDir(dXA, axQ, axA);
 		float lean = vector.Dot(t0, Flat(axA));
 		bool both = Math.AbsFloat(lean) < 0.5;
+		// один съезд — в ту сторону оси A, что впереди по ходу B
+		vector qPlus, qMinus, qdTmp;
+		ma.GetPosDir(dXA + 14.0, qPlus, qdTmp);
+		ma.GetPosDir(dXA - 14.0, qMinus, qdTmp);
 		int onlyK = 1;
-		if (lean < 0)
+		if (vector.Dot(qMinus - P, t0) > vector.Dot(qPlus - P, t0))
 			onlyK = -1;
+		int rampCount = 1;
+		if (both)
+			rampCount = 2;
+		float teeAngle = Math.Acos(Math.Clamp(Math.AbsFloat(lean), 0, 1)) * Math.RAD2DEG;
+		Print("[Drezina] Т-развязка путь #" + mb.GetId() + ": угол к оси " + teeAngle + "°, съездов " + rampCount + ", сторона " + onlyK);
 		for (int k = -1; k <= 1; k += 2)
 		{
 			if (!both && k != onlyK)
@@ -1836,7 +1849,7 @@ class DrezinaTunnelManager
 	}
 
 	static const float JOIN_RADIUS = 40.0;   // конец ближе к оси другой линии — подключается к ней
-	static const float JOIN_STUB = 18.0;     // путь подключённой линии кончается в 18 м от оси (внутри зала)
+	static const float JOIN_STUB = 22.0;     // путь подключённой линии кончается у портала зала (22 м от оси)
 
 	// Конец end маршрута (0 — первая точка, 1 — последняя) рядом с осью другой подземной линии:
 	// точка конца заменяется на точку в 18 м от оси (перпендикулярно), перед ней — ещё одна в 38 м,

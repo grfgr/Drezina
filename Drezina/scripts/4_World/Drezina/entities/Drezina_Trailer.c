@@ -275,68 +275,57 @@ class Drezina_Trailer extends CarScript
 		vector mat[4];
 		Drezina_Motor.TrackTransformFace(t, d, face, mat);
 		SetTransform(mat);
-		// без скорости: иначе физика между кадрами сдвигала прицеп ещё вперёд, а клиент досчитывал
-		// движение по скорости — прицеп «обгонял» дрезину. Тело не усыпляем — иначе положение не уходит клиентам.
-		SetVelocity(this, vector.Zero);
+		// скорость — как у ведущей, вдоль пути: клиенты досчитывают движение между пакетами плавно
+		// (с нулевой скоростью прицеп у клиентов двигался ступеньками — дребезг)
+		SetVelocity(this, vel);
 	}
 
+	// Ставит ведущая (сервер), сразу после себя, в том же шаге физики: прицеп не отстаёт и не обгоняет.
+	void FollowLead(Drezina_Motor lead, DrezinaTrack t, float ld, float v)
+	{
+		if (m_OffRail)
+			return;
+		if (m_Face != lead.m_Face)
+		{
+			m_Face = lead.m_Face;
+			SetSynchDirty();
+		}
+		DrezinaTrack tt;
+		float td;
+		int tface;
+		lead.TrailerPose(t, ld, tt, td, tface);
+		vector pm[4];
+		Drezina_Motor.TrackTransformFace(tt, Math.Clamp(td, 0, tt.GetLength()), tface, pm);
+		FollowAt(tt, td, tface, pm[2] * v);
+		if (tt.GetId() != m_TrackId)
+		{
+			m_TrackId = tt.GetId();
+			SetSynchDirty();
+		}
+	}
+
+	// кадр: стоп-сигнал и колёса; положение ставит ведущая на сервере (FollowLead)
 	void Follow(float dt)
 	{
 		Drezina_Motor lead = Leader();
 		if (!GetGame().IsDedicatedServer())
 			UpdateBrakeLight(lead);
-		if (!lead || m_OffRail || lead.m_OffRail)
+		if (!GetGame().IsServer())
 		{
-			// снят с рельсов: у клиента снова падает на землю сам
-			if (m_OffRail && m_GravityOff && !GetGame().IsServer())
+			// у клиента прицеп на рельсах без гравитации (иначе проседает между пакетами), снятый — с ней
+			bool wantGravity = m_OffRail || !lead || lead.m_OffRail;
+			if (wantGravity == m_GravityOff)
 			{
-				m_GravityOff = false;
-				dBodyEnableGravity(this, true);
+				m_GravityOff = !wantGravity;
+				dBodyEnableGravity(this, wantGravity);
 			}
+		}
+		if (!lead || m_OffRail || lead.m_OffRail)
 			return;
-		}
-		// клиенты тоже ставят прицеп за ведущей сами, каждый кадр (без гравитации): раньше прицеп у
-		// клиента падал под своей тяжестью между пакетами сервера, а сервер его поднимал — дребезг
-		DrezinaTrack t = lead.GetTrack();
-		if (!t)
-			return;
-		// где ведущая: проекция её положения на путь (с подсказкой от прошлого кадра)
-		float ld = m_LeadHint;
-		if (m_LeadHintTrack != t.GetId())
-			ld = -1;                     // ведущая перешла на другой путь
-		m_LeadHintTrack = t.GetId();
-		if (ld < 0)
-		{
-			float off;
-			ld = t.ClosestDistance(lead.GetPosition(), off);
-		}
-		for (int i = 0; i < 3; i++)
-		{
-			vector p, dir;
-			t.GetPosDir(ld, p, dir);
-			ld = Math.Clamp(ld + vector.Dot(lead.GetPosition() - p, dir), 0, t.GetLength());
-		}
-		m_LeadHint = ld;
-		if (GetGame().IsServer() && m_Face != lead.m_Face)
-		{
-			m_Face = lead.m_Face;
-			SetSynchDirty();
-		}
-		vector vel = GetVelocity(lead);
-		DrezinaTrack tt;
-		float td;
-		int tface;
-		lead.TrailerPose(t, ld, tt, td, tface);
-		FollowAt(tt, td, tface, vel);
-		if (GetGame().IsServer() && tt.GetId() != m_TrackId)
-		{
-			m_TrackId = tt.GetId();
-			SetSynchDirty();
-		}
 		// колёса крутятся со скоростью ведущей
 		if (!GetGame().IsDedicatedServer() && dt > 0 && dt < 0.5)
 		{
-			float speed = vector.Dot(vel, GetDirection());
+			float speed = vector.Dot(GetVelocity(lead), GetDirection());
 			m_WheelPhase += speed * dt / (Math.PI2 * Drezina_Motor.WHEEL_RADIUS);
 			m_WheelPhase -= Math.Floor(m_WheelPhase);
 			SetAnimationPhase("drezina_wheels", m_WheelPhase);

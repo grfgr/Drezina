@@ -248,4 +248,18 @@ class DrezinaTrack
 	{
 		return m_Data.Service;
 	}
+
+	// есть стрелка съезда у самого конца end (до 1 м) — к этому концу можно подъезжать вплотную
+	bool SwitchNearEnd(int end)
+	{
+		float e = 0;
+		if (end == 1)
+			e = GetLength();
+		foreach (DrezinaSwitch sw : m_Switches)
+		{
+			if (Math.AbsFloat(sw.D - e) < 1.0)
+				return true;
+		}
+		return false;
+	}
 }

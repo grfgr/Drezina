@@ -457,8 +457,9 @@ class Drezina_Motor extends CarScript
 		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
 		float hi = Math.Max(t.GetLength() - END_GAP, lo);
-		bool linked0 = t.LinkAt(0) != null;
-		bool linked1 = t.LinkAt(1) != null;
+		// у конца со стрелкой съездов (линия, подключённая к другой) — тоже до самого конца
+		bool linked0 = t.LinkAt(0) != null || t.SwitchNearEnd(0);
+		bool linked1 = t.LinkAt(1) != null || t.SwitchNearEnd(1);
 		Drezina_Trailer tr = Trailer();
 		if (tr && !tr.m_OffRail)
 		{
@@ -486,6 +487,10 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
+		// прицеп — сразу за собой, в этом же шаге физики. Только сервер: если ставить его ещё и на клиенте,
+		// позиция с сервера спорит с клиентской и прицеп дёргается; клиенту он уходит со своей скоростью
+		if (server && tr && !tr.m_OffRail)
+			tr.FollowLead(this, t, nd, v);
 
 		// водитель сообщает серверу, где дрезина: серверная копия не уходит вперёд/назад
 		if (!server)
@@ -500,16 +505,6 @@ class Drezina_Motor extends CarScript
 				prpc.Write(v);
 				prpc.Send(this, DrezinaRPC.MOTOR_POS, false, null);
 			}
-		}
-		// прицеп ставит только сервер: если ставить его ещё и на клиенте, позиция с сервера (с задержкой
-		// сети) спорит с клиентской и прицеп дёргается взад-вперёд на полметра
-		if (server && tr && !tr.m_OffRail)
-		{
-			DrezinaTrack tt;
-			float td;
-			int tface;
-			TrailerPose(t, nd, tt, td, tface);
-			tr.FollowAt(tt, td, tface, mat[2] * v);
 		}
 
 		// стоим и газа нет — усыпляем физику: тело больше не шевелится (иначе дрожь на месте)
