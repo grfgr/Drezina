@@ -1022,6 +1022,7 @@ class Drezina_Motor extends CarScript
 	Object m_TrVis;
 	EntityAI m_TrVisE;          // то же, если это EntityAI (для анимации колёс и материала стоп-сигнала)
 	int m_TrVisType;
+	bool m_TrVisSolid;
 	float m_TrWheel;
 	bool m_TrBrake;
 	Drezina_TailLight m_TrTail;
@@ -1037,13 +1038,21 @@ class Drezina_Motor extends CarScript
 			DestroyTrailerVis();
 		if (m_TrailerType == 0)
 			return;
+		// столкновения у прицепа — только когда дрезина стоит без водителя: на ходу дрезина у клиента
+		// упиралась в свой же (локальный) прицеп — рывки и остановка не доезжая упора
+		bool wantSolid = !CrewDriver() && GetVelocity(this).Length() < 0.3;
+		if (m_TrVis && m_TrVisSolid != wantSolid)
+			DestroyTrailerVis();
 		if (!m_TrVis)
 		{
 			string cls = "Drezina_TrailerVisPassenger";
 			if (m_TrailerType == 2)
 				cls = "Drezina_TrailerVisCargo";
-			// с физикой: у прицепа есть столкновения (у каждого клиента свой, локальный)
-			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), ECE_LOCAL | ECE_CREATEPHYSICS);
+			int flags = ECE_LOCAL;
+			if (wantSolid)
+				flags = ECE_LOCAL | ECE_CREATEPHYSICS;
+			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), flags);
+			m_TrVisSolid = wantSolid;
 			m_TrVisE = EntityAI.Cast(m_TrVis);
 			m_TrVisType = m_TrailerType;
 			m_TrBrake = false;
@@ -1083,6 +1092,9 @@ class Drezina_Motor extends CarScript
 			GetTransform(mat);
 			mat[3] = mat[3] - mat[2] * TRAILER_GAP;
 		}
+		// модель прицепа развёрнута носом назад относительно дрезины — поворачиваем на 180°
+		mat[0] = mat[0] * -1.0;
+		mat[2] = mat[2] * -1.0;
 		m_TrVis.SetTransform(mat);
 		m_TrVis.Update();         // столкновения — на новое место вместе с моделью
 
