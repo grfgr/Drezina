@@ -28,6 +28,9 @@ import sys
 import bpy
 
 # модель -> (масса, есть ли тень)
+# только картинка (без геометрии) -> из какого .blend
+VIS_MODELS = {"trailer_passenger_vis": "trailer_passenger", "trailer_cargo_vis": "trailer_cargo"}
+
 MODELS = {
     "handcar": (227.0, True),
     "motor_handcar": (380.0, True),
@@ -306,7 +309,11 @@ def shadow_lod(points):
 
 # ============================================================================ сборка одной модели
 
-def export_model(src_dir, out_dir, name, mass, shadow):
+def export_model(src_dir, out_dir, name, mass, shadow, src_name=None, visonly=False):
+    """visonly — только видимые LOD и точки (без Geometry/View/Fire/Roadway): «картинка», сквозь которую
+    проходит взгляд игрока (видимый прицеп мотодрезины — места выбираются по самой дрезине)."""
+    out_name = name
+    name = src_name or name
     path = os.path.join(src_dir, name + ".blend")
     if not os.path.exists(path):
         print(f"[Drezina] пропуск {name}: нет {path}")
@@ -329,7 +336,9 @@ def export_model(src_dir, out_dir, name, mass, shadow):
     bpy.ops.wm.open_mainfile(filepath=path)
     _, geometry, memory = scene_parts()
     prx = proxy_triangles(scene_proxies())
-    if geometry:
+    if visonly:
+        pass
+    elif geometry:
         surf = SURFACE.get(name, SURF_CONCRETE)
         solid = [g for g in geometry if not g.get("viewonly")]   # viewonly — только View/Fire (выбор места)
         lods.append(components_lod(solid, 1e13, mass, surface=surf))
@@ -353,7 +362,7 @@ def export_model(src_dir, out_dir, name, mass, shadow):
     if shadow:
         lods.append(shadow_lod(pts0))
 
-    out = os.path.join(out_dir, name + ".p3d")
+    out = os.path.join(out_dir, out_name + ".p3d")
     with open(out, "wb") as f:
         f.write(b"MLOD" + struct.pack("<II", 257, len(lods)))
         for l in lods:
@@ -370,6 +379,9 @@ def main():
     done = 0
     for name, (mass, shadow) in MODELS.items():
         if export_model(src, out, name, mass, shadow):
+            done += 1
+    for name, srcn in VIS_MODELS.items():
+        if export_model(src, out, name, 1.0, False, srcn, True):
             done += 1
     print(f"[Drezina] готово: {done} из {len(MODELS)} моделей в {out}")
 

@@ -1023,6 +1023,8 @@ class Drezina_Motor extends CarScript
 	EntityAI m_TrVisE;          // то же, если это EntityAI (для анимации колёс и материала стоп-сигнала)
 	int m_TrVisType;
 	bool m_TrVisSolid;
+	bool m_TrVisChild;         // модель прицепа привязана к дрезине (рисуется вместе с ней — без дрожи)
+	int m_TrLocalMode = -1;    // -1 не проверено, 1 — SetTransform у привязанной задаёт локальное, 0 — мировое
 	float m_TrWheel;
 	bool m_TrBrake;
 	Drezina_TailLight m_TrTail;
@@ -1040,7 +1042,8 @@ class Drezina_Motor extends CarScript
 			return;
 		// столкновения у прицепа — только когда дрезина стоит без водителя: на ходу дрезина у клиента
 		// упиралась в свой же (локальный) прицеп — рывки и остановка не доезжая упора
-		bool wantSolid = !CrewDriver() && GetVelocity(this).Length() < 0.3;
+		// (пассажирский — никогда: его модель не должна закрывать места дрезины от взгляда игрока)
+		bool wantSolid = m_TrailerType == 2 && !CrewDriver() && GetVelocity(this).Length() < 0.3;
 		if (m_TrVis && m_TrVisSolid != wantSolid)
 			DestroyTrailerVis();
 		if (!m_TrVis)
@@ -1050,7 +1053,10 @@ class Drezina_Motor extends CarScript
 				cls = "Drezina_TrailerVisCargo";
 			int flags = ECE_LOCAL;
 			if (wantSolid)
+			{
+				cls = "Drezina_TrailerSolidCargo";
 				flags = ECE_LOCAL | ECE_CREATEPHYSICS;
+			}
 			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), flags);
 			m_TrVisSolid = wantSolid;
 			m_TrVisE = EntityAI.Cast(m_TrVis);
@@ -1058,6 +1064,13 @@ class Drezina_Motor extends CarScript
 			m_TrBrake = false;
 			if (!m_TrVis)
 				return;
+			m_TrVisChild = false;
+			if (!wantSolid)
+			{
+				AddChild(m_TrVis, -1);
+				m_TrVisChild = true;
+				m_TrLocalMode = -1;
+			}
 		}
 		vector mat[4];
 		DrezinaTrack t = GetTrack();
@@ -1095,8 +1108,32 @@ class Drezina_Motor extends CarScript
 		// модель прицепа развёрнута носом назад относительно дрезины — поворачиваем на 180°
 		mat[0] = mat[0] * -1.0;
 		mat[2] = mat[2] * -1.0;
-		m_TrVis.SetTransform(mat);
-		m_TrVis.Update();         // столкновения — на новое место вместе с моделью
+		if (m_TrVisChild && m_TrLocalMode != 0)
+		{
+			// привязана к дрезине: ставим относительно неё (игра рисует их вместе — прицеп не дрожит,
+			// даже когда положение дрезины подправляет сеть)
+			vector own[4];
+			GetTransform(own);
+			vector loc[4];
+			Math3D.MatrixInvMultiply4(own, mat, loc);
+			m_TrVis.SetTransform(loc);
+			if (m_TrLocalMode < 0)
+			{
+				// проверка один раз: если SetTransform у привязанной всё-таки мировой — дальше ставим мировое
+				if (vector.Distance(m_TrVis.GetPosition(), mat[3]) < 0.5)
+					m_TrLocalMode = 1;
+				else
+				{
+					m_TrLocalMode = 0;
+					m_TrVis.SetTransform(mat);
+				}
+			}
+		}
+		else
+		{
+			m_TrVis.SetTransform(mat);
+			m_TrVis.Update();     // столкновения — на новое место вместе с моделью
+		}
 
 		// колёса
 		int now = GetGame().GetTime();
@@ -1104,7 +1141,7 @@ class Drezina_Motor extends CarScript
 		m_TrLastTime = now;
 		if (dt > 0 && dt < 0.5)
 		{
-			float speed = -vector.Dot(GetVelocity(this), GetDirection());   // модель развёрнута — крутим обратно
+			float speed = vector.Dot(GetVelocity(this), GetDirection());   // поворот модели на 180° вращение колёс не меняет
 			m_TrWheel += speed * dt / (Math.PI2 * WHEEL_RADIUS);
 			m_TrWheel -= Math.Floor(m_TrWheel);
 			if (m_TrVisE)
@@ -1147,6 +1184,9 @@ class Drezina_Motor extends CarScript
 			m_TrTail.Destroy();
 			m_TrTail = null;
 		}
+		if (m_TrVis && m_TrVisChild)
+			RemoveChild(m_TrVis);
+		m_TrVisChild = false;
 		if (m_TrVis && GetGame())
 			GetGame().ObjectDelete(m_TrVis);
 		m_TrVis = null;

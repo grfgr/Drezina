@@ -531,11 +531,17 @@ class CfgVehicles
 			};
 		};
 	};
+	// без геометрии: взгляд проходит к местам самой дрезины (иначе не сесть в прицеп)
 	class Drezina_TrailerVisPassenger: Drezina_TrailerVisBase
 	{
-		model = "\Drezina\data\trailer_passenger.p3d";
+		model = "\Drezina\data\trailer_passenger_vis.p3d";
 	};
 	class Drezina_TrailerVisCargo: Drezina_TrailerVisBase
+	{
+		model = "\Drezina\data\trailer_cargo_vis.p3d";
+	};
+	// стоящий грузовой прицеп — с геометрией (столкновения)
+	class Drezina_TrailerSolidCargo: Drezina_TrailerVisBase
 	{
 		model = "\Drezina\data\trailer_cargo.p3d";
 	};
