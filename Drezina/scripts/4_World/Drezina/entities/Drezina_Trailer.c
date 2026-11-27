@@ -286,19 +286,17 @@ class Drezina_Trailer extends CarScript
 		if (!GetGame().IsDedicatedServer())
 			UpdateBrakeLight(lead);
 		if (!lead || m_OffRail || lead.m_OffRail)
-			return;
-		// клиенты: только колёса крутим со скоростью ведущей; положение приходит с сервера (плавно)
-		if (!GetGame().IsServer())
 		{
-			if (dt > 0 && dt < 0.5)
+			// снят с рельсов: у клиента снова падает на землю сам
+			if (m_OffRail && m_GravityOff && !GetGame().IsServer())
 			{
-				float cspeed = vector.Dot(GetVelocity(lead), GetDirection());
-				m_WheelPhase += cspeed * dt / (Math.PI2 * Drezina_Motor.WHEEL_RADIUS);
-				m_WheelPhase -= Math.Floor(m_WheelPhase);
-				SetAnimationPhase("drezina_wheels", m_WheelPhase);
+				m_GravityOff = false;
+				dBodyEnableGravity(this, true);
 			}
 			return;
 		}
+		// клиенты тоже ставят прицеп за ведущей сами, каждый кадр (без гравитации): раньше прицеп у
+		// клиента падал под своей тяжестью между пакетами сервера, а сервер его поднимал — дребезг
 		DrezinaTrack t = lead.GetTrack();
 		if (!t)
 			return;

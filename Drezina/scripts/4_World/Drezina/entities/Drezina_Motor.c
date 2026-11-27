@@ -591,7 +591,7 @@ class Drezina_Motor extends CarScript
 				continue;                       // сразу после стрелки следующую не берём (на кольце съезды рядом)
 			if ((sw.D - d) * md <= 0 || (nd - sw.D) * md < 0)
 				continue;                       // эту стрелку в этом шаге не пересекли
-			if (steer * sw.Side < 0.35)
+			if (sw.Side != 2 && steer * sw.Side < 0.35)
 				continue;                       // руль не в сторону ветки — едем прямо
 			DrezinaTrack b = tm.GetTrack(sw.Branch);
 			if (!b)

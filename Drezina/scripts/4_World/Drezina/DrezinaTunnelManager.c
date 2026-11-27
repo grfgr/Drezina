@@ -428,6 +428,31 @@ class DrezinaTunnelManager
 				AddObj(objs, DrezinaTrackManager.SpawnStatic(type, pos, dir.Normalized()));
 			d += piece;
 		}
+		// у станции тоннель может сразу уходить в поворот: первое звено повёрнуто, и между торцом
+		// станции и тоннелем снаружи поворота оставалась щель. Короткое звено по оси станции её закрывает.
+		for (int se = 0; se <= 1; se++)
+		{
+			if (IsJoined(t, se))
+				continue;
+			float md = tStart;
+			float mOff = tStart;
+			vector sIn = iA;
+			vector sEnd = pA;
+			if (se == 1)
+			{
+				md = tEnd;
+				mOff = len - tEnd;
+				sIn = iB;
+				sEnd = pB;
+			}
+			vector mp, mdir;
+			s.GetPosDir(md, mp, mdir);
+			sIn[1] = 0;
+			sIn = sIn.Normalized();
+			vector mouth = sEnd + sIn * mOff;          // торец станции — по её оси (станция прямая)
+			mouth[1] = mp[1];
+			AddObj(objs, DrezinaTrackManager.SpawnStatic("Drezina_Tunnel2", mouth + sIn * 1.0, sIn));
+		}
 
 		// бункер у обоих концов: коридор + лестничная шахта (освещения нет — нужен фонарь)
 		for (int be = 0; be <= 1; be++)
@@ -1334,8 +1359,20 @@ class DrezinaTunnelManager
 		mb.GetPosDir(dB, P, pd);
 		float fsB = sB;
 		vector t0 = Flat(pd) * fsB;                    // направление к линии A
+		// под каким углом B подходит к A: почти поперёк (60..120°) — два съезда, налево и направо (руль
+		// выбирает); под острым углом — один, в ту сторону, куда B и так смотрит (второй пришлось бы
+		// разворачивать на 120°+ — дрезину проще развернуть руками)
+		vector axA, axQ;
+		ma.GetPosDir(dXA, axQ, axA);
+		float lean = vector.Dot(t0, Flat(axA));
+		bool both = Math.AbsFloat(lean) < 0.5;
+		int onlyK = 1;
+		if (lean < 0)
+			onlyK = -1;
 		for (int k = -1; k <= 1; k += 2)
 		{
+			if (!both && k != onlyK)
+				continue;
 			float fk = k;
 			// линия B входит наискосок: съезду в дальнюю сторону поворачивать до 135°. Подбираем, где он
 			// вливается в A (8..22 м от центра, внутри зала) и форму кривой — чтобы изгиб был самым плавным
@@ -1375,6 +1412,8 @@ class DrezinaTunnelManager
 			a.ToD = dB;
 			a.MergeDir = -sB;                          // со съезда на B — от зала
 			a.Side = SideSign(t0, P, nodes[3]);
+			if (!both)
+				a.Side = 2;                            // съезд один: с B на него без руля
 			cl.Insert(a);
 			DrezinaLink b = new DrezinaLink();
 			b.End = 1;
