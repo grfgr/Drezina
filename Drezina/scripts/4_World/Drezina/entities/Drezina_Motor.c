@@ -4,6 +4,52 @@
 // ставит машину на путь и задаёт ей скорость вдоль рельсов (газ/тормоз/передачи берутся у машины).
 //
 // Места: 0 — водитель (в центре, лицом вперёд), 1 и 2 — пассажиры сзади слева/справа (лицом наружу).
+// Состояние дрезины для сетевого отката машин (как m_fTime у ванильной машины). Машина водителя
+// считается наперёд; пришла поправка сервера — игра откатывает её к состоянию сервера и заново
+// прокручивает ввод. Наш путь/сторона/стрелка должны откатываться вместе с положением, иначе после
+// каждой поправки дрезина считалась по чужому пути — рывки назад и дребезг прицепа.
+class Drezina_MotorOwnerState : CarScriptOwnerState
+{
+	// всё во float: ванильное состояние пишет только float (номера путей float хранит точно)
+	float m_dTrack;
+	float m_dFace;
+	float m_dPrevTrack;
+	float m_dPrevD;
+	float m_dPrevMove;
+	float m_dPrevFace;
+	float m_dEntryD;
+	float m_dSince;
+	float m_dHint;
+
+	protected override event void Write(PawnStateWriter ctx)
+	{
+		super.Write(ctx);
+		ctx.Write(m_dTrack);
+		ctx.Write(m_dFace);
+		ctx.Write(m_dPrevTrack);
+		ctx.Write(m_dPrevD);
+		ctx.Write(m_dPrevMove);
+		ctx.Write(m_dPrevFace);
+		ctx.Write(m_dEntryD);
+		ctx.Write(m_dSince);
+		ctx.Write(m_dHint);
+	}
+
+	protected override event void Read(PawnStateReader ctx)
+	{
+		super.Read(ctx);
+		ctx.Read(m_dTrack);
+		ctx.Read(m_dFace);
+		ctx.Read(m_dPrevTrack);
+		ctx.Read(m_dPrevD);
+		ctx.Read(m_dPrevMove);
+		ctx.Read(m_dPrevFace);
+		ctx.Read(m_dEntryD);
+		ctx.Read(m_dSince);
+		ctx.Read(m_dHint);
+	}
+};
+
 class Drezina_Motor extends CarScript
 {
 	static ref array<Drezina_Motor> s_All = new array<Drezina_Motor>;
@@ -202,7 +248,9 @@ class Drezina_Motor extends CarScript
 			return;
 		if (!CrewDriver())
 			return;
-		if ((EngineIsOn() && GetThrottle() > 0.01) || GetBrake() > 0.01)
+		// водитель сел — будим сразу (а не по газу): иначе сервер и клиент трогались в разные кадры
+		// и серверная копия уезжала на десятки метров
+		if (CrewDriver())
 		{
 			m_Sleeping = false;
 			m_StillTime = 0;
@@ -441,15 +489,13 @@ class Drezina_Motor extends CarScript
 			t = GetTrack();
 			nd = m_DistHint;
 		}
-		// сервер: плавно к положению, которое прислал водитель (с поправкой на время в пути пакета);
-		// рывком — только если разошлись далеко. Резкие поправки дёргали прицеп.
-		if (server && m_CliTime > 0 && m_CliTrack == t.GetId() && RemoteDriver())
+		// страховка: серверная копия разошлась с водителем больше чем на 25 м (что-то пошло не так) —
+		// ставим туда, где дрезина у водителя. Мелкие расхождения правит сама игра (откат машины).
+		if (server && m_CliTime > 0 && m_CliTrack == t.GetId() && RemoteDriver() && GetGame().GetTime() - m_CliTime < 500)
 		{
-			// ровно туда, где дрезина у водителя сейчас (по последнему пакету + время с него): иначе
-			// серверная копия отставала на метры и на скорости игра откатывала водителя назад к ней
-			float age = Math.Min((GetGame().GetTime() - m_CliTime) / 1000.0, 0.4);
-			nd = m_CliD + m_CliV * m_Face * age;
-			v = m_CliV;
+			float pred = m_CliD + m_CliV * m_Face * (GetGame().GetTime() - m_CliTime) / 1000.0;
+			if (Math.AbsFloat(pred - nd) > 25.0)
+				nd = pred;
 		}
 		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
@@ -495,7 +541,7 @@ class Drezina_Motor extends CarScript
 			m_PosSendTimer -= dt;
 			if (m_PosSendTimer <= 0 && (v != 0 || m_PosSendTimer < -2))
 			{
-				m_PosSendTimer = 0.1;
+				m_PosSendTimer = 0.5;
 				ScriptRPC prpc = new ScriptRPC();
 				prpc.Write(m_TrackId);
 				prpc.Write(nd);
@@ -508,7 +554,7 @@ class Drezina_Motor extends CarScript
 		if (v == 0 && throttle <= 0.01)
 		{
 			m_StillTime += dt;
-			if (m_StillTime > 0.3 && !m_Sleeping)
+			if (m_StillTime > 0.3 && !m_Sleeping && !CrewDriver())   // с водителем не усыпляем: просыпание по кадру у сервера и клиента в разный момент — расхождение
 			{
 				m_Sleeping = true;
 				dBodyActive(this, ActiveState.INACTIVE);
@@ -571,10 +617,6 @@ class Drezina_Motor extends CarScript
 		if (CrewDriver())
 			steer = GetSteering();
 		m_SinceTransfer += Math.AbsFloat(nd - d);
-		// сервер с живым водителем стрелки сам не переводит: его копия дрезины может быть на десятки
-		// метров впереди и проскочить стрелку до того, как водитель повернёт руль. Переход присылает клиент.
-		if (GetGame().IsServer() && RemoteDriver())
-			return false;
 		foreach (DrezinaSwitch sw : t.m_Switches)
 		{
 			if (sw.Dir != md)
@@ -661,7 +703,13 @@ class Drezina_Motor extends CarScript
 			rpc.Write(m_PrevMove);
 			rpc.Write(m_PrevFace);
 			rpc.Write(m_EntryD);
-			rpc.Send(this, DrezinaRPC.MOTOR_TRANSFER, true, null);
+			// при повторной прокрутке ввода после отката тот же переход не шлём ещё раз
+			if (toId != m_SentTransferTrack || GetGame().GetTime() - m_SentTransferTime > 1500)
+			{
+				m_SentTransferTrack = toId;
+				m_SentTransferTime = GetGame().GetTime();
+				rpc.Send(this, DrezinaRPC.MOTOR_TRANSFER, true, null);
+			}
 		}
 		Print("[Drezina] motor: стрелка, путь #" + m_PrevTrack + " -> #" + m_TrackId);
 	}
@@ -673,7 +721,57 @@ class Drezina_Motor extends CarScript
 	float m_CliD;
 	float m_CliV;
 	int m_CliTime = 0;
+	int m_SentTransferTrack = -1;
+	int m_SentTransferTime = 0;
 	Drezina_LanternLight m_Lantern;
+
+	protected override event typename GetOwnerStateType()
+	{
+		return Drezina_MotorOwnerState;
+	}
+
+	protected override event void ObtainState(/*inout*/ PawnOwnerState pState)
+	{
+		super.ObtainState(pState);
+		Drezina_MotorOwnerState st = Drezina_MotorOwnerState.Cast(pState);
+		if (!st)
+			return;
+		st.m_dTrack = m_TrackId;
+		st.m_dFace = m_Face;
+		st.m_dPrevTrack = m_PrevTrack;
+		st.m_dPrevD = m_PrevD;
+		st.m_dPrevMove = m_PrevMove;
+		st.m_dPrevFace = m_PrevFace;
+		st.m_dEntryD = m_EntryD;
+		st.m_dSince = m_SinceTransfer;
+		st.m_dHint = m_DistHint;
+	}
+
+	protected override event void RewindState(PawnOwnerState pState, /*inout*/ PawnMove pMove, inout NetworkRewindType pRewindType)
+	{
+		super.RewindState(pState, pMove, pRewindType);
+		Drezina_MotorOwnerState st = Drezina_MotorOwnerState.Cast(pState);
+		if (!st || st.m_dTrack < 0.5)
+			return;
+		m_TrackId = Math.Round(st.m_dTrack);
+		m_Face = Math.Round(st.m_dFace);
+		m_PrevTrack = Math.Round(st.m_dPrevTrack);
+		m_PrevD = st.m_dPrevD;
+		m_PrevMove = Math.Round(st.m_dPrevMove);
+		m_PrevFace = Math.Round(st.m_dPrevFace);
+		m_EntryD = st.m_dEntryD;
+		m_SinceTransfer = st.m_dSince;
+		m_DistHint = st.m_dHint;
+		// локальные копии клиента — тоже к состоянию сервера (их сверяет OnVariablesSynchronized)
+		m_LTrack = m_TrackId;
+		m_LFace = m_Face;
+		m_LPrevTrack = m_PrevTrack;
+		m_LPrevD = m_PrevD;
+		m_LPrevMove = m_PrevMove;
+		m_LPrevFace = m_PrevFace;
+		m_LEntryD = m_EntryD;
+		m_SyncedTrack = m_TrackId;
+	}
 
 	// водитель — игрок (на сервере у него всегда есть identity)
 	Human RemoteDriver()
@@ -701,8 +799,8 @@ class Drezina_Motor extends CarScript
 			float toD, prevD, entryD;
 			if (!ctx.Read(toId) || !ctx.Read(toD) || !ctx.Read(face) || !ctx.Read(prevTrack) || !ctx.Read(prevD) || !ctx.Read(prevMove) || !ctx.Read(prevFace) || !ctx.Read(entryD))
 				return;
-			if (!IsSenderDriver(sender) || m_OffRail)
-				return;
+			if (!IsSenderDriver(sender) || m_OffRail || m_TrackId == toId)
+				return;                                // сервер уже перешёл сам
 			DrezinaTrack nt = DrezinaTrackManager.Get().GetTrack(toId);
 			if (!nt)
 				return;
