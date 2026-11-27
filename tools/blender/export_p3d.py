@@ -331,10 +331,11 @@ def export_model(src_dir, out_dir, name, mass, shadow):
     prx = proxy_triangles(scene_proxies())
     if geometry:
         surf = SURFACE.get(name, SURF_CONCRETE)
-        lods.append(components_lod(geometry, 1e13, mass, surface=surf))
+        solid = [g for g in geometry if not g.get("viewonly")]   # viewonly — только View/Fire (выбор места)
+        lods.append(components_lod(solid, 1e13, mass, surface=surf))
         lods.append(components_lod(geometry, 6e15, proxies=prx, surface=surf))
         lods.append(components_lod(geometry, 7e15, proxies=prx, surface=surf))
-        lods.append(components_lod(geometry, 3e15, roadway=True, surface=surf, roadtex=ROADWAY_BY_MODEL.get(name)))
+        lods.append(components_lod(solid, 3e15, roadway=True, surface=surf, roadtex=ROADWAY_BY_MODEL.get(name)))
     else:
         xs, ys, zs = zip(*pts0)
         bpy.ops.mesh.primitive_cube_add(size=1)

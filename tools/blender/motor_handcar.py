@@ -550,6 +550,17 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
     proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
     proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
+    # места пассажирского прицепа — у самой мотодрезины, там, где стоит прицеп (центр прицепа в 2.9 м
+    # позади; до разворота модели «назад» — это +Y). Сам прицеп каждый клиент рисует за дрезиной сам.
+    import trailers as tr_mod
+    TR_GAP = 2.9
+    for i, (x, y, fx) in enumerate(tr_mod.SEATS):
+        n = i + 3
+        proxy(f"proxy_cargo{n}", P + "crew_cargo", f"crewCargo{n}", (x + fx * 0.02, y + TR_GAP, tr_mod.SEAT_H + 0.03), (fx, 0, 0))
+        mem_point(f"mem_pos_cargo{n}", (fx * 1.15, y + TR_GAP, 0.05))
+        mem_point(f"mem_pos_cargo{n}_dir", (fx * 0.5, y + TR_GAP, 0.05))
+        g = geo(f"geometry_seat_cargo{n}", (0.42, 0.5, 0.45), (x, y + TR_GAP, DECK + 0.22), f"seat_cargo{n}", m)
+        g["viewonly"] = 1          # только для выбора места (View/Fire), без столкновений: без прицепа там пусто
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.

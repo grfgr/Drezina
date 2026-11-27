@@ -34,6 +34,15 @@ class Drezina_Trailer extends CarScript
 		GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Insert(Follow);
 		if (!GetGame().IsDedicatedServer())
 			SetEventMask(EntityEvent.FRAME | EntityEvent.POSTSIMULATE);
+		// отдельных прицепов больше нет (прицеп — часть мотодрезины): старые из сохранений убираем
+		if (GetGame().IsServer())
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(RemoveObsolete, 2000, false);
+	}
+
+	void RemoveObsolete()
+	{
+		Print("[Drezina] старый отдельный прицеп удалён (прицеп теперь часть мотодрезины)");
+		GetGame().ObjectDelete(this);
 	}
 
 	// Клиент: прицеп — по той дрезине, которую видит этот игрок, каждый кадр и после шага физики
@@ -310,15 +319,9 @@ class Drezina_Trailer extends CarScript
 
 	// ------------------------------------------------------------------ движение за ведущей
 
+	// старый отдельный прицеп больше ни к чему не цепляется (удаляется при загрузке)
 	Drezina_Motor Leader()
 	{
-		if (m_LinkId == 0)
-			return null;
-		foreach (Drezina_Motor m : Drezina_Motor.s_All)
-		{
-			if (m && m.m_TrailerLink == m_LinkId)
-				return m;
-		}
 		return null;
 	}
 

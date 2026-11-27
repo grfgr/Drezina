@@ -185,7 +185,8 @@ class CfgVehicles
 		displayName = "Мотодрезина";
 		descriptionShort = "Дрезина с мотоциклетным мотором. Заправь, вставь свечу и аккумулятор — и по рельсам.";
 		model = "\Drezina\data\motor_handcar.p3d";
-		attachments[] = {"SparkPlug", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2"};
+		// DrezinaBarrel1-4 — бочки грузового прицепа (прицеп теперь часть мотодрезины, бочки — её слоты)
+		attachments[] = {"SparkPlug", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2", "DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
 		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
 		// свои стёкла фар: мутно-белое (спереди) и красное (стоп сзади); _e — светящийся вариант
 		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_redglass_co.paa", "", "", "", "", "", ""};
@@ -226,6 +227,35 @@ class CfgVehicles
 				proxyPos = "crewCargo2";
 				getInPos = "pos_cargo2";
 				getInDir = "pos_cargo2_dir";
+			};
+			// места пассажирского прицепа (доступны, только когда он прицеплен)
+			class Cargo3
+			{
+				actionSel = "seat_cargo3";
+				proxyPos = "crewCargo3";
+				getInPos = "pos_cargo3";
+				getInDir = "pos_cargo3_dir";
+			};
+			class Cargo4
+			{
+				actionSel = "seat_cargo4";
+				proxyPos = "crewCargo4";
+				getInPos = "pos_cargo4";
+				getInDir = "pos_cargo4_dir";
+			};
+			class Cargo5
+			{
+				actionSel = "seat_cargo5";
+				proxyPos = "crewCargo5";
+				getInPos = "pos_cargo5";
+				getInDir = "pos_cargo5_dir";
+			};
+			class Cargo6
+			{
+				actionSel = "seat_cargo6";
+				proxyPos = "crewCargo6";
+				getInPos = "pos_cargo6";
+				getInDir = "pos_cargo6_dir";
 			};
 		};
 
@@ -473,7 +503,41 @@ class CfgVehicles
 				icon = "set:dayz_inventory image:cat_vehicle_engine";
 				attachmentSlots[] = {"SparkPlug"};
 			};
+			class Barrels
+			{
+				name = "Бочки прицепа";
+				description = "";
+				icon = "set:dayz_inventory image:cat_common_cargo";
+				attachmentSlots[] = {"DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+			};
 		};
+	};
+
+	// Видимый прицеп: только модель. Каждый клиент сам ставит его за своей мотодрезиной каждый кадр
+	// (локальный объект, без сети и без столкновений) — поэтому он не дребезжит.
+	class Drezina_TrailerVisBase: HouseNoDestruct
+	{
+		scope = 1;
+		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2"};
+		hiddenSelectionsTextures[] = {"", "", "Drezina\data\textures\drezina_redglass_co.paa"};
+		hiddenSelectionsMaterials[] = {"", "", "Drezina\data\textures\drezina_redglass.rvmat"};
+		class AnimationSources
+		{
+			class drezina_wheels
+			{
+				source = "user";
+				animPeriod = 0.001;
+				initPhase = 0;
+			};
+		};
+	};
+	class Drezina_TrailerVisPassenger: Drezina_TrailerVisBase
+	{
+		model = "\Drezina\data\trailer_passenger.p3d";
+	};
+	class Drezina_TrailerVisCargo: Drezina_TrailerVisBase
+	{
+		model = "\Drezina\data\trailer_cargo.p3d";
 	};
 
 

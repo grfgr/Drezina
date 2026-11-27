@@ -41,13 +41,13 @@ class ActionDrezinaAttachPassenger : ActionDrezinaTrailerBase
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
 		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerLink == 0;
+		return car && !player.IsInVehicle() && car.m_TrailerType == 0;
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
 		Drezina_Motor car = CarAt(action_data.m_Target);
-		if (car && car.m_TrailerLink == 0 && !car.ServerAttachTrailer("Drezina_TrailerPassenger"))
+		if (car && car.m_TrailerType == 0 && !car.ServerAttachTrailer(1))
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Не удалось прицепить (мало места на пути?).");
 	}
 }
@@ -62,13 +62,13 @@ class ActionDrezinaAttachCargo : ActionDrezinaTrailerBase
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
 		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerLink == 0;
+		return car && !player.IsInVehicle() && car.m_TrailerType == 0;
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
 		Drezina_Motor car = CarAt(action_data.m_Target);
-		if (car && car.m_TrailerLink == 0 && !car.ServerAttachTrailer("Drezina_TrailerCargo"))
+		if (car && car.m_TrailerType == 0 && !car.ServerAttachTrailer(2))
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Не удалось прицепить (мало места на пути?).");
 	}
 }
@@ -83,7 +83,7 @@ class ActionDrezinaDetachTrailer : ActionDrezinaTrailerBase
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
 		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerLink != 0;
+		return car && !player.IsInVehicle() && car.m_TrailerType != 0;
 	}
 
 	override void OnExecuteServer(ActionData action_data)
@@ -91,8 +91,7 @@ class ActionDrezinaDetachTrailer : ActionDrezinaTrailerBase
 		Drezina_Motor car = CarAt(action_data.m_Target);
 		if (!car)
 			return;
-		Drezina_Trailer tr = car.Trailer();
-		if (tr && !tr.StorageEmpty())
+		if (!car.BarrelsEmpty())
 		{
 			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала освободите бочки прицепа.");
 			return;

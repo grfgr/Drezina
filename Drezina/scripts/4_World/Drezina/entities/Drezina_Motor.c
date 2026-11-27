@@ -73,7 +73,7 @@ class Drezina_Motor extends CarScript
 	bool m_Sleeping;
 	float m_StillTime;
 	bool m_OffRail;              // снята с рельсов (стоит рядом с путём, чтобы разъехаться со встречной)
-	int m_TrailerLink;           // номер сцепки с прицепом (0 — без прицепа); тот же номер у прицепа
+	int m_TrailerType;           // прицеп — часть мотодрезины: 0 нет, 1 пассажирский, 2 грузовой
 	// последний переход на стрелке (для прицепа: сразу после стрелки он ещё на прежнем пути)
 	int m_PrevTrack;
 	float m_PrevD;
@@ -98,7 +98,7 @@ class Drezina_Motor extends CarScript
 		RegisterNetSyncVariableInt("m_TrackId");
 		RegisterNetSyncVariableInt("m_Face", -1, 1);
 		RegisterNetSyncVariableBool("m_OffRail");
-		RegisterNetSyncVariableInt("m_TrailerLink");
+		RegisterNetSyncVariableInt("m_TrailerType", 0, 2);
 		RegisterNetSyncVariableInt("m_PrevTrack");
 		RegisterNetSyncVariableFloat("m_PrevD", 0, 100000, 2);
 		RegisterNetSyncVariableInt("m_PrevMove", -1, 1);
@@ -132,6 +132,7 @@ class Drezina_Motor extends CarScript
 			GetGame().GetUpdateQueue(CALL_CATEGORY_GAMEPLAY).Remove(LanternTick);
 		if (m_Lantern)
 			m_Lantern.Destroy();
+		DestroyTrailerVis();
 		if (s_All)
 			s_All.RemoveItem(this);
 	}
@@ -144,7 +145,7 @@ class Drezina_Motor extends CarScript
 		ctx.Write(m_TrackId);
 		ctx.Write(m_Face);
 		ctx.Write(m_OffRail);
-		ctx.Write(m_TrailerLink);
+		ctx.Write(m_TrailerType);
 	}
 
 	override bool OnStoreLoad(ParamsReadContext ctx, int version)
@@ -157,8 +158,8 @@ class Drezina_Motor extends CarScript
 			m_Face = 1;
 		if (!ctx.Read(m_OffRail))
 			m_OffRail = false;
-		if (!ctx.Read(m_TrailerLink))
-			m_TrailerLink = 0;
+		if (!ctx.Read(m_TrailerType) || m_TrailerType < 0 || m_TrailerType > 2)
+			m_TrailerType = 0;      // в старых сохранениях тут номер сцепки отдельного прицепа
 		return true;
 	}
 
@@ -196,9 +197,33 @@ class Drezina_Motor extends CarScript
 		return !m_OffRail;   // дверей нет; снятую с рельсов сначала ставят обратно
 	}
 
+	// места 3..6 — пассажирский прицеп: только когда он прицеплен
 	override bool CanReachSeatFromSeat(int currentSeat, int nextSeat)
 	{
+		if (nextSeat >= 3 && m_TrailerType != 1)
+			return false;
 		return true;
+	}
+
+	override bool CanReachSeatFromDoors(string pSeatSelection, vector pFromPos, float pDistance = 1.0)
+	{
+		if (pSeatSelection.IndexOf("seat_cargo") == 0)
+		{
+			int n = pSeatSelection.Substring(10, pSeatSelection.Length() - 10).ToInt();
+			if (n >= 3)
+			{
+				if (m_TrailerType != 1)
+					return false;
+				string pos = "pos_cargo" + n;
+				if (!MemoryPointExists(pos))
+					return false;
+				vector ws = ModelToWorld(GetMemoryPointPos(pos));
+				ws[1] = 0;
+				pFromPos[1] = 0;
+				return vector.Distance(pFromPos, ws) <= 1.6;
+			}
+		}
+		return super.CanReachSeatFromDoors(pSeatSelection, pFromPos, pDistance);
 	}
 
 	override bool CanReachDoorsFromSeat(string pDoorsSelection, int pCurrentSeat)
@@ -506,8 +531,7 @@ class Drezina_Motor extends CarScript
 		// у конца со стрелкой съездов (линия, подключённая к другой) — тоже до самого конца
 		bool linked0 = t.LinkAt(0) != null || t.SwitchNearEnd(0);
 		bool linked1 = t.LinkAt(1) != null || t.SwitchNearEnd(1);
-		Drezina_Trailer tr = Trailer();
-		if (tr && !tr.m_OffRail)
+		if (HasTrailer())
 		{
 			// прицеп сзади (на стороне -нос): ему тоже нужно место до торца
 			if (m_Face > 0 && !linked0)
@@ -533,10 +557,6 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, nd, mat);
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
-		// прицеп — сразу за собой, в этом же шаге физики. Только сервер: если ставить его ещё и на клиенте,
-		// позиция с сервера спорит с клиентской и прицеп дёргается; клиенту он уходит со своей скоростью
-		if (server && tr && !tr.m_OffRail)
-			tr.FollowLead(this, t, nd, v);
 
 		// водитель сообщает серверу, где дрезина: серверная копия не уходит вперёд/назад
 		if (!server)
@@ -582,8 +602,7 @@ class Drezina_Motor extends CarScript
 		// головная точка по ходу: при езде задом с прицепом — прицеп
 		float moveDir = m_Face * Math.Sign(v);
 		float head = d;
-		Drezina_Trailer own = Trailer();
-		if (own && !own.m_OffRail && moveDir == -m_Face)
+		if (HasTrailer() && moveDir == -m_Face)
 			head = d - m_Face * TRAILER_GAP;
 		foreach (Drezina_Motor o : s_All)
 		{
@@ -594,11 +613,12 @@ class Drezina_Motor extends CarScript
 			if (ahead > 0 && ahead < clearance)
 				return true;
 		}
-		foreach (Drezina_Trailer ot : Drezina_Trailer.s_All)
+		// прицепы других мотодрезин: их хвост на TRAILER_GAP позади
+		foreach (Drezina_Motor ot : s_All)
 		{
-			if (!ot || ot == own || ot.m_OffRail || ot.m_TrackId != m_TrackId)
+			if (!ot || ot == this || !ot.HasTrailer() || ot.m_TrackId != m_TrackId || ot.m_OffRail)
 				continue;
-			float otd = ProjectDistOf(t, ot.GetPosition());
+			float otd = ProjectDistOf(t, ot.GetPosition()) - ot.m_Face * TRAILER_GAP;
 			float aheadT = (otd - head) * moveDir;
 			if (aheadT > 0 && aheadT < clearance)
 				return true;
@@ -917,28 +937,16 @@ class Drezina_Motor extends CarScript
 
 	// ------------------------------------------------------------------ прицеп
 
-	Drezina_Trailer Trailer()
-	{
-		if (m_TrailerLink == 0)
-			return null;
-		foreach (Drezina_Trailer tr : Drezina_Trailer.s_All)
-		{
-			if (tr && tr.m_LinkId == m_TrailerLink)
-				return tr;
-		}
-		return null;
-	}
-
 	bool HasTrailer()
 	{
-		return Trailer() != null;
+		return m_TrailerType != 0;
 	}
 
-	// прицепить у терминала: прицеп встаёт сзади на путь; если сзади мало места — мотодрезина откатывается вперёд
-	bool ServerAttachTrailer(string type)
+	// прицепить у терминала: прицеп «встаёт» сзади; если сзади мало места — мотодрезина откатывается вперёд
+	bool ServerAttachTrailer(int type)
 	{
 		DrezinaTrack t = GetTrack();
-		if (!t || m_OffRail || HasTrailer())
+		if (!t || m_OffRail || HasTrailer() || type < 1 || type > 2)
 			return false;
 		float len = t.GetLength();
 		float d = ProjectDist(t, GetPosition());
@@ -956,31 +964,180 @@ class Drezina_Motor extends CarScript
 		TrackTransform(t, d, mat);
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
-
-		float td = d - m_Face * TRAILER_GAP;
-		vector tmat[4];
-		TrackTransformFace(t, td, m_Face, tmat);
-		Drezina_Trailer tr = Drezina_Trailer.Cast(GetGame().CreateObjectEx(type, tmat[3], ECE_CREATEPHYSICS | ECE_KEEPHEIGHT | ECE_NOSURFACEALIGN, RF_DEFAULT));
-		if (!tr)
+		Wake();
+		m_TrailerType = type;
+		if (type == 2)
 		{
-			Print("[Drezina] !!! прицеп не создан: " + type);
-			return false;
+			for (int i = 0; i < 4; i++)
+				GetInventory().CreateAttachment("Drezina_TrailerBarrel");
 		}
-		int link = Math.RandomIntInclusive(1, 2000000000);
-		m_TrailerLink = link;
-		tr.ServerInit(link, m_TrackId, m_Face, td);
 		SetSynchDirty();
-		Print("[Drezina] прицеплен " + type + ", сцепка " + link);
+		Print("[Drezina] прицеплен прицеп, тип " + type);
 		return true;
 	}
 
+	// отцепить: бочки (пустые) убираем
 	void ServerDetachTrailer()
 	{
-		Drezina_Trailer tr = Trailer();
-		if (tr)
-			GetGame().ObjectDelete(tr);
-		m_TrailerLink = 0;
+		array<EntityAI> barrels = new array<EntityAI>;
+		for (int i = 0; i < GetInventory().AttachmentCount(); i++)
+		{
+			Drezina_TrailerBarrel b = Drezina_TrailerBarrel.Cast(GetInventory().GetAttachmentFromIndex(i));
+			if (b)
+				barrels.Insert(b);
+		}
+		foreach (EntityAI e : barrels)
+			GetGame().ObjectDelete(e);
+		m_TrailerType = 0;
 		SetSynchDirty();
+	}
+
+	// в прицепе кто-то сидит (места 3..6)
+	bool TrailerSeatsTaken()
+	{
+		for (int i = 3; i < CrewSize(); i++)
+		{
+			if (CrewMember(i))
+				return true;
+		}
+		return false;
+	}
+
+	// все бочки пустые
+	bool BarrelsEmpty()
+	{
+		for (int i = 0; i < GetInventory().AttachmentCount(); i++)
+		{
+			Drezina_TrailerBarrel b = Drezina_TrailerBarrel.Cast(GetInventory().GetAttachmentFromIndex(i));
+			if (b && b.GetInventory().GetCargo() && b.GetInventory().GetCargo().GetItemCount() > 0)
+				return false;
+		}
+		return true;
+	}
+
+	// ------------------------------------------------------------------ видимый прицеп (клиент)
+	// Прицеп — только картинка: каждый клиент держит у себя локальную модель и ставит её за дрезиной
+	// после каждого кадра (по положению дрезины, которое он сам видит). По сети отдельно не ходит —
+	// значит, не дребезжит и не отстаёт; на поворотах и кольцах встаёт по пути (изгибается со стрелкой).
+	Object m_TrVis;
+	int m_TrVisType;
+	float m_TrWheel;
+	bool m_TrBrake;
+	Drezina_TailLight m_TrTail;
+	float m_TrHint = -1;
+	int m_TrHintTrack;
+	int m_TrLastTime;
+
+	void UpdateTrailerVis()
+	{
+		if (GetGame().IsDedicatedServer())
+			return;
+		if (m_TrVisType != m_TrailerType)
+			DestroyTrailerVis();
+		if (m_TrailerType == 0)
+			return;
+		if (!m_TrVis)
+		{
+			string cls = "Drezina_TrailerVisPassenger";
+			if (m_TrailerType == 2)
+				cls = "Drezina_TrailerVisCargo";
+			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), ECE_LOCAL);
+			m_TrVisType = m_TrailerType;
+			m_TrBrake = false;
+			if (!m_TrVis)
+				return;
+		}
+		vector mat[4];
+		DrezinaTrack t = GetTrack();
+		if (!m_OffRail && t)
+		{
+			float ld = m_TrHint;
+			if (m_TrHintTrack != t.GetId())
+				ld = -1;
+			m_TrHintTrack = t.GetId();
+			vector lp = GetPosition();
+			if (ld < 0)
+			{
+				float off;
+				ld = t.ClosestDistance(lp, off);
+			}
+			for (int i = 0; i < 3; i++)
+			{
+				vector pp, pdir;
+				t.GetPosDir(ld, pp, pdir);
+				ld = Math.Clamp(ld + vector.Dot(lp - pp, pdir), 0, t.GetLength());
+			}
+			m_TrHint = ld;
+			DrezinaTrack tt;
+			float td;
+			int tface;
+			TrailerPose(t, ld, tt, td, tface);
+			TrackTransformFace(tt, Math.Clamp(td, 0, tt.GetLength()), tface, mat);
+		}
+		else
+		{
+			// снята с рельсов — прицеп ровно сзади
+			GetTransform(mat);
+			mat[3] = mat[3] - mat[2] * TRAILER_GAP;
+		}
+		m_TrVis.SetTransform(mat);
+
+		// колёса
+		int now = GetGame().GetTime();
+		float dt = (now - m_TrLastTime) / 1000.0;
+		m_TrLastTime = now;
+		if (dt > 0 && dt < 0.5)
+		{
+			float speed = vector.Dot(GetVelocity(this), GetDirection());
+			m_TrWheel += speed * dt / (Math.PI2 * WHEEL_RADIUS);
+			m_TrWheel -= Math.Floor(m_TrWheel);
+			m_TrVis.SetAnimationPhase("drezina_wheels", m_TrWheel);
+		}
+
+		// стоп-сигнал прицепа
+		bool lit = BrakeLit() && !m_OffRail;
+		if (lit != m_TrBrake)
+		{
+			m_TrBrake = lit;
+			if (lit)
+			{
+				m_TrVis.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass_e.rvmat");
+				if (!m_TrTail)
+				{
+					m_TrTail = Drezina_TailLight.Cast(ScriptedLightBase.CreateLight(Drezina_TailLight, m_TrVis.GetPosition()));
+					if (m_TrTail)
+						m_TrTail.AttachOnObject(m_TrVis, m_TrVis.GetMemoryPointPos("light_reverse") + Vector(0, 0, -0.15), vector.Zero);
+				}
+			}
+			else
+			{
+				m_TrVis.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass.rvmat");
+				if (m_TrTail)
+				{
+					m_TrTail.Destroy();
+					m_TrTail = null;
+				}
+			}
+		}
+	}
+
+	void DestroyTrailerVis()
+	{
+		if (m_TrTail)
+		{
+			m_TrTail.Destroy();
+			m_TrTail = null;
+		}
+		if (m_TrVis && GetGame())
+			GetGame().ObjectDelete(m_TrVis);
+		m_TrVis = null;
+		m_TrVisType = 0;
+	}
+
+	override void EOnPostFrame(IEntity other, int extra)
+	{
+		super.EOnPostFrame(other, extra);
+		UpdateTrailerVis();
 	}
 
 	// поставить машину с ориентацией face (общая формула и для прицепа)
@@ -1031,9 +1188,6 @@ class Drezina_Motor extends CarScript
 	// стоит, пустая, на пути
 	bool CanManhandle()
 	{
-		Drezina_Trailer tr = Trailer();
-		if (tr && !tr.IsEmptyCrew())
-			return false;
 		return CanBeReturned() && !EngineIsOn();
 	}
 
@@ -1058,8 +1212,7 @@ class Drezina_Motor extends CarScript
 		if (!t)
 			return false;
 		float d = ProjectDist(t, GetPosition());
-		Drezina_Trailer tr = Trailer();
-		if (tr)
+		if (HasTrailer())
 		{
 			// прицеп переходит на другую сторону (снова сзади); места должно хватить до торца
 			float td = d + m_Face * TRAILER_GAP;
@@ -1073,8 +1226,6 @@ class Drezina_Motor extends CarScript
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
 		Wake();
-		if (tr)
-			tr.ServerPlace(t, d - m_Face * TRAILER_GAP, m_Face);
 		SetSynchDirty();
 		Print("[Drezina] motor: развёрнута, нос " + m_Face);
 		return true;
@@ -1095,7 +1246,6 @@ class Drezina_Motor extends CarScript
 		float off = 2.1;
 		vector place = vector.Zero;
 		float sgn = 1;
-		Drezina_Trailer tr = Trailer();
 		// сначала пробуем дальше от пути, потом ближе (в тоннеле до стены всего 3 м); встречной дрезине
 		// хватает 1.7 м от оси
 		float offs[3] = {2.1, 1.9, 1.7};
@@ -1111,16 +1261,19 @@ class Drezina_Motor extends CarScript
 				// луч до дальнего борта дрезины в стоящем положении (+0.85 м); с прицепом — и у прицепа
 				if (DayZPhysics.RaycastRV(center, center + side * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom))
 					continue;
-				if (tr && !tr.SideFree(side, off))
-					continue;
+				if (HasTrailer())
+				{
+					// место сбоку и у прицепа (он в TRAILER_GAP позади)
+					vector tc = center - mat[2] * TRAILER_GAP;
+					if (DayZPhysics.RaycastRV(tc, tc + side * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom))
+						continue;
+				}
 				place = mat[3] + side * off;
 				break;
 			}
 		}
 		if (place == vector.Zero)
 			return false;
-		if (tr)
-			tr.ServerTakeOffRail(mat[0] * sgn, off);
 		// земля под новым местом
 		vector top = place + Vector(0, 1.5, 0);
 		if (DayZPhysics.RaycastRV(top, place - Vector(0, 3.0, 0), hitPos, hitDir, hitComp, null, null, this))
@@ -1181,12 +1334,6 @@ class Drezina_Motor extends CarScript
 		SetTransform(mat);
 		SetVelocity(this, vector.Zero);
 		Wake();
-		Drezina_Trailer tr = Trailer();
-		if (tr)
-		{
-			tr.m_TrackId = m_TrackId;
-			tr.ServerPlace(t, d - m_Face * TRAILER_GAP, m_Face);
-		}
 		SetSynchDirty();
 		Print("[Drezina] motor: поставлена на путь #" + found);
 		return true;
@@ -1194,9 +1341,6 @@ class Drezina_Motor extends CarScript
 
 	bool CanBeReturned()
 	{
-		Drezina_Trailer trl = Trailer();
-		if (trl && !trl.IsEmptyCrew())
-			return false;
 		if (CrewSize() > 0)
 		{
 			for (int i = 0; i < CrewSize(); i++)
@@ -1212,8 +1356,7 @@ class Drezina_Motor extends CarScript
 
 	bool CargoEmpty()
 	{
-		Drezina_Trailer tr = Trailer();
-		if (tr && !tr.StorageEmpty())
+		if (!BarrelsEmpty())
 			return false;
 		if (!GetInventory() || !GetInventory().GetCargo())
 			return true;
