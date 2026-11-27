@@ -1899,7 +1899,8 @@ class DrezinaTunnelManager
 			side = side * -1.0;
 		float along = vector.Dot(dir, bestDir);
 		float c45 = 0.7071;
-		if (Math.AbsFloat(along) > c45)
+		bool clamped = Math.AbsFloat(along) > c45;
+		if (clamped)
 		{
 			float sa = 1;
 			if (along < 0)
@@ -1908,11 +1909,14 @@ class DrezinaTunnelManager
 		}
 		joinPoint = bestX;
 		vector stub = bestX + dir * JOIN_STUB;
-		vector mid = bestX + dir * (JOIN_STUB + 14.0);
+		// промежуточная точка держит угол подхода (не меньше 45° к оси): без неё линия шла от своей
+		// следующей точки прямо к залу под 25° и съезды не помещались. Ставим и когда следующая близко.
+		float midL = Math.Clamp(toNb.Length() * 0.6, JOIN_STUB + 6.0, JOIN_STUB + 14.0);
+		vector mid = bestX + dir * midL;
 		stub[1] = p[1];
 		mid[1] = p[1];
 		route[idx] = stub;
-		if (toNb.Length() > JOIN_STUB + 24.0)          // промежуточная точка — только если до следующей далеко
+		if (clamped || toNb.Length() > JOIN_STUB + 24.0)
 		{
 			if (end == 0)
 				route.InsertAt(mid, 1);

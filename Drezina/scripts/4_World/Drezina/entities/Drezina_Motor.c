@@ -445,14 +445,11 @@ class Drezina_Motor extends CarScript
 		// рывком — только если разошлись далеко. Резкие поправки дёргали прицеп.
 		if (server && m_CliTime > 0 && m_CliTrack == t.GetId() && RemoteDriver())
 		{
-			float age = Math.Min((GetGame().GetTime() - m_CliTime) / 1000.0, 0.6);
-			float pred = m_CliD + m_CliV * m_Face * age;
-			float err = pred - nd;
-			if (Math.AbsFloat(err) > 20)
-				nd = pred;
-			else
-				nd = nd + err * Math.Min(1.0, dt * 4.0);
-			v = v + (m_CliV - v) * Math.Min(1.0, dt * 4.0);
+			// ровно туда, где дрезина у водителя сейчас (по последнему пакету + время с него): иначе
+			// серверная копия отставала на метры и на скорости игра откатывала водителя назад к ней
+			float age = Math.Min((GetGame().GetTime() - m_CliTime) / 1000.0, 0.4);
+			nd = m_CliD + m_CliV * m_Face * age;
+			v = m_CliV;
 		}
 		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
@@ -498,7 +495,7 @@ class Drezina_Motor extends CarScript
 			m_PosSendTimer -= dt;
 			if (m_PosSendTimer <= 0 && (v != 0 || m_PosSendTimer < -2))
 			{
-				m_PosSendTimer = 0.25;
+				m_PosSendTimer = 0.1;
 				ScriptRPC prpc = new ScriptRPC();
 				prpc.Write(m_TrackId);
 				prpc.Write(nd);
