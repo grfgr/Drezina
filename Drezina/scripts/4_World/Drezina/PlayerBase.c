@@ -26,6 +26,20 @@ modded class PlayerBase
 		AddAction(ActionDrezinaDetachTrailer, InputActionMap);
 	}
 
+	// мутанты и заражённые не замечают игрока на дрезине и под землёй (в метро)
+	override bool CanBeTargetedByAI(EntityAI ai)
+	{
+		if (IsRidingDrezina())
+			return false;
+		HumanCommandVehicle hcv = GetCommand_Vehicle();
+		if (hcv && Drezina_Motor.Cast(hcv.GetTransport()))
+			return false;
+		vector p = GetPosition();
+		if (GetGame().SurfaceY(p[0], p[2]) - p[1] > 4.0)
+			return false;
+		return super.CanBeTargetedByAI(ai);
+	}
+
 	bool IsRidingDrezina()
 	{
 		return DrezinaRideCommand.Cast(GetCommand_Script()) != null;

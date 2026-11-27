@@ -337,7 +337,12 @@ def export_model(src_dir, out_dir, name, mass, shadow, src_name=None, visonly=Fa
     _, geometry, memory = scene_parts()
     prx = proxy_triangles(scene_proxies())
     if visonly:
-        pass
+        # крошечная «геометрия» внутри рамы: без неё движок центрирует модель по габаритам (прицеп уходил
+        # под землю); такая не мешает ни взгляду, ни ходьбе
+        bpy.ops.mesh.primitive_cube_add(size=0.02, location=(0, 0, 0.62))
+        tiny = bpy.context.active_object
+        tiny.name = "geometry_tiny"
+        lods.append(components_lod([tiny], 1e13, 1.0))
     elif geometry:
         surf = SURFACE.get(name, SURF_CONCRETE)
         solid = [g for g in geometry if not g.get("viewonly")]   # viewonly — только View/Fire (выбор места)

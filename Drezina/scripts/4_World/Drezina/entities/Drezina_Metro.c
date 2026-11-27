@@ -146,7 +146,7 @@ class Drezina_AlarmLamp extends ItemBase
 
 	void StartLight()
 	{
-		vector p = GetPosition() + GetDirection() * 0.18;
+		vector p = GetPosition() + GetDirection() * 0.45;
 		m_Glow = Drezina_AlarmGlow.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmGlow, p));
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
@@ -161,7 +161,7 @@ class Drezina_AlarmLamp extends ItemBase
 			m_Angle -= 360;
 		// луч ходит по кругу в полусфере перед стеной: поворот вокруг оси стены
 		vector ori = GetOrientation();
-		m_Beam.SetPosition(GetPosition() + GetDirection() * 0.18);
+		m_Beam.SetPosition(GetPosition() + GetDirection() * 0.45);
 		m_Beam.SetOrientation(Vector(ori[0] + Math.Sin(m_Angle * Math.DEG2RAD) * 80.0, -15.0 + Math.Cos(m_Angle * Math.DEG2RAD) * 25.0, 0));
 	}
 

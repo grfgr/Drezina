@@ -510,6 +510,25 @@ class Drezina_Motor extends CarScript
 		if (v != 0 && IsBlocked(t, d, v))
 			v = 0;
 
+		// диагностика: резко встали с газом (во что-то упёрлись) — что впереди
+		if (!server && throttle > 0.5 && m_DbgPrevV > 5.0 && Math.AbsFloat(v) < 1.0 && GetGame().GetTime() - m_DbgTime > 3000)
+		{
+			m_DbgTime = GetGame().GetTime();
+			vector dbgFrom = GetPosition() + Vector(0, 0.6, 0);
+			vector dbgTo = dbgFrom + fwd * Math.Sign(m_DbgPrevV) * 4.0;
+			vector dbgHit, dbgNrm;
+			int dbgComp;
+			set<Object> dbgObjs = new set<Object>;
+			string what = "ничего";
+			if (DayZPhysics.RaycastRV(dbgFrom, dbgTo, dbgHit, dbgNrm, dbgComp, dbgObjs, null, this))
+			{
+				what = "земля/статика";
+				if (dbgObjs.Count() > 0 && dbgObjs[0])
+					what = dbgObjs[0].GetType();
+			}
+			Print("[Drezina] резкая остановка: путь #" + m_TrackId + " d=" + d + " было v=" + m_DbgPrevV + " стало " + v + ", впереди: " + what + ", заблокирован=" + IsBlocked(t, d, m_DbgPrevV));
+		}
+		m_DbgPrevV = v;
 		float nd = d + v * m_Face * dt;
 		// стрелки и примыкания развязок метро: переход на другой путь
 		if (v != 0 && TryTransfer(t, d, nd, v))
@@ -753,6 +772,8 @@ class Drezina_Motor extends CarScript
 	float m_CliV;
 	int m_CliTime = 0;
 	int m_SentTransferTrack = -1;
+	float m_DbgPrevV;
+	int m_DbgTime;
 	int m_SentTransferTime = 0;
 	Drezina_LanternLight m_Lantern;
 
@@ -783,6 +804,10 @@ class Drezina_Motor extends CarScript
 		super.RewindState(pState, pMove, pRewindType);
 		Drezina_MotorOwnerState st = Drezina_MotorOwnerState.Cast(pState);
 		if (!st || st.m_dTrack < 0.5)
+			return;
+		// водитель только что сам перешёл на стрелке, а у сервера в этом состоянии ещё прежний путь —
+		// путь не откатываем (иначе дрезину на миг считало по старому пути и разворачивало на месте)
+		if (!GetGame().IsServer() && Math.Round(st.m_dTrack) != m_TrackId && GetGame().GetTime() - m_TransferTime < 1500)
 			return;
 		m_TrackId = Math.Round(st.m_dTrack);
 		m_Face = Math.Round(st.m_dFace);

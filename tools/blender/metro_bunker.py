@@ -1328,6 +1328,11 @@ def build_alarm(outdir, save_fn, reset_fn, tex_dir):
     p.append(torus("cage_ring", 0.076, 0.006, (0, 0.17, 0.12), m["steel"], (0, 0, 0), (24, 6)))
     p.append(cyl("conduit", 0.012, 0.4, (0, 0.02, 0.3), m["steel"], (0, 0, 0), 8))
     o = join(p, "alarm_lamp")
+    # в 2.5 раза крупнее: на большой стене маленький плафон было не разглядеть
+    o.scale = (2.5, 2.5, 2.5)
+    bpy.context.view_layer.objects.active = o
+    o.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     uv_box(o, 0.4)
     smooth(o)
     hz.selection(o, "alarm_lamp")
