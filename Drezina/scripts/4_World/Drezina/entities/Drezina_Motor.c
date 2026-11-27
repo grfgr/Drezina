@@ -67,7 +67,7 @@ class Drezina_Motor extends CarScript
 		m_EngineStopFuel = "Motorbike_01_engine_stop_fuel_SoundSet";
 
 		// фары: свет как у ванильного мотоцикла (у базового профиля машины нет яркости)
-		m_LightsComponent.RegisterLight("Front", new VehicleLightData(new Motorbike_01LightProfileFront()));
+		m_LightsComponent.RegisterLight("Front", new VehicleLightData(new Drezina_MotorLightProfileFront()));
 		m_LightsComponent.RegisterLight("Rear", new VehicleLightData(new Motorbike_01LightProfileRear()));
 
 		// мотор справа впереди (координаты модели: x вправо, y вверх, z вперёд)
@@ -986,4 +986,14 @@ class Drezina_Motor extends CarScript
 		return m_BrakesArePressed;
 	}
 
+}
+
+// Фара мотодрезины: профиль ванильного мотоцикла, но в 3 раза тусклее
+class Drezina_MotorLightProfileFront : Motorbike_01LightProfileFront
+{
+	void Drezina_MotorLightProfileFront()
+	{
+		m_SegregatedBrightness 	= 8.0 / 3.0;
+		m_AggregatedBrightness 	= 10;
+	}
 }
