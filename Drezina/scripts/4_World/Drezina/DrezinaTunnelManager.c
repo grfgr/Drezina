@@ -1273,15 +1273,16 @@ class DrezinaTunnelManager
 				if (vector.Dot(o, a2) > Math.Cos(gap))
 					skip = true;
 			}
-			if (j.Tee && vector.Dot(o, nB) * (R + 0.25) < -(TEE_CUT - 0.3))
-				skip = true;                       // за прямой стеной среза
+			if (j.Tee && vector.Dot(o, nB) * (R + 0.25) < -(TEE_CUT + 1.6))
+				skip = true;                       // целиком за прямой стеной среза (ближние — внахлёст, без щелей)
 			if (!skip)
 				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", c + o * (R + 0.25), o * -1.0));
 		}
 		if (j.Tee)
 		{
 			// прямая стена среза: панели вдоль оси A
-			float chordHalf = Math.Sqrt((R + 0.25) * (R + 0.25) - TEE_CUT * TEE_CUT);
+			// до самой круглой стены и с запасом 1.5 м: иначе в углах у порталов главной линии оставалась щель
+			float chordHalf = Math.Sqrt((R + 0.5) * (R + 0.5) - (TEE_CUT + 0.25) * (TEE_CUT + 0.25)) + 1.5;
 			int nPanels = Math.Ceil(2.0 * chordHalf / 2.7);
 			float pStep = 2.0 * chordHalf / nPanels;
 			for (int pi = 0; pi < nPanels; pi++)
