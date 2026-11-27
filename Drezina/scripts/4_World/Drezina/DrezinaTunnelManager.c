@@ -1746,12 +1746,12 @@ class DrezinaTunnelManager
 			float d = s.ClosestDistance(Vector(p[0], ot.FloorY, p[2]), off);
 			if (off >= bestDist || d < JUNC_END_CLEAR || d > s.GetLength() - JUNC_END_CLEAR)
 				continue;                              // далеко или у станции той линии
-			vector x, dir;
-			s.GetPosDir(d, x, dir);
+			vector x, sdir;
+			s.GetPosDir(d, x, sdir);
 			best = id;
 			bestDist = off;
 			bestX = x;
-			bestDir = Flat(dir);
+			bestDir = Flat(sdir);
 			floorY = ot.FloorY;
 		}
 		if (best == 0)
