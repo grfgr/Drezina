@@ -1020,6 +1020,7 @@ class Drezina_Motor extends CarScript
 	// после каждого кадра (по положению дрезины, которое он сам видит). По сети отдельно не ходит —
 	// значит, не дребезжит и не отстаёт; на поворотах и кольцах встаёт по пути (изгибается со стрелкой).
 	Object m_TrVis;
+	EntityAI m_TrVisE;          // то же, если это EntityAI (для анимации колёс и материала стоп-сигнала)
 	int m_TrVisType;
 	float m_TrWheel;
 	bool m_TrBrake;
@@ -1043,6 +1044,7 @@ class Drezina_Motor extends CarScript
 				cls = "Drezina_TrailerVisCargo";
 			// с физикой: у прицепа есть столкновения (у каждого клиента свой, локальный)
 			m_TrVis = GetGame().CreateObjectEx(cls, GetPosition(), ECE_LOCAL | ECE_CREATEPHYSICS);
+			m_TrVisE = EntityAI.Cast(m_TrVis);
 			m_TrVisType = m_TrailerType;
 			m_TrBrake = false;
 			if (!m_TrVis)
@@ -1093,7 +1095,8 @@ class Drezina_Motor extends CarScript
 			float speed = vector.Dot(GetVelocity(this), GetDirection());
 			m_TrWheel += speed * dt / (Math.PI2 * WHEEL_RADIUS);
 			m_TrWheel -= Math.Floor(m_TrWheel);
-			m_TrVis.SetAnimationPhase("drezina_wheels", m_TrWheel);
+			if (m_TrVisE)
+				m_TrVisE.SetAnimationPhase("drezina_wheels", m_TrWheel);
 		}
 
 		// стоп-сигнал прицепа
@@ -1103,7 +1106,8 @@ class Drezina_Motor extends CarScript
 			m_TrBrake = lit;
 			if (lit)
 			{
-				m_TrVis.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass_e.rvmat");
+				if (m_TrVisE)
+					m_TrVisE.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass_e.rvmat");
 				if (!m_TrTail)
 				{
 					m_TrTail = Drezina_TailLight.Cast(ScriptedLightBase.CreateLight(Drezina_TailLight, m_TrVis.GetPosition()));
@@ -1113,7 +1117,8 @@ class Drezina_Motor extends CarScript
 			}
 			else
 			{
-				m_TrVis.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass.rvmat");
+				if (m_TrVisE)
+					m_TrVisE.SetObjectMaterial(2, "Drezina\\data\\textures\\drezina_redglass.rvmat");
 				if (m_TrTail)
 				{
 					m_TrTail.Destroy();
@@ -1133,6 +1138,7 @@ class Drezina_Motor extends CarScript
 		if (m_TrVis && GetGame())
 			GetGame().ObjectDelete(m_TrVis);
 		m_TrVis = null;
+		m_TrVisE = null;
 		m_TrVisType = 0;
 	}
 
