@@ -1104,7 +1104,7 @@ class Drezina_Motor extends CarScript
 		m_TrLastTime = now;
 		if (dt > 0 && dt < 0.5)
 		{
-			float speed = vector.Dot(GetVelocity(this), GetDirection());
+			float speed = -vector.Dot(GetVelocity(this), GetDirection());   // модель развёрнута — крутим обратно
 			m_TrWheel += speed * dt / (Math.PI2 * WHEEL_RADIUS);
 			m_TrWheel -= Math.Floor(m_TrWheel);
 			if (m_TrVisE)
