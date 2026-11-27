@@ -24,6 +24,7 @@ modded class PlayerBase
 		AddAction(ActionDrezinaAttachPassenger, InputActionMap);
 		AddAction(ActionDrezinaAttachCargo, InputActionMap);
 		AddAction(ActionDrezinaDetachTrailer, InputActionMap);
+		AddAction(ActionDrezinaSitTrailer, InputActionMap);
 	}
 
 	// мутанты и заражённые не замечают игрока на дрезине и под землёй (в метро)

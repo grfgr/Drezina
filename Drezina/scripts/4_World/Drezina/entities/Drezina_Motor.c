@@ -627,6 +627,21 @@ class Drezina_Motor extends CarScript
 
 		vector mat[4];
 		TrackTransform(t, nd, mat);
+		// диагностика разворотов: дрезина за один шаг повернулась больше чем на 15°
+		if (m_DbgDirValid && GetGame().GetTime() - m_DbgTurnTime > 500)
+		{
+			float turnCos = Math.Clamp(vector.Dot(DrezinaTunnelManager.Flat(mat[2]), DrezinaTunnelManager.Flat(m_DbgDir)), -1, 1);
+			float turnDeg = Math.Acos(turnCos) * Math.RAD2DEG;
+			if (turnDeg > 15.0)
+			{
+				m_DbgTurnTime = GetGame().GetTime();
+				Print("[Drezina] рывок поворота " + turnDeg + "°: server=" + server + " путь #" + t.GetId() + " (был #" + m_DbgTurnTrack + ") d=" + nd + " (было " + m_DbgTurnD + ") длина=" + t.GetLength() + " нос=" + m_Face + " v=" + v);
+			}
+		}
+		m_DbgDir = mat[2];
+		m_DbgDirValid = true;
+		m_DbgTurnTrack = t.GetId();
+		m_DbgTurnD = nd;
 		SetTransform(mat);
 		SetVelocity(this, mat[2] * v);
 
@@ -833,6 +848,11 @@ class Drezina_Motor extends CarScript
 	float m_LastV;
 	bool m_LastVValid;
 	int m_DbgBumpTime;
+	vector m_DbgDir;
+	bool m_DbgDirValid;
+	int m_DbgTurnTime;
+	int m_DbgTurnTrack;
+	float m_DbgTurnD;
 	int m_DbgSeatTime;
 	int m_DbgDoorTime;
 	int m_DbgTime;
