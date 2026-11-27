@@ -908,6 +908,61 @@ class DrezinaTunnelManager
 			Save();
 	}
 
+	// пол линии на другой высоте (вместе с путём внутри неё)
+	void SetTunnelFloor(DrezinaTunnelData b, float y)
+	{
+		Print("[Drezina] метро #" + b.Id + ": пол " + b.FloorY + " -> " + y + " (общий уровень метро)");
+		b.FloorY = y;
+		m_Splines.Remove(b.Id);
+		DrezinaTrack tr = DrezinaTrackManager.Get().GetTrack(b.TrackId);
+		if (tr)
+		{
+			array<vector> nodes = new array<vector>;
+			vector railUp = Vector(0, DrezinaConst.RAIL_TOP_ABOVE_FLOOR - DrezinaSettings.Get().RailHeightOffset, 0);
+			foreach (vector rp : b.Route)
+				nodes.Insert(ToUnder(b, rp) + railUp);
+			DrezinaTrackManager.Get().ReplaceNodes(b.TrackId, nodes);
+		}
+	}
+
+	// две точки на прямой от конца маршрута в сторону следующей точки: станция и первые ~14 м тоннеля
+	// за ней — строго по одной оси (если следующая точка достаточно далеко)
+	static void StraightStationEnd(array<vector> route, int end)
+	{
+		if (route.Count() < 2)
+			return;
+		int idx = 0;
+		int nb = 1;
+		if (end == 1)
+		{
+			idx = route.Count() - 1;
+			nb = route.Count() - 2;
+		}
+		vector p = route[idx];
+		vector toN = route[nb] - p;
+		toN[1] = 0;
+		float dist = toN.Length();
+		float L1 = DrezinaConst.STATION_LEN - DrezinaConst.STATION_BACK + 6.0;
+		float L2 = L1 + 8.0;
+		if (dist < L2 + 6.0)
+			return;
+		vector dir = toN.Normalized();
+		vector q1 = p + dir * L1;
+		vector q2 = p + dir * L2;
+		q1[1] = p[1];
+		q2[1] = p[1];
+		if (end == 0)
+		{
+			route.InsertAt(q1, 1);
+			route.InsertAt(q2, 2);
+		}
+		else
+		{
+			route.InsertAt(q1, route.Count() - 1);
+			route.InsertAt(q2, route.Count() - 2);
+		}
+	}
+
 	void ComputeJunctions()
 	{
 		m_Junctions.Clear();
@@ -1540,6 +1595,12 @@ class DrezinaTunnelManager
 		float joinFloor = 0;
 		joinA = TryJoin(route, 0, jpA, joinFloor, 0);
 		joinB = TryJoin(route, 1, jpB, joinFloor, joinA);
+		// у концов со станцией путь первые метры идёт строго по оси станции: иначе (точка via рядом)
+		// кривая поворачивала ещё внутри станции и тоннель выходил из неё вбок — щель у портала
+		if (joinA == 0)
+			StraightStationEnd(route, 0);
+		if (joinB == 0)
+			StraightStationEnd(route, 1);
 		t.Route.InsertAll(route);
 		t.JoinA = joinA;
 		t.JoinB = joinB;
@@ -1571,22 +1632,30 @@ class DrezinaTunnelManager
 		{
 			t.Zone = false;
 			t.Offset = vector.Zero;
-			t.FloorY = floorY;
-			// пересекает другую линию — пол на её уровне (если это не выше допустимого), чтобы получилась развязка
+			// все подземные линии — на одном уровне (чтобы любые две пересекались залом со стрелками):
+			// самый низкий из нужных. Новой линии нужно глубже — остальные опускаются вместе с ней.
+			float common = floorY;
+			bool hasOther = false;
 			foreach (int oid, DrezinaTunnelData ot : m_Tunnels)
 			{
-				// уровень другой линии годится, если над новой остаётся не меньше 4 м земли
-				if (ot.Zone || ot.FloorY > floorY + depth - 4.0 || Math.AbsFloat(ot.FloorY - floorY) > 6.0)
+				if (ot.Zone)
 					continue;
-				vector cx, cdA, cdB;
-				float cda, cdb;
-				if (FirstCrossing(MakeSpline(route, vector.Zero, ot.FloorY), GetSpline(ot), cx, cda, cdb, cdA, cdB))
-				{
-					t.FloorY = ot.FloorY;
-					DrezinaTrackManager.Notify(sender, "Линия пересекает метро #" + ot.Id + ": пол на его уровне для перехода.");
-					break;
-				}
+				hasOther = true;
+				common = Math.Min(common, ot.FloorY);
 			}
+			t.FloorY = common;
+			int lowered = 0;
+			foreach (int oid2, DrezinaTunnelData ot2 : m_Tunnels)
+			{
+				if (ot2.Zone || Math.AbsFloat(ot2.FloorY - common) < 0.05)
+					continue;
+				SetTunnelFloor(ot2, common);
+				lowered++;
+			}
+			if (lowered > 0)
+				DrezinaTrackManager.Notify(sender, "Все линии метро опущены на один уровень: пол " + Math.Round(common) + " м (линий: " + lowered + ").");
+			else if (hasOther)
+				DrezinaTrackManager.Notify(sender, "Линия построена на общем уровне метро: пол " + Math.Round(common) + " м.");
 		}
 
 		m_Tunnels.Set(t.Id, t);
