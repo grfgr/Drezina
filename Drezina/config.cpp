@@ -516,6 +516,19 @@ class CfgVehicles
 					};
 					inventorySlots[] = {};
 				};
+				// мотора нет, но ванильный код машины спрашивает здоровье зоны Engine (иначе ошибки в логе)
+				class Engine
+				{
+					fatalInjuryCoef = -1;
+					componentNames[] = {};
+					class Health
+					{
+						hitpoints = 1000;
+						transferToGlobalCoef = 0;
+						healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+					};
+					inventorySlots[] = {};
+				};
 			};
 		};
 		class GUIInventoryAttachmentsProps {};

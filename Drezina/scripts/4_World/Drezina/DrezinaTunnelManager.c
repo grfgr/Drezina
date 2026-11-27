@@ -1387,19 +1387,9 @@ class DrezinaTunnelManager
 			if (!both && k != onlyK)
 				continue;
 			float fk = k;
-			// два съезда сразу расходятся на ±15° (как настоящая стрелка): иначе первые метров десять они
-			// шли друг по другу и посередине виднелся лишний обрывающийся путь
+			// оба съезда выходят точно по оси пути B (без излома на стыке); при двух съездах касательные
+			// короче (0.8) — так они быстрее расходятся и меньше идут друг по другу
 			vector ts = t0;
-			if (both)
-			{
-				vector qSide, qSideDir;
-				ma.GetPosDir(dXA + fk * 14.0, qSide, qSideDir);
-				vector perp = Side(t0);
-				float ps = 1;
-				if (vector.Dot(qSide - P, perp) < 0)
-					ps = -1;
-				ts = (t0 * 0.966 + perp * (ps * 0.259)).Normalized();
-			}
 			// линия B входит наискосок: съезду в дальнюю сторону поворачивать до 135°. Подбираем, где он
 			// вливается в A (8..22 м от центра, внутри зала) и форму кривой — чтобы изгиб был самым плавным
 			float bestR = -1;
@@ -1413,7 +1403,10 @@ class DrezinaTunnelManager
 				vector Qc, qdc;
 				ma.GetPosDir(dXA + fk * offC, Qc, qdc);
 				vector t1c = Flat(qdc) * fk;
-				for (int fi = 0; fi < 4; fi++)
+				int fiN = 4;
+				if (both)
+					fiN = 1;
+				for (int fi = 0; fi < fiN; fi++)
 				{
 					float fmC = 0.8 + fi * 0.2;
 					float rC = ConnectorMinRadius(P, ts, Qc, t1c, fmC);
@@ -1924,17 +1917,26 @@ class DrezinaTunnelManager
 		vector stub = bestX + dir * JOIN_STUB;
 		// промежуточная точка держит угол подхода (не меньше 45° к оси): без неё линия шла от своей
 		// следующей точки прямо к залу под 25° и съезды не помещались. Ставим и когда следующая близко.
-		float midL = Math.Clamp(toNb.Length() * 0.6, JOIN_STUB + 6.0, JOIN_STUB + 14.0);
-		vector mid = bestX + dir * midL;
+		// две точки на одной прямой с концом: последние ~12 м перед залом путь строго прямой (иначе
+		// поворот начинался у самого портала — щель между тоннелем и порталом, излом рельсов на съезде)
+		vector mid = bestX + dir * (JOIN_STUB + 6.0);
+		vector mid2 = bestX + dir * (JOIN_STUB + 12.0);
 		stub[1] = p[1];
 		mid[1] = p[1];
+		mid2[1] = p[1];
 		route[idx] = stub;
-		if (clamped || toNb.Length() > JOIN_STUB + 24.0)
+		bool far2 = toNb.Length() > JOIN_STUB + 20.0;
+		if (end == 0)
 		{
-			if (end == 0)
-				route.InsertAt(mid, 1);
-			else
-				route.InsertAt(mid, route.Count() - 1);
+			route.InsertAt(mid, 1);
+			if (far2)
+				route.InsertAt(mid2, 2);
+		}
+		else
+		{
+			route.InsertAt(mid, route.Count() - 1);
+			if (far2)
+				route.InsertAt(mid2, route.Count() - 2);
 		}
 		return best;
 	}
