@@ -345,8 +345,9 @@ def export_model(src_dir, out_dir, name, mass, shadow, src_name=None, visonly=Fa
         lods.append(components_lod([tiny], 1e13, 1.0))
     elif geometry:
         surf = SURFACE.get(name, SURF_CONCRETE)
-        solid = [g for g in geometry if not g.get("viewonly")]   # viewonly — только View/Fire (выбор места)
-        lods.append(components_lod(solid, 1e13, mass, surface=surf))
+        # viewonly (места прицепа): в Geometry есть (игра выбирает место по ней), но не в Roadway
+        solid = [g for g in geometry if not g.get("viewonly")]
+        lods.append(components_lod(geometry, 1e13, mass, surface=surf))
         lods.append(components_lod(geometry, 6e15, proxies=prx, surface=surf))
         lods.append(components_lod(geometry, 7e15, proxies=prx, surface=surf))
         lods.append(components_lod(solid, 3e15, roadway=True, surface=surf, roadtex=ROADWAY_BY_MODEL.get(name)))

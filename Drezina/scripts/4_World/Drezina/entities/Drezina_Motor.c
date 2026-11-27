@@ -564,9 +564,9 @@ class Drezina_Motor extends CarScript
 		// у конца со стрелкой съездов (линия, подключённая к другой) — тоже до самого конца
 		bool linked0 = t.LinkAt(0) != null || t.SwitchNearEnd(0);
 		bool linked1 = t.LinkAt(1) != null || t.SwitchNearEnd(1);
-		if (HasTrailer())
+		if (true)
 		{
-			// прицеп сзади (на стороне -нос): ему тоже нужно место до торца
+			// прицеп сзади (место под него держим всегда: коробки его мест — часть геометрии дрезины) (на стороне -нос): ему тоже нужно место до торца
 			if (m_Face > 0 && !linked0)
 				lo = Math.Min(lo + TRAILER_GAP, hi);
 			else if (m_Face < 0 && !linked1)
@@ -576,6 +576,8 @@ class Drezina_Motor extends CarScript
 			lo = 0;
 		if (linked1)
 			hi = t.GetLength();
+		if ((nd <= lo || nd >= hi) && !server && Math.AbsFloat(v) > 3.0)
+			Print("[Drezina] упор пути (клиент): путь #" + t.GetId() + " длина=" + t.GetLength() + " lo=" + lo + " hi=" + hi + " nd=" + nd + " нос=" + m_Face + " прицеп=" + m_TrailerType + " связь0=" + linked0 + " связь1=" + linked1);
 		if (nd <= lo || nd >= hi)
 		{
 			nd = Math.Clamp(nd, lo, hi);
@@ -635,8 +637,8 @@ class Drezina_Motor extends CarScript
 		// головная точка по ходу: при езде задом с прицепом — прицеп
 		float moveDir = m_Face * Math.Sign(v);
 		float head = d;
-		if (HasTrailer() && moveDir == -m_Face)
-			head = d - m_Face * TRAILER_GAP;
+		if (moveDir == -m_Face)
+			head = d - m_Face * TRAILER_GAP;      // сзади — место прицепа (держим всегда)
 		foreach (Drezina_Motor o : s_All)
 		{
 			if (!o || o == this || o.m_TrackId != m_TrackId || o.m_OffRail)
@@ -649,7 +651,7 @@ class Drezina_Motor extends CarScript
 		// прицепы других мотодрезин: их хвост на TRAILER_GAP позади
 		foreach (Drezina_Motor ot : s_All)
 		{
-			if (!ot || ot == this || !ot.HasTrailer() || ot.m_TrackId != m_TrackId || ot.m_OffRail)
+			if (!ot || ot == this || ot.m_TrackId != m_TrackId || ot.m_OffRail)
 				continue;
 			float otd = ProjectDistOf(t, ot.GetPosition()) - ot.m_Face * TRAILER_GAP;
 			float aheadT = (otd - head) * moveDir;
@@ -1310,7 +1312,7 @@ class Drezina_Motor extends CarScript
 		if (!t)
 			return false;
 		float d = ProjectDist(t, GetPosition());
-		if (HasTrailer())
+		if (true)      // место прицепа держим всегда
 		{
 			// прицеп переходит на другую сторону (снова сзади); места должно хватить до торца
 			float td = d + m_Face * TRAILER_GAP;
@@ -1359,7 +1361,7 @@ class Drezina_Motor extends CarScript
 				// луч до дальнего борта дрезины в стоящем положении (+0.85 м); с прицепом — и у прицепа
 				if (DayZPhysics.RaycastRV(center, center + side * (off + 0.85), hitPos, hitDir, hitComp, null, null, this, false, false, ObjIntersectGeom))
 					continue;
-				if (HasTrailer())
+				if (true)
 				{
 					// место сбоку и у прицепа (он в TRAILER_GAP позади)
 					vector tc = center - mat[2] * TRAILER_GAP;
@@ -1418,7 +1420,7 @@ class Drezina_Motor extends CarScript
 		else
 			m_Face = -1;
 		// с прицепом: место сзади до торца
-		if (HasTrailer())
+		if (true)
 		{
 			if (m_Face > 0)
 				d = Math.Max(d, END_GAP + TRAILER_GAP);

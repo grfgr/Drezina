@@ -560,7 +560,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
         mem_point(f"mem_pos_cargo{n}", (fx * 1.15, y + TR_GAP, 0.05))
         mem_point(f"mem_pos_cargo{n}_dir", (fx * 0.5, y + TR_GAP, 0.05))
         g = geo(f"geometry_seat_cargo{n}", (0.42, 0.5, 0.45), (x, y + TR_GAP, DECK + 0.22), f"seat_cargo{n}", m)
-        g["viewonly"] = 1          # только для выбора места (View/Fire), без столкновений: без прицепа там пусто
+        g["viewonly"] = 1          # коробка выбора места: в Geometry/View/Fire, но не в Roadway (на неё не встать)
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.
