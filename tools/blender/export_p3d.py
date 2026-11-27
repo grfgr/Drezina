@@ -37,6 +37,8 @@ MODELS = {
     "trailer_passenger": (300.0, True),
     "trailer_cargo": (320.0, True),
     "trailer_barrel": (30.0, False),
+    "drezina_module_bench": (25.0, False),
+    "drezina_module_barrels": (45.0, False),
     "rail_10m": (2000.0, False),
     "rail_2m": (400.0, False),
     "rail_1m": (200.0, False),
@@ -78,12 +80,14 @@ ROADWAY_BY_MODEL = {
     "trailer_passenger": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
     "trailer_cargo": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
     "trailer_barrel": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
+    "drezina_module_bench": ROADWAY_DIR + "wood_planks_int_drezina_co.paa",
+    "drezina_module_barrels": ROADWAY_DIR + "metal_thick_int_drezina_co.paa",
 }
 SURF_CONCRETE = "dz\\structures_bliss\\underground\\storage\\data\\underground_storage_big_floor.rvmat"
 SURF_METAL = "dz\\data\\data\\penetration\\metal_plate.rvmat"
 SURF_WOOD = "dz\\data\\data\\penetration\\wood.rvmat"
 SURFACE = {
-    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "dispenser": SURF_CONCRETE, "tunnel_lamp": SURF_CONCRETE, "alarm_lamp": SURF_CONCRETE,
+    "handcar": SURF_WOOD, "motor_handcar": SURF_METAL, "trailer_passenger": SURF_METAL, "trailer_cargo": SURF_METAL, "trailer_barrel": SURF_METAL, "drezina_module_bench": SURF_WOOD, "drezina_module_barrels": SURF_METAL, "dispenser": SURF_CONCRETE, "tunnel_lamp": SURF_CONCRETE, "alarm_lamp": SURF_CONCRETE,
     "rail_10m": SURF_CONCRETE, "rail_2m": SURF_CONCRETE, "rail_1m": SURF_CONCRETE,
 }
 
@@ -285,7 +289,7 @@ def memory_lod(empties):
     for e in empties:
         name = e.name[len("mem_"):]
         # пары точек оси: mem_axle_front_1 / _2 -> одна selection "axle_front"
-        if re.match(r"^(lever_axis|axle_front|axle_rear)_\d$", name):
+        if re.match(r"^(lever_axis|axle_front|axle_rear|axle_third)_\d$", name):
             name = re.sub(r"_\d$", "", name)
         groups.setdefault(name, []).append(len(points))
         points.append(to_p3d(e.matrix_world.translation))

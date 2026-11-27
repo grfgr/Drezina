@@ -495,6 +495,7 @@ def main():
     # мотодрезина (машина DayZ: водитель + 2 пассажира, мотор, бак, сумка)
     import motor_handcar
     motor_handcar.build(outdir, os.path.abspath(tex_dir), save, reset_scene)
+    motor_handcar.build_module_items(outdir, os.path.abspath(tex_dir), save, reset_scene)
     # прицепы к мотодрезине: пассажирский (4 места лицом в стороны) и грузовой (4 бочки)
     import trailers
     trailers.build(outdir, os.path.abspath(tex_dir), save, reset_scene)

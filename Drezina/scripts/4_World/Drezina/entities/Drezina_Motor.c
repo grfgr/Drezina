@@ -91,7 +91,8 @@ class Drezina_Motor extends CarScript
 	int m_LPrevFace;
 	float m_LEntryD;
 
-	static const float TRAILER_GAP = 2.9;   // между центрами мотодрезины и прицепа (прицеп сзади)
+	// (было: прицеп) теперь — удлинённая задняя часть рамы с модулем: столько держим места сзади у торцов пути
+	static const float TRAILER_GAP = 1.4;
 
 	void Drezina_Motor()
 	{
@@ -158,8 +159,8 @@ class Drezina_Motor extends CarScript
 			m_Face = 1;
 		if (!ctx.Read(m_OffRail))
 			m_OffRail = false;
-		if (!ctx.Read(m_TrailerType) || m_TrailerType < 0 || m_TrailerType > 2)
-			m_TrailerType = 0;      // в старых сохранениях тут номер сцепки отдельного прицепа
+		ctx.Read(m_TrailerType);
+		m_TrailerType = 0;          // прицепов больше нет (вместо них модуль на удлинённой раме)
 		return true;
 	}
 
@@ -167,6 +168,7 @@ class Drezina_Motor extends CarScript
 	{
 		super.AfterStoreLoad();
 		SetSynchDirty();
+		UpdateModuleVis();
 	}
 
 	// ------------------------------------------------------------------ экипаж и посадка
@@ -202,27 +204,19 @@ class Drezina_Motor extends CarScript
 		return !m_OffRail;   // дверей нет; снятую с рельсов сначала ставят обратно
 	}
 
-	// у мест прицепа «дверь» — просто бок платформы; ванильная проверка свободного места
-	// задевает саму платформу/картинку прицепа и прячет действие «сесть»
+	// места 3 и 4 — на модуле «лавочка»: «дверь» — просто бок платформы, ванильная проверка
+	// свободного места задевает саму платформу
 	override bool IsAreaAtDoorFree(int currentSeat, float maxAllowedObjHeight, inout vector extents, out vector transform[4])
 	{
 		bool free = super.IsAreaAtDoorFree(currentSeat, maxAllowedObjHeight, extents, transform);
 		if (currentSeat >= 3)
-		{
-			if (GetGame().GetTime() - m_DbgDoorTime > 1000)
-			{
-				m_DbgDoorTime = GetGame().GetTime();
-				Print("[Drezina] посадка в прицеп: проверка места " + currentSeat + ", прицеп=" + m_TrailerType + ", свободно(ваниль)=" + free + ", с рельс=" + m_OffRail);
-			}
-			return m_TrailerType == 1;
-		}
+			return HasBench();
 		return free;
 	}
 
-	// места 3..6 — пассажирский прицеп: только когда он прицеплен
 	override bool CanReachSeatFromSeat(int currentSeat, int nextSeat)
 	{
-		if (nextSeat >= 3 && m_TrailerType != 1)
+		if (nextSeat >= 3 && !HasBench())
 			return false;
 		return true;
 	}
@@ -234,13 +228,7 @@ class Drezina_Motor extends CarScript
 			int n = pSeatSelection.Substring(10, pSeatSelection.Length() - 10).ToInt();
 			if (n >= 3)
 			{
-				if (GetGame().GetTime() - m_DbgSeatTime > 1000)
-				{
-					m_DbgSeatTime = GetGame().GetTime();
-					vector dbgWs = ModelToWorld(GetMemoryPointPos("pos_cargo" + n));
-					Print("[Drezina] посадка в прицеп: место " + pSeatSelection + ", прицеп=" + m_TrailerType + ", точка есть=" + MemoryPointExists("pos_cargo" + n) + ", до точки " + vector.Distance(Vector(pFromPos[0], 0, pFromPos[2]), Vector(dbgWs[0], 0, dbgWs[2])) + " м");
-				}
-				if (m_TrailerType != 1)
+				if (!HasBench())
 					return false;
 				string pos = "pos_cargo" + n;
 				if (!MemoryPointExists(pos))
@@ -248,10 +236,96 @@ class Drezina_Motor extends CarScript
 				vector ws = ModelToWorld(GetMemoryPointPos(pos));
 				ws[1] = 0;
 				pFromPos[1] = 0;
-				return vector.Distance(pFromPos, ws) <= 1.6;
+				return vector.Distance(pFromPos, ws) <= 2.2;
 			}
 		}
 		return super.CanReachSeatFromDoors(pSeatSelection, pFromPos, pDistance);
+	}
+
+	// ------------------------------------------------------------------ модуль на задней части рамы
+	// Слот DrezinaModule: лавочка (места 3 и 4) или две бочки (слоты DrezinaBarrel1/2 — хранилища).
+	// Модели модулей — часть модели дрезины, показываем нужную анимацией hide.
+	EntityAI GetModule()
+	{
+		return GetInventory().FindAttachment(InventorySlots.GetSlotIdFromString("DrezinaModule"));
+	}
+
+	bool HasBench()
+	{
+		return Drezina_ModuleBench.Cast(GetModule()) != null;
+	}
+
+	bool HasBarrelsModule()
+	{
+		return Drezina_ModuleBarrels.Cast(GetModule()) != null;
+	}
+
+	void UpdateModuleVis()
+	{
+		float bench = 1;
+		float barrels = 1;
+		if (HasBench())
+			bench = 0;
+		if (HasBarrelsModule())
+			barrels = 0;
+		SetAnimationPhase("module_bench", bench);
+		SetAnimationPhase("module_barrels", barrels);
+	}
+
+	override void EEItemAttached(EntityAI item, string slot_name)
+	{
+		super.EEItemAttached(item, slot_name);
+		if (slot_name != "DrezinaModule")
+			return;
+		UpdateModuleVis();
+		if (GetGame().IsServer() && Drezina_ModuleBarrels.Cast(item))
+		{
+			// бочки-хранилища появляются вместе с модулем
+			for (int b = 1; b <= 2; b++)
+			{
+				int sid = InventorySlots.GetSlotIdFromString("DrezinaBarrel" + b);
+				if (!GetInventory().FindAttachment(sid))
+					GetInventory().CreateAttachmentEx("Drezina_TrailerBarrel", sid);
+			}
+		}
+	}
+
+	override void EEItemDetached(EntityAI item, string slot_name)
+	{
+		super.EEItemDetached(item, slot_name);
+		if (slot_name != "DrezinaModule")
+			return;
+		UpdateModuleVis();
+		if (GetGame().IsServer() && Drezina_ModuleBarrels.Cast(item))
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(ServerRemoveBarrels);
+	}
+
+	void ServerRemoveBarrels()
+	{
+		if (HasBarrelsModule())
+			return;
+		for (int b = 1; b <= 2; b++)
+		{
+			EntityAI br = GetInventory().FindAttachment(InventorySlots.GetSlotIdFromString("DrezinaBarrel" + b));
+			if (br)
+				GetGame().ObjectDelete(br);
+		}
+	}
+
+	override bool CanReceiveAttachment(EntityAI attachment, int slotId)
+	{
+		string sn = InventorySlots.GetSlotName(slotId);
+		if (sn.IndexOf("DrezinaBarrel") == 0 && !HasBarrelsModule())
+			return false;
+		return super.CanReceiveAttachment(attachment, slotId);
+	}
+
+	override bool CanDisplayAttachmentSlot(int slot_id)
+	{
+		string sn = InventorySlots.GetSlotName(slot_id);
+		if (sn.IndexOf("DrezinaBarrel") == 0)
+			return HasBarrelsModule();
+		return super.CanDisplayAttachmentSlot(slot_id);
 	}
 
 	override bool CanReachDoorsFromSeat(string pDoorsSelection, int pCurrentSeat)
@@ -328,8 +402,18 @@ class Drezina_Motor extends CarScript
 		{
 			InventoryLocation il = new InventoryLocation;
 			attachment.GetInventory().GetCurrentInventoryLocation(il);
-			if (IsWheelSlot(InventorySlots.GetSlotName(il.GetSlot())))
+			string relSlot = InventorySlots.GetSlotName(il.GetSlot());
+			if (IsWheelSlot(relSlot))
 				return false;
+			if (relSlot.IndexOf("DrezinaBarrel") == 0)
+				return false;                       // бочки снимаются только вместе с модулем
+			if (relSlot == "DrezinaModule")
+			{
+				if (Drezina_ModuleBench.Cast(attachment) && TrailerSeatsTaken())
+					return false;                   // на лавочке кто-то сидит
+				if (Drezina_ModuleBarrels.Cast(attachment) && !BarrelsEmpty())
+					return false;                   // сначала опустошить бочки
+			}
 		}
 		return super.CanReleaseAttachment(attachment);
 	}

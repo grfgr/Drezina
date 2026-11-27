@@ -2,7 +2,7 @@ class CfgPatches
 {
 	class Drezina
 	{
-		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail1", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10Tile", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel10E", "Drezina_Tunnel10F", "Drezina_Tunnel10G", "Drezina_Tunnel2", "Drezina_JunctionHall", "Drezina_JunctionWall", "Drezina_JunctionPortal", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp", "Drezina_AlarmLamp"};
+		units[] = {"Drezina_Motor", "Drezina_TrailerPassenger", "Drezina_TrailerCargo", "Drezina_TrailerBarrel", "Drezina_ModuleBench", "Drezina_ModuleBarrels", "Drezina_Handcar", "Drezina_Dispenser", "Drezina_Rail", "Drezina_Rail1", "Drezina_Rail10", "Drezina_Tunnel10", "Drezina_Tunnel10Tile", "Drezina_Tunnel10B", "Drezina_Tunnel10C", "Drezina_Tunnel10D", "Drezina_Tunnel10E", "Drezina_Tunnel10F", "Drezina_Tunnel10G", "Drezina_Tunnel2", "Drezina_JunctionHall", "Drezina_JunctionWall", "Drezina_JunctionPortal", "Drezina_MetroStation", "Drezina_MetroHatch", "Drezina_MetroLadder", "Drezina_BunkerStairs", "Drezina_BunkerCorridor", "Drezina_TunnelLamp", "Drezina_AlarmLamp"};
 		weapons[] = {};
 		requiredVersion = 0.1;
 		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "DZ_Sounds_Effects", "DZ_Vehicles_Wheeled", "DZ_Vehicles_Singletrack"};
@@ -137,9 +137,15 @@ class CfgSoundSets
 	};
 };
 
-// слоты бочек грузового прицепа (каждая бочка — отдельное хранилище)
+// слот модуля на задней части мотодрезины и слоты бочек модуля «две бочки» (каждая — хранилище)
 class CfgSlots
 {
+	class Slot_DrezinaModule
+	{
+		name = "DrezinaModule";
+		displayName = "Модуль";
+		ghostIcon = "set:dayz_inventory image:cat_common_cargo";
+	};
 	class Slot_DrezinaBarrel1
 	{
 		name = "DrezinaBarrel1";
@@ -185,8 +191,9 @@ class CfgVehicles
 		displayName = "Мотодрезина";
 		descriptionShort = "Дрезина с мотоциклетным мотором. Заправь, вставь свечу и аккумулятор — и по рельсам.";
 		model = "\Drezina\data\motor_handcar.p3d";
-		// DrezinaBarrel1-4 — бочки грузового прицепа (прицеп теперь часть мотодрезины, бочки — её слоты)
-		attachments[] = {"SparkPlug", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2", "DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+		// DrezinaModule — модуль на удлинённой задней части (лавочка или две бочки);
+		// DrezinaBarrel1-2 — бочки модуля «две бочки» (появляются вместе с ним)
+		attachments[] = {"SparkPlug", "NivaWheel_1_1", "NivaWheel_1_2", "NivaWheel_2_1", "NivaWheel_2_2", "DrezinaModule", "DrezinaBarrel1", "DrezinaBarrel2"};
 		hiddenSelections[] = {"light_left", "light_right", "light_brake_1_2", "light_brake_2_2", "light_reverse_1_2", "light_reverse_2_2", "light_1_2", "light_2_2", "light_dashboard"};
 		// свои стёкла фар: мутно-белое (спереди) и красное (стоп сзади); _e — светящийся вариант
 		hiddenSelectionsTextures[] = {"Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_glass_broken_co.paa", "Drezina\data\textures\drezina_redglass_co.paa", "", "", "", "", "", ""};
@@ -228,7 +235,7 @@ class CfgVehicles
 				getInPos = "pos_cargo2";
 				getInDir = "pos_cargo2_dir";
 			};
-			// места пассажирского прицепа (доступны, только когда он прицеплен)
+			// места на модуле «лавочка» (доступны, только когда он стоит)
 			class Cargo3
 			{
 				actionSel = "seat_cargo3";
@@ -242,20 +249,6 @@ class CfgVehicles
 				proxyPos = "crewCargo4";
 				getInPos = "pos_cargo4";
 				getInDir = "pos_cargo4_dir";
-			};
-			class Cargo5
-			{
-				actionSel = "seat_cargo5";
-				proxyPos = "crewCargo5";
-				getInPos = "pos_cargo5";
-				getInDir = "pos_cargo5_dir";
-			};
-			class Cargo6
-			{
-				actionSel = "seat_cargo6";
-				proxyPos = "crewCargo6";
-				getInPos = "pos_cargo6";
-				getInDir = "pos_cargo6_dir";
 			};
 		};
 
@@ -411,6 +404,14 @@ class CfgVehicles
 				animPeriod = 0.001;
 				initPhase = 0;
 			};
+			// модели модулей: 1 — спрятан, 0 — виден (переключает скрипт по слоту DrezinaModule)
+			class module_bench
+			{
+				source = "user";
+				animPeriod = 0.001;
+				initPhase = 1;
+			};
+			class module_barrels: module_bench {};
 		};
 
 		// звук мотора — ванильный мотоцикл (Motorbike_01)
@@ -503,12 +504,12 @@ class CfgVehicles
 				icon = "set:dayz_inventory image:cat_vehicle_engine";
 				attachmentSlots[] = {"SparkPlug"};
 			};
-			class Barrels
+			class Module
 			{
-				name = "Бочки прицепа";
+				name = "Модуль";
 				description = "";
 				icon = "set:dayz_inventory image:cat_common_cargo";
-				attachmentSlots[] = {"DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+				attachmentSlots[] = {"DrezinaModule", "DrezinaBarrel1", "DrezinaBarrel2"};
 			};
 		};
 	};
@@ -672,6 +673,7 @@ class CfgVehicles
 		itemSize[] = {10, 10};
 		itemBehaviour = 0;
 		inventorySlot[] = {"DrezinaBarrel1", "DrezinaBarrel2", "DrezinaBarrel3", "DrezinaBarrel4"};
+		// (бочки модуля «две бочки»)
 		carveNavmesh = 0;
 		canBeDigged = 0;
 		class Cargo
@@ -691,6 +693,46 @@ class CfgVehicles
 				};
 			};
 		};
+	};
+
+	// ------------------------------------------------------------------ модули задней части мотодрезины
+	// Берутся в руки у терминала выдачи, ставятся в слот «Модуль» мотодрезины.
+	class Drezina_ModuleBase: Inventory_Base
+	{
+		scope = 0;
+		weight = 20000;
+		itemSize[] = {10, 10};
+		itemBehaviour = 0;          // тяжёлый: несут двумя руками
+		inventorySlot[] = {"DrezinaModule"};
+		carveNavmesh = 0;
+		canBeDigged = 0;
+		physLayer = "item_large";
+		class DamageSystem
+		{
+			class GlobalHealth
+			{
+				class Health
+				{
+					hitpoints = 1000;
+					healthLevels[] = {{1, {}}, {0.7, {}}, {0.5, {}}, {0.3, {}}, {0, {}}};
+				};
+			};
+		};
+	};
+	class Drezina_ModuleBench: Drezina_ModuleBase
+	{
+		scope = 2;
+		displayName = "Модуль: лавочка";
+		descriptionShort = "Лавка на двоих для задней части мотодрезины. Поставь в слот «Модуль».";
+		model = "\Drezina\data\drezina_module_bench.p3d";
+	};
+	class Drezina_ModuleBarrels: Drezina_ModuleBase
+	{
+		scope = 2;
+		displayName = "Модуль: две бочки";
+		descriptionShort = "Поддон с двумя бочками для задней части мотодрезины. Каждая бочка — хранилище.";
+		model = "\Drezina\data\drezina_module_barrels.p3d";
+		weight = 30000;
 	};
 
 	class Drezina_Handcar: Inventory_Base

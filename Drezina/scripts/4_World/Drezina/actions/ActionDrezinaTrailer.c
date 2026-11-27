@@ -1,5 +1,7 @@
-// У терминала выдачи: к стоящей рядом пустой мотодрезине прицепить ОДИН прицеп — пассажирский или грузовой
-// (состав из нескольких прицепов не собирается), или отцепить его (если в нём никого и бочки пустые).
+// У терминала выдачи: взять в руки модуль для задней части мотодрезины — лавочку (2 места) или
+// две бочки (2 хранилища). Модуль ставится на дрезину как обычное вложение (перетащить в слот
+// «Модуль» в инвентаре дрезины). Ненужный модуль можно сдать обратно на терминал.
+// (Имена классов остались от прицепов — так не нужно менять регистрацию действий.)
 class ActionDrezinaTrailerBase : ActionInteractBase
 {
 	void ActionDrezinaTrailerBase()
@@ -14,20 +16,18 @@ class ActionDrezinaTrailerBase : ActionInteractBase
 		m_ConditionTarget = new CCTObject(3.0);
 	}
 
-	// мотодрезина у этого терминала: стоит, пустая, на рельсах
-	static Drezina_Motor CarAt(ActionTarget target)
+	static bool AtDispenser(ActionTarget target)
 	{
-		if (!target)
-			return null;
-		Drezina_Dispenser disp = Drezina_Dispenser.Cast(target.GetObject());
-		if (!disp)
-			return null;
-		foreach (Drezina_Motor car : Drezina_Motor.s_All)
-		{
-			if (car && !car.m_OffRail && car.GetTrack() && vector.Distance(car.GetPosition(), disp.GetPosition()) <= ActionDrezinaReturn.RADIUS && car.CanBeReturned())
-				return car;
-		}
-		return null;
+		return target && Drezina_Dispenser.Cast(target.GetObject()) != null;
+	}
+
+	static void GiveModule(PlayerBase player, string type)
+	{
+		if (!player || player.GetItemInHands())
+			return;
+		EntityAI it = player.GetHumanInventory().CreateInHands(type);
+		if (!it)
+			DrezinaTrackManager.Notify(player.GetIdentity(), "Не удалось выдать модуль.");
 	}
 }
 
@@ -35,20 +35,17 @@ class ActionDrezinaAttachPassenger : ActionDrezinaTrailerBase
 {
 	void ActionDrezinaAttachPassenger()
 	{
-		m_Text = "Прицепить пассажирский прицеп";
+		m_Text = "Взять модуль: лавочка";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerType == 0;
+		return AtDispenser(target) && !player.IsInVehicle() && !player.GetItemInHands();
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
-		Drezina_Motor car = CarAt(action_data.m_Target);
-		if (car && car.m_TrailerType == 0 && !car.ServerAttachTrailer(1))
-			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Не удалось прицепить (мало места на пути?).");
+		GiveModule(action_data.m_Player, "Drezina_ModuleBench");
 	}
 }
 
@@ -56,20 +53,17 @@ class ActionDrezinaAttachCargo : ActionDrezinaTrailerBase
 {
 	void ActionDrezinaAttachCargo()
 	{
-		m_Text = "Прицепить грузовой прицеп";
+		m_Text = "Взять модуль: две бочки";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerType == 0;
+		return AtDispenser(target) && !player.IsInVehicle() && !player.GetItemInHands();
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
-		Drezina_Motor car = CarAt(action_data.m_Target);
-		if (car && car.m_TrailerType == 0 && !car.ServerAttachTrailer(2))
-			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Не удалось прицепить (мало места на пути?).");
+		GiveModule(action_data.m_Player, "Drezina_ModuleBarrels");
 	}
 }
 
@@ -77,26 +71,18 @@ class ActionDrezinaDetachTrailer : ActionDrezinaTrailerBase
 {
 	void ActionDrezinaDetachTrailer()
 	{
-		m_Text = "Отцепить прицеп";
+		m_Text = "Сдать модуль";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
 	{
-		Drezina_Motor car = CarAt(target);
-		return car && !player.IsInVehicle() && car.m_TrailerType != 0;
+		return AtDispenser(target) && Drezina_ModuleBase.Cast(player.GetItemInHands()) != null;
 	}
 
 	override void OnExecuteServer(ActionData action_data)
 	{
-		Drezina_Motor car = CarAt(action_data.m_Target);
-		if (!car)
-			return;
-		if (!car.BarrelsEmpty())
-		{
-			DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Сначала освободите бочки прицепа.");
-			return;
-		}
-		car.ServerDetachTrailer();
-		DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Прицеп отцеплен.");
+		EntityAI it = action_data.m_Player.GetItemInHands();
+		if (Drezina_ModuleBase.Cast(it))
+			GetGame().ObjectDelete(it);
 	}
 }

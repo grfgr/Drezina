@@ -28,6 +28,13 @@ BENCH_Y = -0.98               # лавки у заднего торца (за з
 DRIVER_Y = -0.12
 # анимации мотоцикла: начало прокси — у земли под седлом, седло примерно на 0.8 м выше
 RIDER_DROP = 0.8
+# удлинение рамы назад (за лавкой пассажиров, до разворота модели это -Y; спереди мотор): третья ось
+# (схема осей 0-00: одна спереди, две сзади) и место под модуль — лавочку или две бочки (их модели
+# прячет/показывает скрипт по вложению DrezinaModule)
+EXT = 1.3
+AX3 = -(hz.AXLE_Y + 0.98)
+END_Y = -(1.10 + EXT)           # новый задний торец рамы
+MOD_Y = -(1.18 + EXT / 2)       # середина места под модуль
 
 
 def proxy(name, path, sel, loc, forward, visual=False, swap=False):
@@ -503,6 +510,62 @@ def lamps(m, out, sel_parts):
             sel_parts.append((p, "light_brake_1_2"))
 
 
+def extension(m, body, wood):
+    """Удлинение рамы: продольные швеллеры, новый торец, поперечины, доски пола, буксы третьей оси."""
+    yc = -(1.10 + EXT / 2)
+    for sx in (-1, 1):
+        body += hz.channel_y(f"ext_sill{sx}", EXT + 0.06, (sx * hz.SILL_X, yc, DECK - 0.12), m["paint"], open_sign=-sx)
+        # накладки на стыке со старой рамой (болтами)
+        body.append(box(f"ext_fishplate{sx}", (0.012, 0.36, 0.1), (sx * (hz.SILL_X + 0.03), -1.10, DECK - 0.12), m["steel"]))
+    body += hz.channel_x("ext_end", 1.34, (0, END_Y, DECK - 0.12), m["paint"], open_sign=1)
+    for y in (-(1.10 + EXT * 0.4), -(1.10 + EXT * 0.8)):
+        body.append(box(f"ext_cross{y:.2f}", (1.20, 0.06, 0.06), (0, y, DECK - 0.07), m["rust"]))
+    n = int(EXT / 0.245)
+    for i in range(n):
+        y = -(1.10 + 0.13 + i * 0.245)
+        rz = math.radians(hz.rnd.uniform(-0.8, 0.8))
+        wood.append(box(f"ext_plank{i}", (1.24, 0.215, 0.04), (0, y, DECK - 0.02 + hz.rnd.uniform(-0.006, 0.004)), m["wood"], (0, 0, rz)))
+    # буксы и подвеска третьей оси
+    R = hz.WHEEL_R
+    for sx in (-1, 1):
+        x = sx * (hz.HALF - 0.12)
+        body.append(box(f"ax3_box{sx}", (0.1, 0.16, 0.14), (x, AX3, R), m["paint"]))
+        body.append(box(f"ax3_hanger{sx}", (0.06, 0.08, DECK - R - 0.05), (x, AX3, (DECK + R) / 2), m["rust"]))
+        body.append(box(f"ax3_spring{sx}", (0.06, 0.5, 0.03), (x, AX3, DECK - 0.2), m["steel"]))
+    body.append(cyl("ax3_axle", 0.04, 2 * hz.HALF - 0.1, (0, AX3, R), m["rust"], ROT_Y, 12))
+
+
+def module_bench(m, out, y0=None, z0=None):
+    """Модуль «лавочка»: лавка вдоль, спинка посередине — двое сидят лицом наружу, ноги за бортом."""
+    y0 = MOD_Y if y0 is None else y0
+    z0 = DECK if z0 is None else z0
+    h = 0.42
+    L = EXT - 0.2
+    for sx in (-1, 1):
+        out.append(box(f"mb_seat{sx}", (0.36, L, 0.05), (sx * 0.24, y0, z0 + h - 0.025), m["wood"]))
+        out.append(box(f"mb_cushion{sx}", (0.32, L - 0.1, 0.04), (sx * 0.25, y0, z0 + h + 0.015), m["canvas"]))
+        for dy in (-L / 2 + 0.06, 0.0, L / 2 - 0.06):
+            out.append(box(f"mb_leg{sx}{dy:.2f}", (0.05, 0.05, h - 0.05), (sx * 0.38, y0 + dy, z0 + (h - 0.05) / 2), m["rust"]))
+    for dy in (-L / 2 + 0.06, 0.0, L / 2 - 0.06):
+        out.append(box(f"mb_mid_leg{dy:.2f}", (0.06, 0.06, h + 0.5), (0, y0 + dy, z0 + (h + 0.5) / 2), m["rust"]))
+    for k, z in enumerate((0.2, 0.4)):
+        out.append(box(f"mb_back{k}", (0.035, L, 0.12), (0, y0, z0 + h + z), m["wood"]))
+    out.append(box("mb_base", (0.9, L, 0.03), (0, y0, z0 + 0.015), m["steel"]))
+
+
+def module_barrels(m, out, y0=None, z0=None):
+    """Модуль «две бочки»: поддон с гнёздами и ремнями, две ванильного вида бочки поперёк."""
+    import trailers as tr_mod
+    y0 = MOD_Y if y0 is None else y0
+    z0 = DECK if z0 is None else z0
+    out.append(box("mbr_pallet", (1.2, EXT - 0.15, 0.05), (0, y0, z0 + 0.025), m["wood"]))
+    for x in (-0.33, 0.33):
+        tr_mod.barrel(f"mbr_barrel{x}", x, y0, m, out, z0 + 0.05)
+    for sx in (-1, 1):
+        out.append(cyl(f"mbr_post{sx}", 0.018, 0.7, (sx * 0.66, y0, z0 + 0.4), m["rust"]))
+    out.append(cyl("mbr_strap", 0.012, 1.32, (0, y0, z0 + 0.7), m["rust"], ROT_Y, 8))
+
+
 def build(outdir, tex_dir, save_fn, reset_fn):
     hz.TEX_DIR = tex_dir
     reset_fn()
@@ -512,8 +575,9 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     hz.layer1_frame(m, body)
     hz.layer1_deck(m, wood, metal)
     hz.layer2_running_gear(m, body)
+    extension(m, body, wood)
     for sy in (-1, 1):                       # сцепки без болтающейся цепи
-        yy = sy * 1.17
+        yy = sy * 1.17 if sy > 0 else END_Y - 0.07
         body.append(box(f"buffer_plate{sy}", (0.2, 0.012, 0.14), (0, yy, DECK - 0.12), m["steel"]))
         body.append(box(f"hook{sy}", (0.03, 0.12, 0.03), (0, yy + sy * 0.06, DECK - 0.15), m["steel"]))
         body.append(box(f"hook_tip{sy}", (0.03, 0.03, 0.06), (0, yy + sy * 0.11, DECK - 0.13), m["steel"]))
@@ -542,25 +606,37 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     selection(main, "body")
 
     for name, x, y in (("wheel_1_1", -hz.HALF, hz.AXLE_Y), ("wheel_2_1", hz.HALF, hz.AXLE_Y),
-                       ("wheel_1_2", -hz.HALF, -hz.AXLE_Y), ("wheel_2_2", hz.HALF, -hz.AXLE_Y)):
+                       ("wheel_1_2", -hz.HALF, -hz.AXLE_Y), ("wheel_2_2", hz.HALF, -hz.AXLE_Y),
+                       ("wheel_1_3", -hz.HALF, AX3), ("wheel_2_3", hz.HALF, AX3)):
         rail_wheel(name, x, y, m)
+
+    # модули: отдельные объекты со своими выделениями (скрипт показывает нужный через анимацию hide)
+    mb = []
+    module_bench(m, mb)
+    o = join(mb, "module_bench")
+    uv_cube(o, 0.5)
+    smooth(o)
+    selection(o, "module_bench")
+    mbr = []
+    module_barrels(m, mbr)
+    o = join(mbr, "module_barrels")
+    uv_cube(o, 0.6)
+    smooth(o)
+    selection(o, "module_barrels")
 
     # ---- экипаж: прокси в View/Fire Geometry (кости crewDriver / crewCargo1 / crewCargo2)
     P = "\\dz\\vehicles\\wheeled\\proxies\\"
     proxy("proxy_driver", P + "crew_driver", "crewDriver", (0, DRIVER_Y, SEAT_H), (0, 1, 0))
     proxy("proxy_cargo1", P + "crew_cargo", "crewCargo1", (-0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
     proxy("proxy_cargo2", P + "crew_cargo", "crewCargo2", (0.32, BENCH_Y + 0.02, BENCH_H + 0.03), (0, 1, 0))
-    # места пассажирского прицепа — у самой мотодрезины, там, где стоит прицеп (центр прицепа в 2.9 м
-    # позади; до разворота модели «назад» — это +Y). Сам прицеп каждый клиент рисует за дрезиной сам.
-    import trailers as tr_mod
-    TR_GAP = 2.9
-    for i, (x, y, fx) in enumerate(tr_mod.SEATS):
-        n = i + 3
-        proxy(f"proxy_cargo{n}", P + "crew_cargo", f"crewCargo{n}", (x + fx * 0.02, y + TR_GAP, tr_mod.SEAT_H + 0.03), (fx, 0, 0))
-        mem_point(f"mem_pos_cargo{n}", (fx * 1.15, y + TR_GAP, 0.05))
-        mem_point(f"mem_pos_cargo{n}_dir", (fx * 0.5, y + TR_GAP, 0.05))
-        g = geo(f"geometry_seat_cargo{n}", (0.42, 0.5, 0.45), (x, y + TR_GAP, DECK + 0.22), f"seat_cargo{n}", m)
-        g["viewonly"] = 1          # коробка выбора места: в Geometry/View/Fire, но не в Roadway (на неё не встать)
+    # места на модуле «лавочка» (crewCargo3 — лицом налево, crewCargo4 — направо); садиться можно, только
+    # когда стоит лавочка (проверяет скрипт)
+    for n, sx in ((3, -1), (4, 1)):
+        proxy(f"proxy_cargo{n}", P + "crew_cargo", f"crewCargo{n}", (sx * 0.27, MOD_Y, DECK + 0.45), (sx, 0, 0))
+        mem_point(f"mem_pos_cargo{n}", (sx * 1.15, MOD_Y, 0.05))
+        mem_point(f"mem_pos_cargo{n}_dir", (sx * 0.5, MOD_Y, 0.05))
+        g = geo(f"geometry_seat_cargo{n}", (0.4, 0.6, 0.45), (sx * 0.24, MOD_Y, DECK + 0.22), f"seat_cargo{n}", m)
+        g["viewonly"] = 1          # коробка выбора места: в Geometry/View/Fire, но не в Roadway
 
     # ---- колёса для физики машины: прокси ванильного колеса Нивы (слоты NivaWheel_1_1, _1_2, _2_1, _2_2 —
     # в порядке номеров прокси .001-.004). Видимые колёса свои, прокси только в View/Fire Geometry.
@@ -588,6 +664,8 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     mem_point("mem_axle_front_2", (hz.HALF, hz.AXLE_Y, hz.WHEEL_R))
     mem_point("mem_axle_rear_1", (-hz.HALF, -hz.AXLE_Y, hz.WHEEL_R))
     mem_point("mem_axle_rear_2", (hz.HALF, -hz.AXLE_Y, hz.WHEEL_R))
+    mem_point("mem_axle_third_1", (-hz.HALF, AX3, hz.WHEEL_R))
+    mem_point("mem_axle_third_2", (hz.HALF, AX3, hz.WHEEL_R))
     mem_point("mem_light_left", (-0.45, 1.36, DECK + 0.02))
     mem_point("mem_light_left_dir", (-0.45, 2.36, DECK - 0.03))
     mem_point("mem_light_right", (0.45, 1.36, DECK + 0.02))
@@ -604,6 +682,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
 
     # ---- Geometry: компоненты (масса считается по всем вершинам, распределена равномерно)
     geo("geometry_chassis", (1.36, 2.4, 0.22), (0, 0, DECK - 0.11), "dmgZone_chassis", m)
+    geo("geometry_chassis_ext", (1.36, EXT, 0.22), (0, -(1.2 + EXT / 2), DECK - 0.11), "dmgZone_chassis", m)
     geo("geometry_engine", (0.36, 0.5, 0.42), (0.22, 0.72, DECK + 0.21), "dmgZone_engine", m)
     geo("geometry_tank", (0.28, 0.5, 0.2), (0.22, 0.72, DECK + 0.6), "dmgZone_fuelTank,refill", m)
     mem_point("mem_refill", (0.22, 0.8, DECK + 0.7))
@@ -630,7 +709,7 @@ def build(outdir, tex_dir, save_fn, reset_fn):
     print(f"[Drezina] motor_handcar faces LOD0: {sum(len(o.data.polygons) for o in meshes)}")
     # бюджет LOD0: ~40 тыс. треугольников (в LOD у DayZ есть предел вершин) — упрощаем корпус и колёса
     for o in meshes:
-        ratio = 0.6 if o.name == "body" else (0.75 if o.name.startswith("wheel") else 1.0)
+        ratio = 0.6 if o.name == "body" else (0.75 if o.name.startswith("wheel") else (0.8 if o.name.startswith("module") else 1.0))
         if ratio < 1.0:
             mod = o.modifiers.new("decimate0", "DECIMATE")
             mod.ratio = ratio
@@ -646,3 +725,17 @@ def build(outdir, tex_dir, save_fn, reset_fn):
             bpy.ops.object.modifier_apply(modifier=mod.name)
         save_fn(outdir, f"motor_handcar_lod{lod}")
     bpy.ops.wm.open_mainfile(filepath=os.path.join(outdir, "motor_handcar.blend"))
+
+
+def build_module_items(outdir, tex_dir, save_fn, reset_fn):
+    """Модули как предметы (берутся в руки у терминала выдачи и вешаются на дрезину)."""
+    hz.TEX_DIR = tex_dir
+    for name, fn in (("drezina_module_bench", module_bench), ("drezina_module_barrels", module_barrels)):
+        reset_fn()
+        m = hz.materials()
+        parts = []
+        fn(m, parts, 0.0, 0.0)
+        o = join(parts, name)
+        uv_cube(o, 0.6)
+        smooth(o)
+        save_fn(outdir, name)
