@@ -36,7 +36,7 @@ def ground():
     crop = src[120:1080, 480:1440]
     t = seamless(crop)
     t = np.array(Image.fromarray(t.clip(0, 255).astype(np.uint8)).resize((1024, 1024), Image.LANCZOS)).astype(np.float32)
-    t = (t * 1.08).clip(0, 255)                      # в игре текстура ещё раз освещается — чуть светлее снимка
+    t = (t * 0.68).clip(0, 255)                      # снимок уже освещён, в игре свет ложится ещё раз — темнее (1.08 было слишком светло)
     Image.fromarray(t.astype(np.uint8)).save(os.path.join(OUT, "metro_grass_co.png"))
     gray = t.mean(-1) / 255.0
     Image.fromarray(normal_from(gray)).save(os.path.join(OUT, "metro_grass_nohq.png"))
@@ -58,7 +58,8 @@ def tufts():
     im = Image.new("RGBA", (N, N), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     rnd = random.Random(5)
-    cols = [(38, 46, 22), (46, 52, 26), (55, 58, 30), (64, 60, 32), (78, 66, 38), (92, 78, 44), (52, 44, 26)]
+    # тёмные: пучки освещаются сверху как земля и в игре выходят заметно светлее текстуры
+    cols = [(22, 28, 12), (27, 32, 14), (32, 35, 17), (37, 36, 19), (45, 39, 22), (54, 46, 26), (30, 26, 15)]
     for i in range(900):
         x0 = rnd.gauss(N * 0.5, N * 0.2)
         x0 = min(max(x0, N * 0.04), N * 0.96)
@@ -66,7 +67,7 @@ def tufts():
         lean = rnd.uniform(-0.45, 0.45) * h
         w = S * rnd.uniform(5, 11)
         c = rnd.choice(cols)
-        tipc = tuple(min(255, int(v * rnd.uniform(1.15, 1.5))) for v in c)
+        tipc = tuple(min(255, int(v * rnd.uniform(1.1, 1.35))) for v in c)
         steps = 14
         prev = (x0, N - 1)
         for k in range(1, steps + 1):

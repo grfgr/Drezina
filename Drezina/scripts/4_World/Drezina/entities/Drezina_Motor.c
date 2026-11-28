@@ -99,6 +99,7 @@ class Drezina_Motor extends CarScript
 		RegisterNetSyncVariableInt("m_TrackId");
 		RegisterNetSyncVariableInt("m_Face", -1, 1);
 		RegisterNetSyncVariableBool("m_OffRail");
+		RegisterNetSyncVariableBool("m_Broken");
 		RegisterNetSyncVariableInt("m_TrailerType", 0, 2);
 		RegisterNetSyncVariableInt("m_PrevTrack");
 		RegisterNetSyncVariableFloat("m_PrevD", 0, 100000, 2);
@@ -850,9 +851,19 @@ class Drezina_Motor extends CarScript
 	float m_SrvPrevV;
 	ref map<EntityAI, int> m_HitTimes = new map<EntityAI, int>;
 
+	bool m_Broken;   // «сломана» — клиентам синхронизируется: GetHealth на клиенте вызывать нельзя (падал запуск мотора и пропадал звук)
+
 	bool IsBroken()
 	{
-		return GetHealth("", "") <= BROKEN_HP;
+		if (!GetGame().IsServer())
+			return m_Broken;
+		bool b = GetHealth("", "") <= BROKEN_HP;
+		if (b != m_Broken)
+		{
+			m_Broken = b;
+			SetSynchDirty();
+		}
+		return b;
 	}
 
 	// урон дрезине (не ниже BROKEN_HP: «сломана», но не уничтожена — чинится горелкой)

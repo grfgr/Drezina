@@ -50,7 +50,8 @@ class ActionDrezinaRepair : ActionContinuousBase
 		if (player.IsInVehicle() || !TorchReady(item))
 			return false;
 		Drezina_Motor car = CarOf(target);
-		return car && car.GetHealth01("", "") < 0.999;
+		// уровень здоровья и «сломана» синхронизируются на клиент (GetHealth там вызывать нельзя)
+		return car && (car.IsBroken() || car.GetHealthLevel("") > GameConstants.STATE_PRISTINE);
 	}
 
 	override void OnStartServer(ActionData action_data)
@@ -76,6 +77,7 @@ class ActionDrezinaRepair : ActionContinuousBase
 		car.SetHealthMax("Engine", "");
 		car.SetHealthMax("Chassis", "");
 		car.SetHealthMax("FuelTank", "");
+		car.IsBroken();   // обновить синхронизированный флаг «сломана»
 		Print("[Drezina] мотодрезина починена горелкой");
 		DrezinaTrackManager.Notify(action_data.m_Player.GetIdentity(), "Мотодрезина починена.");
 	}
