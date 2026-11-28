@@ -684,8 +684,10 @@ class Drezina_Motor extends CarScript
 				v = v - dv * Math.Sign(v);
 		}
 
-		// другие дрезины на пути впереди
-		if (v != 0 && IsBlocked(t, d, v))
+		// другие дрезины на пути впереди. Решает водитель (клиент): серверная копия видит чужие дрезины
+		// чуть иначе и вставала раньше — клиента откатывало назад («невидимая стена»)
+		bool remoteDrv = server && RemoteDriver();
+		if (v != 0 && !remoteDrv && IsBlocked(t, d, v))
 			v = 0;
 
 		// диагностика: резко встали с газом (во что-то упёрлись) — что впереди
@@ -723,13 +725,16 @@ class Drezina_Motor extends CarScript
 			t = GetTrack();
 			nd = m_DistHint;
 		}
-		// страховка: серверная копия разошлась с водителем больше чем на 25 м (что-то пошло не так) —
-		// ставим туда, где дрезина у водителя. Мелкие расхождения правит сама игра (откат машины).
-		if (server && m_CliTime > 0 && m_CliTrack == t.GetId() && RemoteDriver() && GetGame().GetTime() - m_CliTime < 500)
+		// серверная копия держится за водителем: разошлась больше чем на 1.5 м — ставим туда, где дрезина
+		// у водителя, с его скоростью (иначе сервер уходил вперёд, раньше упирался и откатывал клиента)
+		if (remoteDrv && m_CliTime > 0 && m_CliTrack == t.GetId() && GetGame().GetTime() - m_CliTime < 600)
 		{
 			float pred = m_CliD + m_CliV * m_Face * (GetGame().GetTime() - m_CliTime) / 1000.0;
-			if (Math.AbsFloat(pred - nd) > 25.0)
+			if (Math.AbsFloat(pred - nd) > 1.5)
+			{
 				nd = pred;
+				v = m_CliV;
+			}
 		}
 		// у торцов пути останавливаемся за 1.6 м (там тупиковый упор станции); у примыканий — едем дальше
 		float lo = Math.Min(END_GAP, t.GetLength() * 0.5);
@@ -754,10 +759,14 @@ class Drezina_Motor extends CarScript
 		if (nd <= lo || nd >= hi)
 		{
 			nd = Math.Clamp(nd, lo, hi);
-			if (!linked0 && !linked1)
-				v = 0;
-			else if ((nd <= lo && !linked0) || (nd >= hi && !linked1))
-				v = 0;
+			// скорость у упора гасит водитель; сервер с живым водителем только не выпускает за торец
+			if (!remoteDrv)
+			{
+				if (!linked0 && !linked1)
+					v = 0;
+				else if ((nd <= lo && !linked0) || (nd >= hi && !linked1))
+					v = 0;
+			}
 		}
 		m_DistHint = nd;
 		m_LastV = v;
@@ -787,9 +796,11 @@ class Drezina_Motor extends CarScript
 		if (!server)
 		{
 			m_PosSendTimer -= dt;
-			if (m_PosSendTimer <= 0 && (v != 0 || m_PosSendTimer < -2))
+			bool justStopped = v == 0 && m_LastSentV != 0;     // остановились — сообщаем сразу
+			if ((m_PosSendTimer <= 0 && (v != 0 || m_PosSendTimer < -2)) || justStopped)
 			{
-				m_PosSendTimer = 0.5;
+				m_LastSentV = v;
+				m_PosSendTimer = 0.2;          // чаще: сервер держится за водителем вплотную
 				ScriptRPC prpc = new ScriptRPC();
 				prpc.Write(m_TrackId);
 				prpc.Write(nd);
@@ -986,6 +997,7 @@ class Drezina_Motor extends CarScript
 	float m_LastV;
 	bool m_LastVValid;
 	int m_DbgBumpTime;
+	float m_LastSentV;
 	vector m_DbgDir;
 	bool m_DbgDirValid;
 	int m_DbgTurnTime;
