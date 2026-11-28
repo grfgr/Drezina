@@ -132,6 +132,28 @@ class Drezina_AlarmLamp extends ItemBase
 {
 	Drezina_AlarmBeam m_Beam;
 	Drezina_AlarmGlow m_Glow;
+	EffectSound m_Sound;
+
+	// звук вращения: ванильный, если найдётся, иначе свой (моторчик с пощёлкиванием)
+	static string s_SoundSet;
+	static string PickSound()
+	{
+		if (s_SoundSet != "")
+			return s_SoundSet;
+		array<string> cands = {"Underground_AlarmLight_Loop_SoundSet", "UndergroundDoor_AlarmLight_Loop_SoundSet", "AlarmLight_Loop_SoundSet"};    // (сирены не берём: выли бы все маячки в тоннелях)
+		s_SoundSet = "Drezina_AlarmLamp_SoundSet";
+		foreach (string c : cands)
+		{
+			SoundParams sp = new SoundParams(c);
+			if (sp.IsValid())
+			{
+				s_SoundSet = c;
+				break;
+			}
+		}
+		Print("[Drezina] звук маячка: " + s_SoundSet);
+		return s_SoundSet;
+	}
 	float m_Angle;
 
 	override void EEInit()
@@ -146,10 +168,11 @@ class Drezina_AlarmLamp extends ItemBase
 
 	void StartLight()
 	{
-		vector p = GetPosition() - GetDirection() * 0.3;
+		vector p = GetPosition() - GetDirection() * 0.22;
 		m_Glow = Drezina_AlarmGlow.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmGlow, p));
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
+		m_Sound = SEffectManager.PlaySoundOnObject(PickSound(), this, 0.5, 0.3, true);
 	}
 
 	void Spin(float dt)
@@ -162,7 +185,7 @@ class Drezina_AlarmLamp extends ItemBase
 		// луч ходит по кругу в полусфере перед стеной: поворот вокруг оси стены.
 		// модель маячка выступает в -GetDirection() (объект ставится «спиной» к залу), поэтому +180°
 		vector ori = GetOrientation();
-		m_Beam.SetPosition(GetPosition() - GetDirection() * 0.3);
+		m_Beam.SetPosition(GetPosition() - GetDirection() * 0.22);
 		m_Beam.SetOrientation(Vector(ori[0] + 180.0 + Math.Sin(m_Angle * Math.DEG2RAD) * 80.0, -15.0 + Math.Cos(m_Angle * Math.DEG2RAD) * 25.0, 0));
 	}
 
@@ -174,6 +197,8 @@ class Drezina_AlarmLamp extends ItemBase
 			m_Beam.Destroy();
 		if (m_Glow)
 			m_Glow.Destroy();
+		if (m_Sound)
+			m_Sound.SoundStop();
 		super.EEDelete(parent);
 	}
 

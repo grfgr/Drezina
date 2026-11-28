@@ -46,6 +46,13 @@ class CfgMods
 // samples[] — пути без расширения (.ogg). Несколько сэмплов в шейдере выбираются случайно.
 class CfgSoundShaders
 {
+	// аварийный маячок: моторчик вращения с пощёлкиванием (если ванильного звука нет)
+	class Drezina_AlarmLamp_SoundShader
+	{
+		samples[] = {{"Drezina\sounds\alarm_loop", 1}};
+		volume = 0.55;
+		range = 18;
+	};
 	class Drezina_Roll_SoundShader
 	{
 		samples[] = {{"Drezina\sounds\roll_loop", 1}};
@@ -92,6 +99,15 @@ class CfgSoundShaders
 
 class CfgSoundSets
 {
+	class Drezina_AlarmLamp_SoundSet
+	{
+		soundShaders[] = {"Drezina_AlarmLamp_SoundShader"};
+		sound3DProcessingType = "character3DProcessingType";
+		volumeCurve = "characterAttenuationCurve";
+		spatial = 1;
+		doppler = 0;
+		loop = 1;
+	};
 	class Drezina_Base_SoundSet
 	{
 		sound3DProcessingType = "character3DProcessingType";

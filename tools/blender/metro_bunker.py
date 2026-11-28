@@ -822,9 +822,7 @@ def build_entrance(outdir, save_fn, reset_fn):
     p += control_panel("panel", (1.48, 0.5, 1.35), m)
     p.append(sign_plate("sign", (0.8, 0.03, 0.4), (-1.48, 0.515, 1.95), m["sign_in"]))
     # светильник-клетка над дверью и кабель к нему
-    p.append(cyl("lamp_dead", 0.09, 0.15, (0, 0.55, 3.0), m["rust"], ROT_Y))
-    for k in range(4):
-        p.append(box(f"lamp_cage{k}", (0.012, 0.16, 0.012), (math.cos(k * 1.57) * 0.08, 0.62, 3.0 + math.sin(k * 1.57) * 0.08), m["steel"]))
+    # над дверью — аварийный маячок (ставит скрипт: Drezina_AlarmLamp со светом и звуком)
     mh_rod("lamp_cable", (0.0, 0.5, 3.08), (1.2, 0.52, 3.08), 0.012, m["tape"], p)
     mh_rod("lamp_cable2", (1.2, 0.52, 3.08), (1.3, 0.52, 1.7), 0.012, m["tape"], p)
     # мешки с песком у левой стенки и обломки бетона у правой
@@ -1779,19 +1777,41 @@ def build_alarm(outdir, save_fn, reset_fn, tex_dir):
     red = hz.tex_material("drezina_redglass_e", "drezina_redglass", 0.2)
     red["dayz_rvmat"] = "Drezina\\data\\textures\\drezina_redglass_e.rvmat"
     p = []
-    p.append(box("plate", (0.2, 0.02, 0.2), (0, 0.01, 0), m["rust"]))
-    p.append(box("arm", (0.06, 0.12, 0.06), (0, 0.08, 0), m["paint"]))
-    p.append(cyl("base", 0.085, 0.07, (0, 0.17, -0.04), m["paint"], (0, 0, 0), 24))
-    p.append(cyl("dome", 0.07, 0.13, (0, 0.17, 0.06), red, (0, 0, 0), 24))
-    p.append(sphere("dome_top", 0.07, (0, 0.17, 0.125), red, (1, 1, 0.6), (24, 10)))
-    for k in range(4):
-        a = k * math.pi / 2
-        p.append(box(f"cage{k}", (0.01, 0.01, 0.2), (math.cos(a) * 0.075, 0.17 + math.sin(a) * 0.075, 0.07), m["steel"]))
-    p.append(torus("cage_ring", 0.076, 0.006, (0, 0.17, 0.12), m["steel"], (0, 0, 0), (24, 6)))
-    p.append(cyl("conduit", 0.012, 0.4, (0, 0.02, 0.3), m["steel"], (0, 0, 0), 8))
+    # монтажная пластина с болтами и кронштейн-уголок
+    p.append(box("plate", (0.2, 0.025, 0.24), (0, 0.0125, 0), m["paint"]))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            p.append(cyl(f"plate_bolt{sx}{sz}", 0.011, 0.02, (sx * 0.075, 0.03, sz * 0.095), m["steel"], ROT_X, 6))
+    p.append(box("arm", (0.07, 0.13, 0.025), (0, 0.085, -0.075), m["paint"]))
+    p.append(box("arm_rib", (0.012, 0.11, 0.06), (0, 0.075, -0.05), m["paint"], (math.radians(-28), 0, 0)))
+    # корпус с мотором: ступенчатый цилиндр, стык, кабельный ввод
+    y0 = 0.17
+    p.append(cyl("base", 0.09, 0.05, (0, y0, -0.06), m["paint"], (0, 0, 0), 28))
+    p.append(cyl("base_ring", 0.094, 0.012, (0, y0, -0.032), m["steel"], (0, 0, 0), 28))
+    p.append(cyl("base_top", 0.08, 0.02, (0, y0, -0.018), m["paint"], (0, 0, 0), 28))
+    p.append(cyl("gland", 0.016, 0.04, (0, y0 - 0.085, -0.06), m["steel"], ROT_X, 10))
+    # красный плафон: рифлёный цилиндр (вертикальные рёбра-линзы) и купол
+    p.append(cyl("dome", 0.068, 0.12, (0, y0, 0.05), red, (0, 0, 0), 32))
+    for k in range(12):
+        a = k * math.pi / 6
+        p.append(box(f"dome_rib{k}", (0.012, 0.01, 0.11), (math.cos(a) * 0.069, y0 + math.sin(a) * 0.069, 0.05), red, (0, 0, -a)))
+    p.append(sphere("dome_top", 0.068, (0, y0, 0.11), red, (1, 1, 0.55), (28, 12)))
+    p.append(cyl("cap", 0.02, 0.015, (0, y0, 0.15), m["steel"], (0, 0, 0), 12))
+    # защитная решётка: шесть прутков, два кольца, крышка-пятак
+    for k in range(6):
+        a = k * math.pi / 3 + 0.26
+        p.append(box(f"cage{k}", (0.008, 0.008, 0.17), (math.cos(a) * 0.082, y0 + math.sin(a) * 0.082, 0.065), m["steel"]))
+    for z in (0.02, 0.11):
+        p.append(torus(f"cage_ring{z}", 0.082, 0.005, (0, y0, z), m["steel"], (0, 0, 0), (28, 6)))
+    for k in range(3):
+        a = k * math.pi / 3 + 0.26
+        p.append(box(f"cage_top{k}", (0.17, 0.008, 0.008), (0, y0, 0.15), m["steel"], (0, 0, a)))
+    # кабель в гофре вверх по стене
+    p.append(cyl("conduit", 0.011, 0.45, (0.05, 0.02, 0.34), m["steel"], (0, 0, 0), 8))
+    p.append(box("conduit_clip", (0.04, 0.02, 0.015), (0.05, 0.02, 0.3), m["rust"]))
     o = join(p, "alarm_lamp")
-    # крупнее исходного (на большой стене маленький плафон было не разглядеть), но не огромный: 2.5 / 1.5
-    o.scale = (1.667, 1.667, 1.667)
+    # крупнее исходного (на большой стене маленький плафон было не разглядеть), но поменьше прежнего
+    o.scale = (1.25, 1.25, 1.25)
     bpy.context.view_layer.objects.active = o
     o.select_set(True)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)

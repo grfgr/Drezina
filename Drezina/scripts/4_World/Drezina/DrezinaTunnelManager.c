@@ -691,6 +691,8 @@ class DrezinaTunnelManager
 			hatch.m_End = end;
 			objs.Insert(hatch);
 		}
+		// маячок над входной дверью (на перемычке портала, снаружи)
+		SpawnAlarm(surf + face * 0.5 + Vector(0, 3.05, 0), face, objs);
 
 		// гермодверь изнутри: на верхней площадке, лицом в шахту
 		vector stInward;
@@ -703,6 +705,9 @@ class DrezinaTunnelManager
 			ladder.m_End = end;
 			objs.Insert(ladder);
 		}
+		// маячок у гермодвери изнутри — сбоку от двери, на стене
+		vector inFace = stInward * -1.0;
+		SpawnAlarm(lPos + inFace * 0.15 + Side(inFace) * 1.15 + Vector(0, 2.35, 0), inFace, objs);
 	}
 
 	static void AddObj(array<Object> objs, Object o)
