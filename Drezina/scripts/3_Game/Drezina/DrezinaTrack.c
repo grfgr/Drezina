@@ -101,7 +101,7 @@ class DrezinaTrack
 			{
 				float t = s;
 				t = t / steps; // без этого было бы целочисленное деление
-				m_Points.Insert(CatmullRom(p0, p1, p2, p3, t));
+				m_Points.Insert(Spline(p0, p1, p2, p3, t));
 			}
 		}
 		RemoveLoops();
@@ -152,6 +152,35 @@ class DrezinaTrack
 			foreach (vector v : q)
 				m_Points.Insert(v);
 		}
+	}
+
+	// Сегмент p1->p2. Пока соседние отрезки соизмеримы (до 3 раз) — обычный Catmull-Rom (форма путей
+	// прежняя). Если соседний отрезок намного длиннее (у станции точки в 26 и 34 м, а дальше прямая
+	// на километры), касательная берётся по длине этого сегмента: иначе кривая улетала за конец линии
+	// на сотни метров и станция оказывалась далеко от бункера.
+	static vector Spline(vector p0, vector p1, vector p2, vector p3, float t)
+	{
+		float d01 = vector.Distance(p0, p1);
+		float d12 = vector.Distance(p1, p2);
+		float d23 = vector.Distance(p2, p3);
+		if (!Uneven(d01, d12) && !Uneven(d12, d23))
+			return CatmullRom(p0, p1, p2, p3, t);
+		vector m1 = (p2 - p0) * 0.5;
+		vector m2 = (p3 - p1) * 0.5;
+		if (Uneven(d01, d12) && d01 + d12 > 0.001)
+			m1 = (p2 - p0) * (d12 / (d01 + d12));
+		if (Uneven(d12, d23) && d12 + d23 > 0.001)
+			m2 = (p3 - p1) * (d12 / (d12 + d23));
+		float t2 = t * t;
+		float t3 = t2 * t;
+		return p1 * (2 * t3 - 3 * t2 + 1) + m1 * (t3 - 2 * t2 + t) + p2 * (3 * t2 - 2 * t3) + m2 * (t3 - t2);
+	}
+
+	static bool Uneven(float a, float b)
+	{
+		if (a < 0.001 || b < 0.001)
+			return false;              // крайний узел (повторён) — как раньше
+		return a > b * 3.0 || b > a * 3.0;
 	}
 
 	static vector CatmullRom(vector p0, vector p1, vector p2, vector p3, float t)
