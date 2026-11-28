@@ -14,6 +14,7 @@
 Все размеры согласованы со скриптом (DrezinaConst в DrezinaConstants.c).
 """
 import math
+import os
 import random
 
 import bmesh
@@ -544,6 +545,69 @@ def bunker_mound(name, mat):
     bpy.context.scene.collection.objects.link(o)
     o.data.materials.append(mat)
     MOUND_PTS[:] = [tuple(v.co) for v in me.vertices]
+    MOUND_H[0] = height
+    return o
+
+
+MOUND_H = [None]
+
+
+def grass_tufts(name, count, seed):
+    """Пучки сухой травы на насыпи: по три перекрещенные двусторонние плоскости с текстурой
+    травы с альфой (_ca). Нормали смотрят вверх — пучки освещаются как земля под ними."""
+    height = MOUND_H[0]
+    rnd = random.Random(seed)
+    mat = bpy.data.materials.get("metro_drygrass") or bpy.data.materials.new("metro_drygrass")
+    mat["dayz_texture"] = "Drezina\\data\\textures\\metro_drygrass_ca.paa"
+    mat["dayz_rvmat"] = ""
+    # для превью в Blender: та же текстура с альфой
+    mat.use_nodes = True
+    path = os.path.join(TEX_DIR or "", "metro_drygrass_ca.png")
+    if TEX_DIR and os.path.exists(path) and not any(n.type == "TEX_IMAGE" for n in mat.node_tree.nodes):
+        img = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        img.image = bpy.data.images.load(path, check_existing=True)
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        mat.node_tree.links.new(img.outputs["Color"], bsdf.inputs["Base Color"])
+        mat.node_tree.links.new(img.outputs["Alpha"], bsdf.inputs["Alpha"])
+        mat.blend_method = "CLIP" if hasattr(mat, "blend_method") else None
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new()
+    placed = 0
+    tries = 0
+    while placed < count and tries < count * 30:
+        tries += 1
+        cx, cy = rnd.uniform(-11, 11), rnd.uniform(-14, WING_L + 1.2)
+        if cy > -0.6 and abs(cx) < wing_x(max(cy, 0.0)) + WING_T + 0.3:
+            continue                                  # перед дверью и на стенках — нет
+        if (cx - 1.8) ** 2 + (cy + 4.0) ** 2 < 0.6:
+            continue                                  # у вентиляционной трубы
+        h = height(cx, cy)
+        if h < 0.1:
+            continue
+        for _ in range(rnd.randint(1, 3)):            # куртинка из 1-3 пучков
+            x, y = cx + rnd.uniform(-0.6, 0.6), cy + rnd.uniform(-0.6, 0.6)
+            z = height(x, y) - 0.08
+            w = rnd.uniform(0.6, 1.1)
+            th = rnd.uniform(0.45, 0.85)
+            a0 = rnd.uniform(0, math.pi)
+            for k in range(3):
+                a = a0 + k * math.pi / 3
+                dx, dy = math.cos(a) * w / 2, math.sin(a) * w / 2
+                lean = rnd.uniform(-0.08, 0.08)
+                corners = [(x - dx, y - dy, z), (x + dx, y + dy, z), (x + dx + lean, y + dy, z + th), (x - dx + lean, y - dy, z + th)]
+                for order in ((0, 1, 2, 3), (1, 0, 3, 2)):          # обе стороны (свои вершины у каждой)
+                    vv = [bm.verts.new(corners[i]) for i in order]
+                    f = bm.faces.new(vv)
+                    for l, i in zip(f.loops, order):
+                        l[uv].uv = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))[i]
+            placed += 1
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    me.normals_split_custom_set([(0.0, 0.0, 1.0)] * len(me.loops))
     return o
 
 
@@ -645,6 +709,8 @@ def build_entrance(outdir, save_fn, reset_fn):
     o = join([concrete, mound], "bunker_entrance")
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
+    tufts = grass_tufts("bunker_grass", 220, 77)
+    hz.selection(tufts, "bunker_entrance")
     # геометрия
     geo("geometry_block", (BW, BD, 6.6), (0, -BD / 2, 0.3))
     geo("geometry_apron", (4.2, WING_L + 0.4, 2.0), (0, WING_L / 2, -0.98))
