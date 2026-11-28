@@ -573,7 +573,8 @@ def bunker_mound(name, mat, soil_mat=None):
             for tri in tris:
                 f = bm.faces.new(tri)
 
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    # без recalc_face_normals: у открытой поверхности он разворачивал грани вниз (в игре насыпь не рисовалась).
+    # треугольники выше уже идут против часовой стрелки сверху — нормали вверх
     bm.to_mesh(me)
     bm.free()
     o = bpy.data.objects.new(name, me)

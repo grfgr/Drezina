@@ -140,17 +140,8 @@ class Drezina_AlarmLamp extends ItemBase
 	{
 		if (s_SoundSet != "")
 			return s_SoundSet;
-		array<string> cands = {"Underground_AlarmLight_Loop_SoundSet", "UndergroundDoor_AlarmLight_Loop_SoundSet", "AlarmLight_Loop_SoundSet"};    // (сирены не берём: выли бы все маячки в тоннелях)
+		// всегда свой набор: громкость задана в config.cpp (у ванильных наборов её не поменять)
 		s_SoundSet = "Drezina_AlarmLamp_SoundSet";
-		foreach (string c : cands)
-		{
-			SoundParams sp = new SoundParams(c);
-			if (sp.IsValid())
-			{
-				s_SoundSet = c;
-				break;
-			}
-		}
 		Print("[Drezina] звук маячка: " + s_SoundSet);
 		return s_SoundSet;
 	}
@@ -173,8 +164,6 @@ class Drezina_AlarmLamp extends ItemBase
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
 		m_Sound = SEffectManager.PlaySoundOnObject(PickSound(), this, 0.5, 0.3, true);
-		if (m_Sound)
-			m_Sound.SetSoundVolume(0.25);   // в 4 раза тише (и ванильный звук, и свой)
 	}
 
 	void Spin(float dt)

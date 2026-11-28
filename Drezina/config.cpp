@@ -50,7 +50,7 @@ class CfgSoundShaders
 	class Drezina_AlarmLamp_SoundShader
 	{
 		samples[] = {{"Drezina\sounds\alarm_loop", 1}};
-		volume = 0.55;
+		volume = 0.14;   // в 4 раза тише прежнего
 		range = 18;
 	};
 	class Drezina_Roll_SoundShader
