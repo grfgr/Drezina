@@ -655,6 +655,10 @@ def uv_mound(obj):
     """Насыпь целиком на одну текстуру: проекция сверху по её границам."""
     x0, x1, y0, y1 = MOUND_GRID[:4]
     me = obj.data
+    # развёртка — в обычный слой UVMap: сетка насыпи создана без UV, и bmesh иначе заводит отдельный
+    # слой, который при объединении с бетоном не становится основным (насыпь была одним цветом)
+    if not me.uv_layers:
+        me.uv_layers.new(name="UVMap")
     bm = bmesh.new()
     bm.from_mesh(me)
     uv = bm.loops.layers.uv.verify()
