@@ -458,66 +458,217 @@ def control_panel(prefix, loc, m):
     return p
 
 
+def mh_rod(name, a, b, r, mat, out):
+    import motor_handcar as mh
+    mh.rod(name, a, b, r, mat, out)
+
+
+def hull(name, pts, mat):
+    """Выпуклый многогранник по точкам (подпорные стенки, оголовки, обломки)."""
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    for p in pts:
+        bm.verts.new(p)
+    bmesh.ops.convex_hull(bm, input=bm.verts[:])
+    loose = [v for v in bm.verts if not v.link_faces]          # точки внутри оболочки — не нужны
+    bmesh.ops.delete(bm, geom=loose, context="VERTS")
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    return o
+
+
+# подпорные стенки входа: от портала (y=0) вперёд на WING_L, расходятся наружу и понижаются к краю
+WING_L = 3.6
+WING_X0 = 2.15          # внутренняя грань у портала
+WING_FLARE = math.radians(22)
+WING_T = 0.45
+WING_H0, WING_H1 = 3.3, 0.25
+
+
+def wing_x(y):
+    return WING_X0 + y * math.tan(WING_FLARE)
+
+
+def wing_top(y):
+    return WING_H0 + (WING_H1 - WING_H0) * max(0.0, min(1.0, y / WING_L))
+
+
+def bunker_mound(name, mat):
+    """Насыпь: неровный холм за порталом, по бокам спускается по стенкам, края уходят в землю."""
+    nx, ny = 72, 60
+    x0, x1, y0, y1 = -12.0, 12.0, -15.0, WING_L + 1.5
+    rnd = random.Random(41)
+    waves = [(rnd.uniform(0.15, 0.5), rnd.uniform(0.15, 0.5), rnd.uniform(0, 6.28), a) for a in (0.3, 0.2, 0.12, 0.08, 0.05)]
+    def noise(x, y):
+        return sum(a * math.sin(fx * x * (1 + i) + fy * y * (1 + i) + ph) for i, (fx, fy, ph, a) in enumerate(waves))
+    def height(x, y):
+        # пологий холм за порталом
+        dx, dy = x / 9.5, (y + 3.0) / 7.5
+        d = math.sqrt(dx * dx + dy * dy)
+        h = 4.6 * max(0.0, 1 - d * d) ** 1.2 - 0.7
+        h += noise(x, y) * 0.6 * max(0.0, 1 - d)
+        if y < -0.3:
+            # насыпь укрывает тело бункера до козырька и плавно сходит в стороны
+            ax = max(0.0, abs(x) - 2.6)
+            h = max(h, 3.85 - 0.16 * ax * ax + noise(x, y) * 0.1)
+        else:
+            # перед порталом: внутри стенок — земли нет, снаружи — земля держится по верху стенок
+            wx = wing_x(max(y, 0.0)) + WING_T
+            if abs(x) < wx - 0.1:
+                return -0.9
+            top = wing_top(max(y, 0.0)) - 0.05
+            fall = (abs(x) - wx) / 3.5
+            h = min(max(h, top - fall * fall * 2.5), top) + noise(x, y) * 0.08
+        return max(h, -0.9)
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    vs = []
+    for j in range(ny + 1):
+        row = []
+        for i in range(nx + 1):
+            x = x0 + (x1 - x0) * i / nx
+            y = y0 + (y1 - y0) * j / ny
+            row.append(bm.verts.new((x, y, height(x, y))))
+        vs.append(row)
+    for j in range(ny):
+        for i in range(nx):
+            bm.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    MOUND_PTS[:] = [tuple(v.co) for v in me.vertices]
+    return o
+
+
+MOUND_PTS = []
+
+
+def rubble(name, loc, size, mat, seed):
+    """Бетонный обломок: неправильный многогранник."""
+    r = random.Random(seed)
+    x, y, z = loc
+    pts = [(x + r.uniform(-1, 1) * size, y + r.uniform(-1, 1) * size * 0.8, z + r.uniform(0, 1) * size * 0.7) for _ in range(12)]
+    return hull(name, pts, mat)
+
+
+def sandbag(name, loc, rotz, m):
+    o = box(name, (0.62, 0.34, 0.16), loc, m["canvas"], (0, 0, rotz))
+    hz.bevel(o, 0.06, 3)
+    return o
+
+
 def build_entrance(outdir, save_fn, reset_fn):
-    """Origin — земля перед фасадом по центру двери. Фасад смотрит в +Y."""
+    """Голова бункера в духе советских объектов: бетонный портал с фаской, дверь в нише, подпорные
+    стенки-трапеции, неровная земляная насыпь с травой. Origin — земля перед порталом по центру
+    двери. Фасад смотрит в +Y."""
     reset_fn()
     m = mats()
+    m["grass"] = hz.tex_material("metro_grass", "metro_grass", 1.0)
+    ce = m["concrete_ext"]
     p = []
     BW, BD, BH = 4.6, 4.0, 3.2
-    # бетонная коробка, почти полностью в насыпи
-    p.append(box("block", (BW, BD, BH + 3.0), (0, -BD / 2, (BH - 3.0) / 2), m["concrete_ext"]))      # фундамент на 3 м в землю
-    # портал: толстая рамка вокруг ниши
-    # (внутренние края портала вплотную к коробке двери: 1.6/2 + 0.18 = 0.98)
-    p.append(box("portal_l", (0.9, 0.6, 3.5), (-1.43, 0.2, 1.75), m["concrete_ext"]))
-    p.append(box("portal_r", (0.9, 0.6, 3.5), (1.43, 0.2, 1.75), m["concrete_ext"]))
-    p.append(box("portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04), m["concrete_ext"]))   # строго между боковинами
-    p.append(box("visor", (4.4, 1.1, 0.22), (0, 0.55, 3.55), m["concrete_ext"], (math.radians(-5), 0, 0)))
-    p.append(box("niche_floor", (2.2, 1.0, 0.1), (0, 0.0, 0.05), m["concrete"]))
-    # бетонная отмостка перед входом, уходит в землю (на склоне не видно щели под порогом)
-    p.append(box("apron", (4.2, 2.6, 2.0), (0, 1.3, -0.97), m["concrete"]))
+    # тело бункера в насыпи (видно только портал)
+    p.append(box("block", (BW, BD, BH + 3.0), (0, -BD / 2, (BH - 3.0) / 2), ce))
+    # портал: массивная рамка с фаской, ниша двери глубиной 0.5 м
+    p.append(box("portal_l", (1.0, 0.7, 3.6), (-1.48, 0.15, 1.8), ce))
+    p.append(box("portal_r", (1.0, 0.7, 3.6), (1.48, 0.15, 1.8), ce))
+    p.append(box("portal_top", (1.96, 0.7, 0.98), (0, 0.15, 3.11), ce))
+    # козырёк — плита с капельником и косыми консолями
+    p.append(box("visor", (4.9, 1.3, 0.24), (0, 0.55, 3.72), ce))
+    p.append(box("visor_drip", (4.9, 0.08, 0.1), (0, 1.17, 3.56), ce))
     for sx in (-1, 1):
-        p.append(box(f"portal_foot{sx}", (0.9, 0.6, 2.0), (sx * 1.43, 0.2, -1.0), m["concrete_ext"]))
-    # откосные стенки, держат насыпь
+        p.append(hull(f"visor_bracket{sx}", [(sx * 1.6, 0.5, 3.6), (sx * 2.0, 0.5, 3.6), (sx * 1.6, 1.1, 3.6), (sx * 2.0, 1.1, 3.6),
+                                             (sx * 1.6, 0.5, 2.9), (sx * 2.0, 0.5, 2.9)], ce))
+    # проём ниши: бетонные откосы и порог
+    p.append(box("niche_floor", (2.2, 1.0, 0.12), (0, 0.0, 0.06), m["concrete"]))
     for sx in (-1, 1):
-        p.append(box(f"wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), m["concrete_ext"], (math.radians(-32), 0, 0)))
-        p.append(box(f"wing_foot{sx}", (0.4, 3.0, 2.2), (sx * 2.3, 1.1, -0.9), m["concrete_ext"]))
-        p.append(box(f"wing_cap{sx}", (0.5, 3.4, 0.15), (sx * 2.3, 1.4, 2.45), m["concrete_ext"], (math.radians(-32), 0, 0)))
-    # дверь (крупнее, как у армейских бункеров) в жёлто-чёрной коробке
+        p.append(box(f"portal_foot{sx}", (1.0, 0.7, 2.0), (sx * 1.48, 0.15, -1.0), ce))
+    # подпорные стенки-трапеции и их оголовки
+    for sx in (-1, 1):
+        pts = []
+        for y, zt in ((0.0, WING_H0), (WING_L, WING_H1)):
+            xi = sx * wing_x(y)
+            xo = sx * (wing_x(y) + WING_T)
+            for x in (xi, xo):
+                pts += [(x, y, zt), (x, y, -1.2)]
+        p.append(hull(f"wing{sx}", pts, ce))
+        cap = []
+        for y, zt in ((-0.05, WING_H0), (WING_L + 0.05, WING_H1)):
+            for x in (sx * (wing_x(y) - 0.06), sx * (wing_x(y) + WING_T + 0.06)):
+                cap += [(x, y, zt + 0.14), (x, y, zt - 0.02)]
+        p.append(hull(f"wing_cap{sx}", cap, ce))
+        # торчащая арматура на торце стенки
+        for k in range(3):
+            y = WING_L - 0.02
+            x = sx * (wing_x(y) + 0.1 + k * 0.12)
+            mh_rod(f"rebar{sx}{k}", (x, y, WING_H1 + 0.1), (x + sx * 0.05 * (k - 1), y + 0.15, WING_H1 + 0.45 + k * 0.08), 0.009, m["rust"], p)
+    # отмостка перед дверью с водостоком и решёткой
+    p.append(box("apron", (4.2, WING_L + 0.4, 2.0), (0, WING_L / 2, -0.98), m["concrete"]))
+    p.append(box("drain", (3.0, 0.3, 0.06), (0, 1.6, 0.0), m["rust"]))
+    for k in range(14):
+        p.append(box(f"drain_bar{k}", (0.03, 0.3, 0.04), (-1.4 + k * 0.215, 1.6, 0.03), m["steel"]))
+    # дверь в жёлто-чёрной коробке, глубже лица портала
     dw, dh = 1.6, 2.4
-    # дверь в нише портала: перед фасадом блока (y=0), на 0.25 м глубже лица портала (y=0.5)
-    p += door_frame("df", dw, dh, 0.25, m)
-    p += blast_door("door", dw, dh, 0.25, m)
-    p += control_panel("panel", (1.43, 0.5, 1.35), m)
-    # табличка на левой части портала
-    sign = sign_plate("sign", (0.8, 0.03, 0.4), (-1.43, 0.515, 1.9), m["sign_in"])
-    p.append(sign)
-    # мёртвый светильник-клетка над дверью
-    p.append(cyl("lamp_dead", 0.09, 0.15, (0, 0.55, 2.95), m["rust"], ROT_Y))
+    p += door_frame("df", dw, dh, 0.2, m)
+    p += blast_door("door", dw, dh, 0.2, m)
+    p += control_panel("panel", (1.48, 0.5, 1.35), m)
+    p.append(sign_plate("sign", (0.8, 0.03, 0.4), (-1.48, 0.515, 1.95), m["sign_in"]))
+    # светильник-клетка над дверью и кабель к нему
+    p.append(cyl("lamp_dead", 0.09, 0.15, (0, 0.55, 3.0), m["rust"], ROT_Y))
     for k in range(4):
-        p.append(box(f"lamp_cage{k}", (0.012, 0.16, 0.012), (math.cos(k * 1.57) * 0.08, 0.62, 2.95 + math.sin(k * 1.57) * 0.08), m["steel"]))
-    # вентиляционный грибок над насыпью
-    p.append(cyl("vent", 0.15, 2.2, (1.6, -3.2, 3.6), m["rust"]))
-    p.append(hz.cone("vent_cap", 0.34, 0.05, 0.26, (1.6, -3.2, 4.8), m["rust"], (0, 0, 0), 24))
+        p.append(box(f"lamp_cage{k}", (0.012, 0.16, 0.012), (math.cos(k * 1.57) * 0.08, 0.62, 3.0 + math.sin(k * 1.57) * 0.08), m["steel"]))
+    mh_rod("lamp_cable", (0.0, 0.5, 3.08), (1.2, 0.52, 3.08), 0.012, m["tape"], p)
+    mh_rod("lamp_cable2", (1.2, 0.52, 3.08), (1.3, 0.52, 1.7), 0.012, m["tape"], p)
+    # мешки с песком у левой стенки и обломки бетона у правой
+    for k, (x, y, z, r) in enumerate([(-1.55, 2.3, 0.08, 0.1), (-1.5, 2.95, 0.08, -0.15), (-1.52, 2.62, 0.24, 0.05)]):
+        p.append(sandbag(f"sandbag{k}", (x, y, z), r, m))
+    for k, (x, y, s) in enumerate([(1.7, 2.9, 0.28), (1.45, 3.4, 0.18), (3.9, 3.8, 0.35), (-4.2, 3.2, 0.3)]):
+        p.append(rubble(f"rubble{k}", (x, y, -0.05), s, ce, 100 + k))
+    # вентиляционная труба над насыпью: фланец, колпак, растяжки
+    p.append(cyl("vent", 0.16, 2.6, (1.8, -4.0, 3.0), m["rust"]))
+    p.append(cyl("vent_flange", 0.26, 0.06, (1.8, -4.0, 3.55), m["rust"]))
+    p.append(hz.cone("vent_cap", 0.38, 0.05, 0.28, (1.8, -4.0, 4.4), m["rust"], (0, 0, 0), 24))
+    for k in range(3):
+        a = k * 2.094
+        p.append(box(f"vent_leg{k}", (0.03, 0.03, 0.3), (1.8 + math.cos(a) * 0.2, -4.0 + math.sin(a) * 0.2, 4.15), m["rust"]))
     concrete = join(p, "bunker_entrance")
-    uv_box(concrete, 3.0)
-    # срез насыпи — за фасадом блока (y = -0.35): заглушка не закрывает дверь, по бокам её прячут откосы
-    # пологая насыпь (шире и ниже: на местности не торчит куполом), развёртка сверху — без швов
-    mound = earth_mound("mound", (0, -3.4, -0.6), (8.5, 7.5, 4.6), -0.35, m["dirt"], bottom=-3.0)
-    uv_top(mound, 4.0)
+    uv_box(concrete, 2.4)
+    mound = bunker_mound("mound", m["grass"])
+    uv_top(mound, 5.0)
     o = join([concrete, mound], "bunker_entrance")
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
     # геометрия
-    # коллизия блока заканчивается на фасаде (y = 0), портал и дверь — отдельными боксами, ниша свободна
     geo("geometry_block", (BW, BD, 6.6), (0, -BD / 2, 0.3))
-    geo("geometry_apron", (4.2, 2.6, 2.0), (0, 1.3, -0.97))
+    geo("geometry_apron", (4.2, WING_L + 0.4, 2.0), (0, WING_L / 2, -0.98))
     for sx in (-1, 1):
-        geo(f"geometry_portal{sx}", (0.9, 0.6, 3.5), (sx * 1.43, 0.2, 1.75))
-    geo("geometry_portal_top", (1.96, 0.6, 0.92), (0, 0.2, 3.04))
-    geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))     # закрытая дверь: к ней можно подойти вплотную
-    for sx in (-1, 1):
-        geo(f"geometry_wing{sx}", (0.4, 3.2, 3.4), (sx * 2.3, 1.4, 1.0), (math.radians(-32), 0, 0))
-    geo("geometry_mound", (11, 8, 6.5), (0, -4.5, 0.25))
+        geo(f"geometry_portal{sx}", (1.0, 0.7, 3.6), (sx * 1.48, 0.15, 1.8))
+        ym = WING_L / 2
+        geo(f"geometry_wing{sx}", (WING_T, WING_L / math.cos(WING_FLARE), (WING_H0 + WING_H1) / 2 + 1.2),
+            (sx * (wing_x(ym) + WING_T / 2), ym, ((WING_H0 + WING_H1) / 2 - 1.2) / 2), (0, 0, -sx * WING_FLARE))
+    geo("geometry_portal_top", (1.96, 0.7, 0.98), (0, 0.15, 3.11))
+    geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))
+    # насыпь: выпуклые куски по форме холма (по сетке 4 м), только из точек над землёй —
+    # ни один кусок не перекрывает проход к двери
+    xs = [-12, -8, -4, 0, 4, 8, 12]
+    ys = [-15, -11, -7, -3.5, -0.3, WING_L + 1.5]
+    gi = 0
+    for ix in range(len(xs) - 1):
+        for iy in range(len(ys) - 1):
+            pts = [c for c in MOUND_PTS if xs[ix] - 0.2 <= c[0] <= xs[ix + 1] + 0.2 and ys[iy] - 0.2 <= c[1] <= ys[iy + 1] + 0.2 and c[2] > 0.05]
+            if len(pts) < 4:
+                continue
+            hp = pts + [(c[0], c[1], -1.0) for c in pts]
+            g = hull(f"geometry_mound{gi}", hp, hz.tex_material("geometry", "geometry"))
+            g.display_type = "WIRE"
+            gi += 1
     save_fn(outdir, "bunker_entrance")
 
 
