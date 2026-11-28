@@ -533,6 +533,10 @@ def bunker_mound(name, mat, soil_mat=None):
         d2 = dx * dx + dy * dy
         h = 4.75 * max(0.0, 1 - d2) ** 0.85 - 0.75
         h += noise(x, y) * 0.35 * max(0.0, 1 - math.sqrt(d2))
+        if d2 > 1.0:
+            # за краем холма — круто вниз (раньше тут была ровная площадка -0.75 м на всю сетку,
+            # и на склоне карты она висела над землёй)
+            h -= 14.0 * (math.sqrt(d2) - 1.0)
         if y < -0.3:
             # узкая подсыпка у самой коробки (крыша 3.2 м) — только там, где холм ниже
             ax = max(0.0, abs(x) - 2.4)
@@ -555,7 +559,7 @@ def bunker_mound(name, mat, soil_mat=None):
             h = smin(smax(h, top - fall * fall * 2.5, 1.6), top, 3.0) + noise(x, y) * 0.08
         # у подножия край насыпи уходит в землю на 4 м: на склоне карты под ней не видно щели
         if h < -0.9:
-            return -4.0
+            return max(h - 3.0, -12.0)      # без ровной «плиты» на дне: края уходят глубоко в землю
         return h
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
