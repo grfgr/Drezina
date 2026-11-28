@@ -511,21 +511,22 @@ def soil_patch(x, y):
 def bunker_mound(name, mat, soil_mat=None):
     """Насыпь: неровный холм за порталом, по бокам спускается по стенкам, края уходят в землю."""
     nx, ny = 72, 60
-    x0, x1, y0, y1 = -12.0, 12.0, -15.0, WING_L + 1.5
+    x0, x1, y0, y1 = -11.0, 11.0, -9.5, WING_L + 1.5
     rnd = random.Random(41)
     waves = [(rnd.uniform(0.15, 0.5), rnd.uniform(0.15, 0.5), rnd.uniform(0, 6.28), a) for a in (0.3, 0.2, 0.12, 0.08, 0.05)]
     def noise(x, y):
         return sum(a * math.sin(fx * x * (1 + i) + fy * y * (1 + i) + ph) for i, (fx, fy, ph, a) in enumerate(waves))
     def height(x, y):
-        # пологий холм за порталом
-        dx, dy = x / 9.5, (y + 3.0) / 7.5
+        # короткий холм: укрывает только тело бункера (4 м за дверью) и сразу сходит назад
+        dx, dy = x / 9.0, (y + 2.2) / 5.2
         d = math.sqrt(dx * dx + dy * dy)
-        h = 4.6 * max(0.0, 1 - d * d) ** 1.2 - 0.7
-        h += noise(x, y) * 0.6 * max(0.0, 1 - d)
+        h = 4.4 * max(0.0, 1 - d * d) ** 1.2 - 0.7
+        h += noise(x, y) * 0.5 * max(0.0, 1 - d)
         if y < -0.3:
-            # насыпь укрывает тело бункера до козырька и плавно сходит в стороны
+            # насыпь укрывает тело бункера до козырька и плавно сходит в стороны и назад
             ax = max(0.0, abs(x) - 2.6)
-            h = max(h, 3.85 - 0.16 * ax * ax + noise(x, y) * 0.1)
+            ay = max(0.0, -y - 4.3)
+            h = max(h, 3.85 - 0.16 * ax * ax - 0.45 * ay * ay + noise(x, y) * 0.1)
         else:
             # перед порталом: внутри стенок — земли нет, снаружи — земля держится по верху стенок
             wx = wing_x(max(y, 0.0)) + WING_T
@@ -594,10 +595,10 @@ def grass_tufts(name, count, seed):
     tries = 0
     while placed < count and tries < count * 30:
         tries += 1
-        cx, cy = rnd.uniform(-11, 11), rnd.uniform(-14, WING_L + 1.2)
+        cx, cy = rnd.uniform(-10.5, 10.5), rnd.uniform(-9.0, WING_L + 1.2)
         if cy > -0.6 and abs(cx) < wing_x(max(cy, 0.0)) + WING_T + 0.3:
             continue                                  # перед дверью и на стенках — нет
-        if (cx - 1.8) ** 2 + (cy + 4.0) ** 2 < 0.6:
+        if (cx - 1.8) ** 2 + (cy + 2.6) ** 2 < 0.6:
             continue                                  # у вентиляционной трубы
         h = height(cx, cy)
         if h < 0.1 or soil_patch(cx, cy) > 0.9:
@@ -713,12 +714,12 @@ def build_entrance(outdir, save_fn, reset_fn):
     for k, (x, y, s) in enumerate([(1.7, 2.9, 0.28), (1.45, 3.4, 0.18), (3.9, 3.8, 0.35), (-4.2, 3.2, 0.3)]):
         p.append(rubble(f"rubble{k}", (x, y, -0.05), s, ce, 100 + k))
     # вентиляционная труба над насыпью: фланец, колпак, растяжки
-    p.append(cyl("vent", 0.16, 2.6, (1.8, -4.0, 3.0), m["rust"]))
-    p.append(cyl("vent_flange", 0.26, 0.06, (1.8, -4.0, 3.55), m["rust"]))
-    p.append(hz.cone("vent_cap", 0.38, 0.05, 0.28, (1.8, -4.0, 4.4), m["rust"], (0, 0, 0), 24))
+    p.append(cyl("vent", 0.16, 2.6, (1.8, -2.6, 3.0), m["rust"]))
+    p.append(cyl("vent_flange", 0.26, 0.06, (1.8, -2.6, 3.55), m["rust"]))
+    p.append(hz.cone("vent_cap", 0.38, 0.05, 0.28, (1.8, -2.6, 4.4), m["rust"], (0, 0, 0), 24))
     for k in range(3):
         a = k * 2.094
-        p.append(box(f"vent_leg{k}", (0.03, 0.03, 0.3), (1.8 + math.cos(a) * 0.2, -4.0 + math.sin(a) * 0.2, 4.15), m["rust"]))
+        p.append(box(f"vent_leg{k}", (0.03, 0.03, 0.3), (1.8 + math.cos(a) * 0.2, -2.6 + math.sin(a) * 0.2, 4.15), m["rust"]))
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 2.4)
     m["soil"] = hz.tex_material("metro_soil", "metro_soil", 1.0)
@@ -730,7 +731,7 @@ def build_entrance(outdir, save_fn, reset_fn):
     tries = 0
     while len(stones) < 34 and tries < 3000:
         tries += 1
-        x, y = sr.uniform(-10, 10), sr.uniform(-13, WING_L + 1.0)
+        x, y = sr.uniform(-10, 10), sr.uniform(-8.5, WING_L + 1.0)
         if y > -0.6 and abs(x) < wing_x(max(y, 0.0)) + WING_T + 0.3:
             continue
         if soil_patch(x, y) < 0.8 and sr.random() < 0.8:
@@ -758,8 +759,8 @@ def build_entrance(outdir, save_fn, reset_fn):
     geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))
     # насыпь: выпуклые куски по форме холма (по сетке 4 м), только из точек над землёй —
     # ни один кусок не перекрывает проход к двери
-    xs = [-12, -8, -4, 0, 4, 8, 12]
-    ys = [-15, -11, -7, -3.5, -0.3, WING_L + 1.5]
+    xs = [-11, -7.5, -4, 0, 4, 7.5, 11]
+    ys = [-9.5, -6.5, -3.5, -0.3, WING_L + 1.5]
     gi = 0
     for ix in range(len(xs) - 1):
         for iy in range(len(ys) - 1):
