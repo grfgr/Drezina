@@ -51,7 +51,7 @@ class ActionDrezinaTurnAround : ActionDrezinaManhandleBase
 {
 	void ActionDrezinaTurnAround()
 	{
-		m_Text = "Развернуть мотодрезину [зажать]";
+		m_Text = "Развернуть мотодрезину";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
@@ -72,7 +72,7 @@ class ActionDrezinaOffRail : ActionDrezinaManhandleBase
 {
 	void ActionDrezinaOffRail()
 	{
-		m_Text = "Снять с рельсов [зажать]";
+		m_Text = "Снять с рельсов";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)
@@ -93,7 +93,7 @@ class ActionDrezinaOnRail : ActionDrezinaManhandleBase
 {
 	void ActionDrezinaOnRail()
 	{
-		m_Text = "Поставить на рельсы [зажать]";
+		m_Text = "Поставить на рельсы";
 	}
 
 	override bool ActionCondition(PlayerBase player, ActionTarget target, ItemBase item)

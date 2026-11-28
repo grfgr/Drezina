@@ -6,7 +6,7 @@ class DrezinaClientInput
 	static void OnBoarded(Drezina_Handcar hc)
 	{
 		s_LastThrottle = 0;
-		NotificationSystem.AddNotificationExtended(8, "Дрезина", Drezina_Handcar.HelpText());
+		// (подсказок игрокам не показываем)
 	}
 
 	static void Update(float dt)

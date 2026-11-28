@@ -483,7 +483,8 @@ class DrezinaTrackManager extends Managed
 	static void Notify(PlayerIdentity identity, string text)
 	{
 		Print("[Drezina] msg: " + text);
-		if (!identity)
+		// обычным игрокам мод ничего не пишет (без подсказок) — сообщения видят только админы
+		if (!identity || !DrezinaAdmins.IsAdmin(identity))
 			return;
 		NotificationSystem.SendNotificationToPlayerIdentityExtended(identity, 6, "Дрезина", text);
 		Object target = identity.GetPlayer();
@@ -495,7 +496,7 @@ class DrezinaTrackManager extends Managed
 	{
 		if (!DrezinaAdmins.IsAdmin(sender))
 		{
-			Notify(sender, "Нет прав: ваш Steam ID не в admins.json");
+			Notify(sender, "Нет прав: ваш Steam ID не в admins.json");     // (не админу не показывается — только в лог)
 			return;
 		}
 		PlayerBase admin = PlayerBase.Cast(sender.GetPlayer());
