@@ -19,12 +19,12 @@ class DrezinaMetroLine
 {
 	int Id;
 	bool Zone;                 // тоннель «в локации за картой» (входы всё равно там, где их поставили)
-	float Length;              // длина по оси, м
+	float LenM;              // длина по оси, м
 	vector A;                  // начало (вход A) на поверхности
 	vector B;                  // конец (вход B)
 	int JoinA;                 // конец A подключён Т-развязкой к линии JoinA (станции нет), 0 — станция
 	int JoinB;
-	ref array<vector> Points = new array<vector>;   // ось на поверхности через ~step м
+	ref array<vector> Axis = new array<vector>;   // ось на поверхности через ~step м
 }
 
 // пересечение линий (зал развязки)
@@ -32,7 +32,7 @@ class DrezinaMetroCross
 {
 	int A;                     // основная линия
 	int B;                     // вторая линия (для Т-развязки — та, что подключена концом)
-	vector Pos;                // центр зала на поверхности (y = 0)
+	vector Spot;                // центр зала на поверхности (y = 0)
 	bool Tee;                  // Т-развязка (конец B примыкает к A)
 	bool Ring;                 // кольцо (пересечение под большим углом)
 }
@@ -73,7 +73,7 @@ class DrezinaMetroMap
 		CollectFull(full, cross, step);
 		foreach (DrezinaMetroLine l : full)
 		{
-			lines.Insert(l.Points);
+			lines.Insert(l.Axis);
 			entrances.Insert(l.A);
 			entrances.Insert(l.B);
 		}
@@ -94,18 +94,18 @@ class DrezinaMetroMap
 			l.JoinB = t.JoinB;
 			l.A = t.Route[0];
 			l.B = t.Route[t.Route.Count() - 1];
-			l.Length = s.GetLength();
+			l.LenM = s.GetLength();
 			float d = 0;
-			while (d < l.Length)
+			while (d < l.LenM)
 			{
 				vector p, dir;
 				s.GetPosDir(d, p, dir);
-				l.Points.Insert(p);
+				l.Axis.Insert(p);
 				d += step;
 			}
 			vector pe, de;
-			s.GetPosDir(l.Length, pe, de);
-			l.Points.Insert(pe);
+			s.GetPosDir(l.LenM, pe, de);
+			l.Axis.Insert(pe);
 			lines.Insert(l);
 		}
 
@@ -134,7 +134,7 @@ class DrezinaMetroMap
 		DrezinaMetroCross x = new DrezinaMetroCross();
 		x.A = j.A;
 		x.B = j.B;
-		x.Pos = Vector(pos[0], 0, pos[2]);
+		x.Spot = Vector(pos[0], 0, pos[2]);
 		x.Tee = j.Tee;
 		x.Ring = j.Ring;
 		return x;
