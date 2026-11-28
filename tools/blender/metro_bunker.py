@@ -498,6 +498,16 @@ def wing_top(y):
     return WING_H0 + (WING_H1 - WING_H0) * max(0.0, min(1.0, y / WING_L))
 
 
+def smax(a, b, k=2.5):
+    """Гладкий максимум: без излома на стыке двух поверхностей."""
+    m = max(a, b)
+    return m + math.log(math.exp((a - m) * k) + math.exp((b - m) * k)) / k
+
+
+def smin(a, b, k=2.5):
+    return -smax(-a, -b, k)
+
+
 def soil_patch(x, y):
     """Проплешины земли на насыпи: несколько крупных пятен и вытоптанная полоса вдоль стенок."""
     v = 0.5 + 0.5 * math.sin(x * 0.55 + 1.3) * math.sin(y * 0.47 + 0.4) + 0.25 * math.sin(x * 1.3 + y * 0.9 + 2.0)
@@ -510,7 +520,7 @@ def soil_patch(x, y):
 
 def bunker_mound(name, mat, soil_mat=None):
     """Насыпь: неровный холм за порталом, по бокам спускается по стенкам, края уходят в землю."""
-    nx, ny = 72, 60
+    nx, ny = 110, 66                 # ~0.2 м: края проплешин и перегибы без «ступенек»
     x0, x1, y0, y1 = -11.0, 11.0, -9.5, WING_L + 1.5
     rnd = random.Random(41)
     waves = [(rnd.uniform(0.15, 0.5), rnd.uniform(0.15, 0.5), rnd.uniform(0, 6.28), a) for a in (0.3, 0.2, 0.12, 0.08, 0.05)]
@@ -526,15 +536,18 @@ def bunker_mound(name, mat, soil_mat=None):
             # насыпь укрывает тело бункера до козырька и плавно сходит в стороны и назад
             ax = max(0.0, abs(x) - 2.6)
             ay = max(0.0, -y - 4.3)
-            h = max(h, 3.85 - 0.16 * ax * ax - 0.45 * ay * ay + noise(x, y) * 0.1)
+            h = smax(h, 3.85 - 0.16 * ax * ax - 0.45 * ay * ay + noise(x, y) * 0.1, 1.6)
         else:
             # перед порталом: внутри стенок — земли нет, снаружи — земля держится по верху стенок
-            wx = wing_x(max(y, 0.0)) + WING_T
-            if abs(x) < wx - 0.1:
-                return -0.9
+            wx = wing_x(min(max(y, 0.0), WING_L)) + WING_T
+            if y <= WING_L and abs(x) < wx - 0.1:
+                return -0.9                       # между стенками (срез прячется в их толще)
             top = wing_top(max(y, 0.0)) - 0.05
+            if y > WING_L:
+                # за торцами стенок — плавно сходит к земле, без обрывов
+                top = smin(top, 0.25 - 0.7 * (y - WING_L), 3.0)
             fall = (abs(x) - wx) / 3.5
-            h = min(max(h, top - fall * fall * 2.5), top) + noise(x, y) * 0.08
+            h = smin(smax(h, top - fall * fall * 2.5, 1.6), top, 3.0) + noise(x, y) * 0.08
         return max(h, -0.9)
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
@@ -546,14 +559,15 @@ def bunker_mound(name, mat, soil_mat=None):
             y = y0 + (y1 - y0) * j / ny
             row.append(bm.verts.new((x, y, height(x, y))))
         vs.append(row)
+    jr = random.Random(13)
     for j in range(ny):
         for i in range(nx):
-            f = bm.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
-            if soil_mat is not None:
-                c = f.calc_center_median()
-                f.normal_update()
-                if soil_patch(c.x, c.y) > 0.95 or f.normal.z < 0.62:
-                    f.material_index = 1          # земля: пятна, крутые места, у стенок
+            # квадрат — двумя треугольниками, диагональ чередуется (не видно сетки)
+            a, b, c2, d = vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]
+            tris = ((a, b, c2), (a, c2, d)) if (i + j) % 2 == 0 else ((a, b, d), (b, c2, d))
+            for tri in tris:
+                f = bm.faces.new(tri)
+
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.to_mesh(me)
     bm.free()
@@ -564,10 +578,92 @@ def bunker_mound(name, mat, soil_mat=None):
         o.data.materials.append(soil_mat)
     MOUND_PTS[:] = [tuple(v.co) for v in me.vertices]
     MOUND_H[0] = height
+    MOUND_GRID[:] = [x0, x1, y0, y1, nx, ny]
     return o
 
 
 MOUND_H = [None]
+MOUND_GRID = []
+
+
+def mound_texture(tex_dir):
+    """Одна текстура на всю насыпь (2048x2048): трава и земля смешаны плавно — по проплешинам
+    (soil_patch) и крутизне склона. Плавный переход без «ступенек» по треугольникам."""
+    import numpy as np
+    x0, x1, y0, y1, nx, ny = MOUND_GRID
+    N = 2048
+    def load(name):
+        img = bpy.data.images.load(os.path.join(tex_dir, name), check_existing=True)
+        w, h = img.size
+        a = np.array(img.pixels[:], dtype=np.float32).reshape(h, w, img.channels)[:, :, :3]
+        return a                                       # строки снизу вверх (как в Blender)
+    gr = load("metro_grass_co.png")
+    so = load("metro_soil_co.png")
+    gn = load("metro_grass_nohq.png")
+    sn = load("metro_soil_nohq.png")
+    xs = x0 + (np.arange(N) + 0.5) / N * (x1 - x0)
+    ys = y0 + (np.arange(N) + 0.5) / N * (y1 - y0)    # строка 0 — низ (y0), как пиксели Blender
+    X, Y = np.meshgrid(xs, ys)
+    tile = 3.5
+    def sample(t):
+        th, tw = t.shape[:2]
+        ui = ((X / tile) * tw).astype(np.int64) % tw
+        vi = ((Y / tile) * th).astype(np.int64) % th
+        return t[vi, ui]
+    G, S, GN, SN = sample(gr), sample(so), sample(gn), sample(sn)
+    sp = 0.5 + 0.5 * np.sin(X * 0.55 + 1.3) * np.sin(Y * 0.47 + 0.4) + 0.25 * np.sin(X * 1.3 + Y * 0.9 + 2.0)
+    wx = WING_X0 + np.maximum(Y, 0.0) * math.tan(WING_FLARE) + WING_T
+    sp = sp + np.where((Y > -1.5) & (np.abs(X) - wx < 1.2), 0.6, 0.0)
+    # рваный край — случайным шумом (не синусоидами: от них шли полосы)
+    rr = np.random.RandomState(3)
+    nz = rr.rand(N // 16 + 2, N // 16 + 2)
+    nzx = np.array([np.interp(np.arange(N) / 16.0, np.arange(nz.shape[1]), row) for row in nz])
+    nzi = np.array([np.interp(np.arange(N) / 16.0, np.arange(nz.shape[0]), nzx[:, c]) for c in range(N)]).T
+    fine = rr.rand(N // 4 + 2, N // 4 + 2)
+    fx = np.array([np.interp(np.arange(N) / 4.0, np.arange(fine.shape[1]), row) for row in fine])
+    fi = np.array([np.interp(np.arange(N) / 4.0, np.arange(fine.shape[0]), fx[:, c]) for c in range(N)]).T
+    sp = sp + (nzi - 0.5) * 0.28 + (fi - 0.5) * 0.12
+    # крутизна по высотам сетки насыпи
+    Z = np.array([p[2] for p in MOUND_PTS]).reshape(ny + 1, nx + 1)
+    gx = np.linspace(x0, x1, nx + 1)
+    gy = np.linspace(y0, y1, ny + 1)
+    # крутизна — по узлам сетки (сглаженная), потом плавно растягиваем на пиксели
+    dzdy, dzdx = np.gradient(Z, (y1 - y0) / ny, (x1 - x0) / nx)
+    sg = np.sqrt(dzdx ** 2 + dzdy ** 2)
+    for _ in range(3):
+        sg = (sg + np.roll(sg, 1, 0) + np.roll(sg, -1, 0) + np.roll(sg, 1, 1) + np.roll(sg, -1, 1)) / 5.0
+    sx = np.array([np.interp(xs, gx, row) for row in sg])
+    slope = np.array([np.interp(ys, gy, sx[:, c]) for c in range(N)]).T
+    def sstep(a, b, v):
+        t = np.clip((v - a) / (b - a), 0, 1)
+        return t * t * (3 - 2 * t)
+    m = np.maximum(sstep(0.82, 1.08, sp), sstep(1.1, 1.8, slope))[..., None]
+    col = G * (1 - m) + S * m
+    nrm = GN * (1 - m) + SN * m
+    def save(arr, name):
+        img = bpy.data.images.new(name, N, N, alpha=False)
+        rgba = np.concatenate([arr, np.ones((N, N, 1), dtype=arr.dtype)], axis=2)
+        img.pixels = rgba.astype(np.float32).ravel().tolist()
+        img.filepath_raw = os.path.join(tex_dir, name + ".png")
+        img.file_format = "PNG"
+        img.save()
+    save(col, "metro_mound_co")
+    save(nrm, "metro_mound_nohq")
+
+
+def uv_mound(obj):
+    """Насыпь целиком на одну текстуру: проекция сверху по её границам."""
+    x0, x1, y0, y1 = MOUND_GRID[:4]
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    uv = bm.loops.layers.uv.verify()
+    for f in bm.faces:
+        for l in f.loops:
+            x, y, z = l.vert.co
+            l[uv].uv = ((x - x0) / (x1 - x0), (y - y0) / (y1 - y0))
+    bm.to_mesh(me)
+    bm.free()
 
 
 def grass_tufts(name, count, seed):
@@ -601,8 +697,9 @@ def grass_tufts(name, count, seed):
         if (cx - 1.8) ** 2 + (cy + 2.6) ** 2 < 0.6:
             continue                                  # у вентиляционной трубы
         h = height(cx, cy)
-        if h < 0.1 or soil_patch(cx, cy) > 0.9:
-            continue                                  # на проплешинах травы нет
+        sp = soil_patch(cx, cy)
+        if h < 0.1 or sp > 1.02 or (sp > 0.85 and rnd.random() < 0.3):
+            continue                                  # на проплешинах травы нет, по их краю — гуще
         for _ in range(rnd.randint(1, 3)):            # куртинка из 1-3 пучков
             x, y = cx + rnd.uniform(-0.6, 0.6), cy + rnd.uniform(-0.6, 0.6)
             z = height(x, y) - 0.08
@@ -613,7 +710,11 @@ def grass_tufts(name, count, seed):
                 a = a0 + k * math.pi / 3
                 dx, dy = math.cos(a) * w / 2, math.sin(a) * w / 2
                 lean = rnd.uniform(-0.08, 0.08)
-                corners = [(x - dx, y - dy, z), (x + dx, y + dy, z), (x + dx + lean, y + dy, z + th), (x - dx + lean, y - dy, z + th)]
+                # нижние углы — по склону (каждый на своей высоте), иначе на склоне под пучком торчали
+                # треугольники голой земли
+                za = height(x - dx, y - dy) - 0.1
+                zb = height(x + dx, y + dy) - 0.1
+                corners = [(x - dx, y - dy, za), (x + dx, y + dy, zb), (x + dx + lean, y + dy, zb + th), (x - dx + lean, y - dy, za + th)]
                 for order in ((0, 1, 2, 3), (1, 0, 3, 2)):          # обе стороны (свои вершины у каждой)
                     vv = [bm.verts.new(corners[i]) for i in order]
                     f = bm.faces.new(vv)
@@ -630,6 +731,24 @@ def grass_tufts(name, count, seed):
 
 
 MOUND_PTS = []
+
+
+def rock(name, loc, size, mat, seed):
+    """Камень: сглаженная икосфера с буграми, приплюснутая, наполовину в земле."""
+    r = random.Random(seed)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=size, location=loc)
+    o = bpy.context.active_object
+    o.name = name
+    for v in o.data.vertices:
+        n = v.co.normalized()
+        k = 1 + 0.22 * math.sin(n.x * 4.1 + seed) * math.sin(n.y * 3.3 + seed * 0.7) + r.uniform(-0.06, 0.06)
+        v.co = v.co * k
+    o.scale = (r.uniform(0.9, 1.3), r.uniform(0.8, 1.1), r.uniform(0.45, 0.7))
+    o.rotation_euler = (0, 0, r.uniform(0, 6.28))
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    o.data.materials.append(mat)
+    hz.smooth(o, 60)
+    return o
 
 
 def rubble(name, loc, size, mat, seed):
@@ -722,9 +841,12 @@ def build_entrance(outdir, save_fn, reset_fn):
         p.append(box(f"vent_leg{k}", (0.03, 0.03, 0.3), (1.8 + math.cos(a) * 0.2, -2.6 + math.sin(a) * 0.2, 4.15), m["rust"]))
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 2.4)
-    m["soil"] = hz.tex_material("metro_soil", "metro_soil", 1.0)
-    mound = bunker_mound("mound", m["grass"], m["soil"])
-    uv_top(mound, 3.5)
+    mound = bunker_mound("mound", None)
+    mound_texture(TEX_DIR)
+    m["mound"] = hz.tex_material("metro_mound", "metro_mound", 1.0)
+    mound.data.materials.clear()
+    mound.data.materials.append(m["mound"])
+    uv_mound(mound)
     # камни на насыпи — в основном на проплешинах
     sr = random.Random(5)
     stones = []
@@ -739,13 +861,13 @@ def build_entrance(outdir, save_fn, reset_fn):
         hz_ = MOUND_H[0](x, y)
         if hz_ < -0.2:
             continue
-        stones.append(rubble(f"stone{len(stones)}", (x, y, hz_ - 0.12), sr.uniform(0.12, 0.38), m["concrete"], 300 + len(stones)))
+        stones.append(rock(f"stone{len(stones)}", (x, y, hz_ - 0.05), sr.uniform(0.12, 0.34), m["concrete_ext"], 300 + len(stones)))
     st = join(stones, "stones")
     uv_box(st, 1.5)
     o = join([concrete, mound, st], "bunker_entrance")
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
-    tufts = grass_tufts("bunker_grass", 450, 77)
+    tufts = grass_tufts("bunker_grass", 520, 77)
     hz.selection(tufts, "bunker_entrance")
     # геометрия
     geo("geometry_block", (BW, BD, 6.6), (0, -BD / 2, 0.3))
