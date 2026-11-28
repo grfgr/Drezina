@@ -1278,8 +1278,8 @@ class DrezinaTunnelManager
 				if (vector.Dot(o, a2) > Math.Cos(gap))
 					skip = true;
 			}
-			if (j.Tee)
-				skip = true;                       // у Т-развязки стены идут по съездам (BuildTee), не по кругу
+			if (j.Tee || j.Ring)
+				skip = true;                       // у Т-развязки и кольца стены идут по съездам (BuildTee/BuildRing)
 			if (!skip)
 				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", c + o * (R + 0.25), o * -1.0));
 		}
@@ -1288,7 +1288,7 @@ class DrezinaTunnelManager
 		for (int li = 0; li < 8; li++)
 		{
 			vector lo = ArmDir(DirAngle(j.DirA) + li * Math.PI * 0.25 + Math.PI * 0.125);
-			if (li % 2 == 0 && !j.Tee)
+			if (li % 2 == 0 && !j.Tee && !j.Ring)
 				SpawnAlarm(c + lo * R + Vector(0, 3.0, 0), lo * -1.0, j.Objects);
 		}
 
@@ -1327,11 +1327,9 @@ class DrezinaTunnelManager
 				a1 += Math.PI2;
 			float mid = (a0 + a1) * 0.5;
 			vector o = ArmDir(mid);
-			for (int ri = 0; ri < 2; ri++)
+			for (int ri = 0; ri < 1; ri++)
 			{
-				float r = 6.0;
-				if (ri == 1)
-					r = (JUNC_RING_R + j.Radius) * 0.5 + 1.0;
+				float r = 6.0;                     // внутри кольца (снаружи теперь стены по съездам)
 				vector cp = c + o * r;
 				// до любого пути (линии, кольцо, съезды этого зала) — не ближе 2.6 м
 				bool clear = true;
@@ -1495,8 +1493,55 @@ class DrezinaTunnelManager
 				b.MergeDir = mergeQ;
 				b.Side = SideSign(tq * -1.0, Q, nodes[7]);
 				cl.Insert(b);
-				tm.CreateServiceTrack(nodes, "Съезд на кольцо", cl);
+				int cid = tm.CreateServiceTrack(nodes, "Съезд на кольцо", cl);
+				// стена — с внешней стороны съезда (от центра зала)
+				DrezinaTrack ct = tm.GetTrack(cid);
+				if (ct)
+				{
+					vector mp, md;
+					ct.GetPosDir(ct.GetLength() * 0.5, mp, md);
+					float cs = 1;
+					if (vector.Dot(Side(Flat(md)), mp - cr) < 0)
+						cs = -1;
+					WallAlongTrack(j, ct, cs, WALL_OFF);
+				}
+				// от точки съезда на линии до портала — стена вдоль линии с той же стороны
+				vector perp = Side(Flat(mdir));
+				if (vector.Dot(perp, ArmDir(aq) - o) < 0)
+					perp = perp * -1.0;
+				float fsM = sM;
+				vector wa = P + perp * WALL_OFF - Flat(pdir) * fsM * 0.5;
+				vector wb = cr + o * (j.Radius - 0.3) + perp * WALL_OFF;     // до внутренней грани портала
+				wa[1] = j.Center[1];
+				wb[1] = j.Center[1];
+				WallLine(j, wa, wb, perp * -1.0);
 			}
+		}
+		// между съездами соседних веток — дуга стены снаружи кольца, с лампой посередине
+		array<float> angs = new array<float>;
+		for (int ai2 = 0; ai2 < 4; ai2++)
+			angs.Insert(DirAngle(arms[ai2]));
+		angs.Sort();
+		float rw = JUNC_RING_R + WALL_OFF;
+		for (int qi = 0; qi < 4; qi++)
+		{
+			float qa0 = angs[qi] + 30 * Math.DEG2RAD;
+			float qa1 = angs[(qi + 1) % 4] - 30 * Math.DEG2RAD;
+			if (qi == 3)
+				qa1 += Math.PI2;
+			if (qa1 - qa0 < 0.05)
+				continue;
+			int nArc = Math.Ceil((qa1 - qa0) * rw / 2.4);
+			for (int k2 = 0; k2 < nArc; k2++)
+			{
+				float aa = qa0 + (qa1 - qa0) * (k2 + 0.5) / nArc;
+				vector ao = ArmDir(aa);
+				vector apos = cr + ao * rw;
+				apos[1] = j.Center[1];
+				AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionWall", apos, ao * -1.0));
+			}
+			vector lo2 = ArmDir((qa0 + qa1) * 0.5);
+			SpawnAlarm(cr + lo2 * (rw - 0.25) + Vector(0, j.Center[1] - cr[1] + 3.0, 0), lo2 * -1.0, j.Objects);
 		}
 	}
 
@@ -1616,7 +1661,7 @@ class DrezinaTunnelManager
 			vector pStart = P - ts * 1.5 + wsd * WALL_OFF;
 			pStart[1] = j.Center[1];
 			WallLine(j, pStart, P + wsd * WALL_OFF + Vector(0, j.Center[1] - P[1], 0), wsd * -1.0);
-			WallAlongA(j, ma, dXA, nBt, fk * bestOff, fk * (j.Radius + 1.0), WALL_OFF);
+			WallAlongA(j, ma, dXA, nBt, fk * bestOff, fk * (j.Radius - 0.3), WALL_OFF);
 			// лампа на стене съезда, посередине
 			if (rt)
 			{
@@ -1642,11 +1687,11 @@ class DrezinaTunnelManager
 				vector cEnd = cStart + ts * run;
 				WallLine(j, cStart, cEnd, csd * -1.0);
 				float sX = vector.Dot(cEnd - axQ, Flat(axA));
-				WallAlongA(j, ma, dXA, nBt, sX, -fk * (j.Radius + 1.0), WALL_OFF);
+				WallAlongA(j, ma, dXA, nBt, sX, -fk * (j.Radius - 0.3), WALL_OFF);
 			}
 		}
 		// дальняя стена главной линии — на всю длину зала, с двумя лампами
-		WallAlongA(j, ma, dXA, nBt, -(j.Radius + 1.0), j.Radius + 1.0, -WALL_OFF);
+		WallAlongA(j, ma, dXA, nBt, -(j.Radius - 0.3), j.Radius - 0.3, -WALL_OFF);
 		for (int la = -1; la <= 1; la += 2)
 		{
 			float fla = la;
