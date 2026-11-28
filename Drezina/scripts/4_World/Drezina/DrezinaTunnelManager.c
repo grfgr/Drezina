@@ -1224,15 +1224,11 @@ class DrezinaTunnelManager
 		vector nB = Side(j.DirA);                  // от оси A в сторону линии B (только для Т-развязки)
 		if (vector.Dot(j.DirB, nB) < 0)
 			nB = nB * -1.0;
-		if (j.Tee)
-		{
-			// модель: срез со стороны -X; +X модели = Side(направления) — разворачиваем, чтобы +X смотрел к B
-			vector hallDir = j.DirA;
-			if (vector.Dot(Side(j.DirA), nB) < 0)
-				hallDir = j.DirA * -1.0;
-			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHallTee", c, hallDir));
-		}
-		else
+		// Т-развязка и кольцо: пол и потолок — плитами только внутри стен (SpawnSlabs после путей);
+		// пересечение двумя съездами — прежний круглый зал
+		m_SlabPts.Clear();
+		m_SlabPolys.Clear();
+		if (!j.Tee && !j.Ring)
 			AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionHall", c, j.DirA));
 		// порталы ставим там, где ось линии на самом деле пересекает стену зала, и по направлению линии
 		// в этом месте (линия может подходить не по прямой — раньше портал оказывался рядом с тоннелем)
@@ -1304,8 +1300,99 @@ class DrezinaTunnelManager
 			BuildRing(j, ma, mb, dXA, dXB, cr, railY);
 		else
 			BuildWye(j, ma, mb, dXA, dXB, railY);
-		if (!j.Tee)
+		if (j.Ring)
 			SpawnColumns(j, ma, mb, railY);
+		if (j.Tee || j.Ring)
+		{
+			// пол вдоль самих линий в пределах зала
+			AddTrackPts(ma, dXA - R, dXA + R, c, R + 1.0);
+			AddTrackPts(mb, 0, mb.GetLength(), c, R + 1.0);
+			SpawnSlabs(j);
+		}
+	}
+
+	ref array<vector> m_SlabPts = new array<vector>;               // точки путей зала (пол вокруг них)
+	ref array<ref array<vector>> m_SlabPolys = new array<ref array<vector>>;   // открытые площадки (внутри развилки)
+
+	void AddTrackPts(DrezinaTrack t, float d0, float d1, vector c, float maxR)
+	{
+		d0 = Math.Max(d0, 0);
+		d1 = Math.Min(d1, t.GetLength());
+		for (float d = d0; d <= d1; d += 1.0)
+		{
+			vector p, pd;
+			t.GetPosDir(d, p, pd);
+			if (FlatDistance(p, c) <= maxR)
+				m_SlabPts.Insert(p);
+		}
+	}
+
+	static bool InPoly(array<vector> poly, vector p)
+	{
+		bool inside = false;
+		int n = poly.Count();
+		int k = n - 1;
+		for (int i = 0; i < n; i++)
+		{
+			vector a = poly[i];
+			vector b = poly[k];
+			bool ua = a[2] > p[2];
+			bool ub = b[2] > p[2];
+			if (ua != ub)
+			{
+				float x = (b[0] - a[0]) * (p[2] - a[2]) / (b[2] - a[2]) + a[0];
+				if (p[0] < x)
+					inside = !inside;
+			}
+			k = i;
+		}
+		return inside;
+	}
+
+	// плиты пола и потолка 3x3 м по сетке зала — там, где рядом путь (до стены) или внутри открытой площадки
+	void SpawnSlabs(DrezinaJunction j)
+	{
+		vector c = j.Center;
+		vector ax = Flat(j.DirA);
+		vector ay = Side(ax);
+		float near = WALL_OFF + 1.9;
+		int cnt = 0;
+		for (int ix = -9; ix <= 9; ix++)
+		{
+			for (int iy = -9; iy <= 9; iy++)
+			{
+				vector p = c + ax * (ix * 3.0) + ay * (iy * 3.0);
+				p[1] = c[1];
+				if (FlatDistance(p, c) > j.Radius + 1.0)
+					continue;
+				bool use = false;
+				foreach (vector tp : m_SlabPts)
+				{
+					if (FlatDistance(p, tp) <= near)
+					{
+						use = true;
+						break;
+					}
+				}
+				if (!use)
+				{
+					foreach (array<vector> poly : m_SlabPolys)
+					{
+						if (InPoly(poly, p))
+						{
+							use = true;
+							break;
+						}
+					}
+				}
+				if (use)
+				{
+					AddObj(j.Objects, DrezinaTrackManager.SpawnStatic("Drezina_JunctionSlab", p, ax));
+					cnt++;
+				}
+			}
+		}
+		Print("[Drezina] зал развязки " + j.A + "x" + j.B + ": плит пола " + cnt);
 	}
 
 	// колонны под свод круглого зала: по биссектрисам между ветками, внутри и снаружи кольца —
@@ -1437,6 +1524,12 @@ class DrezinaTunnelManager
 		DrezinaTrack rt = tm.GetTrack(ringId);
 		if (!rt)
 			return;
+		AddTrackPts(rt, 0, rt.GetLength(), cr, 1000.0);
+		// внутри кольца — сплошной пол
+		array<vector> disc = new array<vector>;
+		for (int di = 0; di < 24; di++)
+			disc.Insert(cr + ArmDir(di * Math.PI2 / 24.0) * JUNC_RING_R);
+		m_SlabPolys.Insert(disc);
 		l0.ToD = rt.GetLength();
 
 		array<vector> arms = new array<vector>;
@@ -1498,6 +1591,7 @@ class DrezinaTunnelManager
 				DrezinaTrack ct = tm.GetTrack(cid);
 				if (ct)
 				{
+					AddTrackPts(ct, 0, ct.GetLength(), cr, 1000.0);
 					vector mp, md;
 					ct.GetPosDir(ct.GetLength() * 0.5, mp, md);
 					float cs = 1;
@@ -1572,6 +1666,8 @@ class DrezinaTunnelManager
 		vector axA, axQ;
 		ma.GetPosDir(dXA, axQ, axA);
 		float lean = vector.Dot(t0, Flat(axA));
+		DrezinaTrack rampNeg;
+		DrezinaTrack rampPos;
 		vector nBt = Side(Flat(axA));               // от оси A в сторону линии B
 		if (vector.Dot(nBt, P - axQ) < 0)
 			nBt = nBt * -1.0;
@@ -1656,7 +1752,14 @@ class DrezinaTunnelManager
 				wSide = -1;
 			DrezinaTrack rt = tm.GetTrack(rid);
 			if (rt)
+			{
 				WallAlongTrack(j, rt, wSide, WALL_OFF);
+				AddTrackPts(rt, 0, rt.GetLength(), j.Center, 1000.0);
+				if (k < 0)
+					rampNeg = rt;
+				else
+					rampPos = rt;
+			}
 			vector wsd = Side(ts) * wSide;
 			vector pStart = P - ts * 1.5 + wsd * WALL_OFF;
 			pStart[1] = j.Center[1];
@@ -1686,9 +1789,29 @@ class DrezinaTunnelManager
 					run = Math.Clamp(o0 / dn, 0.0, 30.0);
 				vector cEnd = cStart + ts * run;
 				WallLine(j, cStart, cEnd, csd * -1.0);
+				// открытая площадка между съездом и этой стеной
+				if (rt)
+				{
+					array<vector> poly1 = new array<vector>;
+					for (float pd1 = 0; pd1 <= rt.GetLength(); pd1 += 2.0)
+						poly1.Insert(rt.GetPosAt(pd1));
+					poly1.Insert(cEnd);
+					poly1.Insert(cStart);
+					m_SlabPolys.Insert(poly1);
+				}
 				float sX = vector.Dot(cEnd - axQ, Flat(axA));
 				WallAlongA(j, ma, dXA, nBt, sX, -fk * (j.Radius - 0.3), WALL_OFF);
 			}
+		}
+		// открытая площадка внутри развилки (между двумя съездами)
+		if (rampNeg && rampPos)
+		{
+			array<vector> poly2 = new array<vector>;
+			for (float pd2 = 0; pd2 <= rampNeg.GetLength(); pd2 += 2.0)
+				poly2.Insert(rampNeg.GetPosAt(pd2));
+			for (float pd3 = rampPos.GetLength(); pd3 >= 0; pd3 -= 2.0)
+				poly2.Insert(rampPos.GetPosAt(pd3));
+			m_SlabPolys.Insert(poly2);
 		}
 		// дальняя стена главной линии — на всю длину зала, с двумя лампами
 		WallAlongA(j, ma, dXA, nBt, -(j.Radius - 0.3), j.Radius - 0.3, -WALL_OFF);

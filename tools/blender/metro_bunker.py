@@ -1326,6 +1326,22 @@ def build_junction_hall_tee(outdir, save_fn, reset_fn):
     save_fn(outdir, "junction_hall_tee")
 
 
+def build_junction_slab(outdir, save_fn, reset_fn):
+    """Плита зала развязки 3x3 м: пол и потолок с балкой — из них скрипт выкладывает пол зала только
+    там, где внутри стен есть пути (без лишнего пола и потолка за стенами)."""
+    reset_fn()
+    m = mats()
+    S = 3.0
+    p = [box("floor", (S + 0.02, S + 0.02, 0.3), (0, 0, -0.15), m["concrete"], round_edges=False)]
+    p.append(box("ceiling", (S + 0.02, S + 0.02, 0.4), (0, 0, JUNC_H + 0.2), m["plaster"], round_edges=False))
+    p.append(box("beam", (0.4, S + 0.02, 0.45), (0, 0, JUNC_H - 0.22), m["concrete"], round_edges=False))
+    p.append(box("beam_x", (S + 0.02, 0.3, 0.3), (0, 0, JUNC_H - 0.15), m["tubing"], round_edges=False))
+    finish(p, "junction_slab")
+    geo("geometry_floor", (S, S, 0.4), (0, 0, -0.2))
+    geo("geometry_ceiling", (S, S, 0.5), (0, 0, JUNC_H + 0.25))
+    save_fn(outdir, "junction_slab")
+
+
 def build_junction_column(outdir, save_fn, reset_fn):
     """Колонна зала развязки под свод: бетонный ствол 0.8x0.8 с фаской, база, капитель-раструб под
     балки, плитка снизу и полосы «зебры» на уровне колен (чтобы видно было из дрезины)."""
@@ -1424,6 +1440,7 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_junction_hall(outdir, save_fn, reset_fn)
     build_junction_hall_tee(outdir, save_fn, reset_fn)
     build_junction_column(outdir, save_fn, reset_fn)
+    build_junction_slab(outdir, save_fn, reset_fn)
     build_junction_wall(outdir, save_fn, reset_fn)
     build_junction_portal(outdir, save_fn, reset_fn)
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)

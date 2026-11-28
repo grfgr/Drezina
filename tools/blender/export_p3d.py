@@ -57,6 +57,7 @@ MODELS = {
     "junction_hall": (90000.0, False),
     "junction_hall_tee": (90000.0, False),
     "junction_column": (8000.0, False),
+    "junction_slab": (6000.0, False),
     "junction_wall": (3000.0, False),
     "junction_portal": (8000.0, False),
     "metro_station": (50000.0, False),

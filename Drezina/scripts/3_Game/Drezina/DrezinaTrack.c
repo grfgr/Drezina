@@ -162,6 +162,13 @@ class DrezinaTrack
 		return r * 0.5;
 	}
 
+	vector GetPosAt(float d)
+	{
+		vector p, dir;
+		GetPosDir(d, p, dir);
+		return p;
+	}
+
 	// Позиция и направление (вдоль роста дистанции) в точке d.
 	void GetPosDir(float d, out vector pos, out vector dir)
 	{
