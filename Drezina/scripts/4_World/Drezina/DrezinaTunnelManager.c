@@ -177,6 +177,7 @@ class DrezinaTunnelManager
 			}
 		}
 		Print("[Drezina] клиент: получено метро " + m_ClientTunnels.Count() + ", пересечений " + m_ClientJunctions.Count());
+		DrezinaMetroMap.s_Version++;
 		return true;
 	}
 

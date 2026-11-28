@@ -39,6 +39,19 @@ class DrezinaMetroCross
 
 class DrezinaMetroMap
 {
+	// растёт при каждом приходе данных метро с сервера: другой мод по нему видит, что пора перечитать
+	static int s_Version;
+
+	// клиент: удалить линию (как /metro del <id>). Сервер проверяет права админа Drezina
+	// (admins.json / суперадмины VPP); после удаления всем клиентам приходят новые данные.
+	static void RequestDelete(int id)
+	{
+		PlayerBase player = PlayerBase.Cast(GetGame().GetPlayer());
+		if (!player || id <= 0)
+			return;
+		GetGame().RPCSingleParam(player, DrezinaRPC.ADMIN_COMMAND, new Param1<string>(DrezinaConst.METRO_PREFIX + " del " + id), true);
+	}
+
 	protected static array<ref DrezinaTunnelData> Source()
 	{
 		DrezinaTunnelManager tm = DrezinaTunnelManager.Get();
