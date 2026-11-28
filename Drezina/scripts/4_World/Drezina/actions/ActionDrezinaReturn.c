@@ -18,7 +18,7 @@ class ActionDrezinaReturn : ActionContinuousBase
 		m_CommandUID = DayZPlayerConstants.CMD_ACTIONFB_INTERACT;
 		m_FullBody = true;
 		m_StanceMask = DayZPlayerConstants.STANCEMASK_ERECT | DayZPlayerConstants.STANCEMASK_CROUCH;
-		m_Text = "Сдать мотодрезину";
+		m_Text = "Сдать мотодрезину [зажать]";
 	}
 
 	override void CreateConditionComponents()

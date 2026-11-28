@@ -102,7 +102,7 @@ class DrezinaSettings
 	}
 }
 
-// Список админов ($profile:Drezina/admins.json): Steam64 ID.
+// Админы: свой список ($profile:Drezina/admins.json, Steam64 ID) и суперадмины VPP Admin Tools.
 class DrezinaAdmins
 {
 	ref array<string> Admins = new array<string>;
@@ -111,6 +111,7 @@ class DrezinaAdmins
 
 	static void Load()
 	{
+		LoadVpp();
 		s_Instance = new DrezinaAdmins();
 		if (!FileExist(DrezinaConst.PROFILE_DIR))
 			MakeDirectory(DrezinaConst.PROFILE_DIR);
@@ -126,12 +127,39 @@ class DrezinaAdmins
 		}
 	}
 
+	// суперадмины VPP Admin Tools (тот же список, что у админки сервера): Steam64 ID по одному в строке
+	static const string VPP_SUPERADMINS = "$profile:VPPAdminTools/Permissions/SuperAdmins/SuperAdmins.txt";
+	static ref array<string> s_Vpp;
+
+	static void LoadVpp()
+	{
+		s_Vpp = new array<string>;
+		if (!FileExist(VPP_SUPERADMINS))
+			return;
+		FileHandle fh = OpenFile(VPP_SUPERADMINS, FileMode.READ);
+		if (!fh)
+			return;
+		string line;
+		while (FGets(fh, line) >= 0)
+		{
+			line = line.Trim();
+			if (line != "" && line.IndexOf("//") != 0)
+				s_Vpp.Insert(line);
+			line = "";
+		}
+		CloseFile(fh);
+		Print("[Drezina] админы из VPP Admin Tools: " + s_Vpp.Count());
+	}
+
 	static bool IsAdmin(PlayerIdentity identity)
 	{
 		if (!identity)
 			return false;
 		if (!s_Instance)
 			Load();
-		return s_Instance.Admins.Find(identity.GetPlainId()) != -1;
+		if (!s_Vpp)
+			LoadVpp();
+		string id = identity.GetPlainId();
+		return s_Instance.Admins.Find(id) != -1 || s_Vpp.Find(id) != -1;
 	}
 }
