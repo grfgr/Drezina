@@ -1326,6 +1326,29 @@ def build_junction_hall_tee(outdir, save_fn, reset_fn):
     save_fn(outdir, "junction_hall_tee")
 
 
+def build_junction_column(outdir, save_fn, reset_fn):
+    """Колонна зала развязки под свод: бетонный ствол 0.8x0.8 с фаской, база, капитель-раструб под
+    балки, плитка снизу и полосы «зебры» на уровне колен (чтобы видно было из дрезины)."""
+    reset_fn()
+    m = mats()
+    H = JUNC_H
+    p = [box("shaft", (0.8, 0.8, H), (0, 0, H / 2), m["concrete"])]
+    p.append(box("base", (1.1, 1.1, 0.3), (0, 0, 0.15), m["concrete"]))
+    p.append(box("base_step", (0.95, 0.95, 0.12), (0, 0, 0.36), m["concrete"]))
+    p.append(box("wall_tiles", (0.84, 0.84, 1.6), (0, 0, 0.42 + 0.8), m["wall"], round_edges=False))
+    for k, z in enumerate((0.55, 0.85)):
+        p.append(box(f"hazard{k}", (0.86, 0.86, 0.12), (0, 0, z), m["hazard"], round_edges=False))
+    p.append(box("capital", (1.3, 1.3, 0.35), (0, 0, H - 0.5 - 0.175), m["concrete"]))
+    p.append(box("capital_top", (1.6, 1.6, 0.25), (0, 0, H - 0.5 + 0.125), m["tubing"]))
+    for k in range(4):
+        a = k * math.pi / 2
+        p.append(box(f"brace{k}", (0.25, 0.9, 0.25), (math.sin(a) * 0.65, math.cos(a) * 0.65, H - 0.95), m["tubing"],
+                     (math.radians(35), 0, -a)))
+    finish(p, "junction_column")
+    geo("geometry_column", (0.9, 0.9, H), (0, 0, H / 2))
+    save_fn(outdir, "junction_column")
+
+
 def build_junction_wall(outdir, save_fn, reset_fn):
     """Стеновая панель зала: 2.75 м, лицом в +Y (внутрь зала), с кабелями и трубой вдоль стены."""
     reset_fn()
@@ -1400,6 +1423,7 @@ def build_all(outdir, tex_dir, save_fn, reset_fn):
     build_tunnel(outdir, save_fn, reset_fn, 2.4, "tunnel_2m")
     build_junction_hall(outdir, save_fn, reset_fn)
     build_junction_hall_tee(outdir, save_fn, reset_fn)
+    build_junction_column(outdir, save_fn, reset_fn)
     build_junction_wall(outdir, save_fn, reset_fn)
     build_junction_portal(outdir, save_fn, reset_fn)
     build_dispenser(outdir, save_fn, reset_fn, tex_dir)
