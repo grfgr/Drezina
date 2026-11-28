@@ -510,6 +510,12 @@ class Drezina_Motor extends CarScript
 		ItemBase b = GetBattery();
 		if (b && b.GetCompEM())
 			bat = b.GetCompEM().GetEnergy().ToString() + "/" + b.GetCompEM().GetEnergyMax().ToString();
+		if (IsBroken())
+		{
+			ok = false;
+			if (GetGame().IsServer() && CrewDriver())
+				DrezinaTrackManager.Notify(CrewDriver().GetIdentity(), "Мотодрезина сломана — почините горелкой (с газовым баллоном).");
+		}
 		Print("[Drezina] motor: запуск ok=" + ok + " state=" + state + " (1 сломан, 2 нет бензина, 4 нет свечи, 8 нет аккумулятора) бензин=" + GetFluidFraction(CarFluid.FUEL) + " аккумулятор=" + bat + " свеча=" + FindAttachmentBySlotName("SparkPlug"));
 		return ok;
 	}
@@ -641,7 +647,7 @@ class Drezina_Motor extends CarScript
 		{
 			brake = GetBrake();
 			handbrake = GetHandbrake();
-			if (EngineIsOn())
+			if (EngineIsOn() && !IsBroken())
 				throttle = GetThrottle();
 		}
 		else
@@ -771,6 +777,12 @@ class Drezina_Motor extends CarScript
 		m_DistHint = nd;
 		m_LastV = v;
 		m_LastVValid = true;
+		if (server)
+		{
+			ServerImpactCheck(t, d, v, dt);
+			if (Math.AbsFloat(v) > 2.0)
+				ServerRunOver(v);
+		}
 
 		vector mat[4];
 		TrackTransform(t, nd, mat);
@@ -829,6 +841,143 @@ class Drezina_Motor extends CarScript
 		{
 			m_LogTimer = 2.0;
 			Print("[Drezina] motor server=" + server + " d=" + nd + " v=" + v + " gear=" + gear + " thr=" + throttle + " engine=" + EngineIsOn());
+		}
+	}
+
+	// ------------------------------------------------------------------ урон и поломка
+
+	static const float BROKEN_HP = 1.5;      // здоровья меньше — сломана (мотор не заводится)
+	float m_SrvPrevV;
+	ref map<EntityAI, int> m_HitTimes = new map<EntityAI, int>;
+
+	bool IsBroken()
+	{
+		return GetHealth("", "") <= BROKEN_HP;
+	}
+
+	// урон дрезине (не ниже BROKEN_HP: «сломана», но не уничтожена — чинится горелкой)
+	void ServerDamage(float dmg)
+	{
+		if (dmg <= 0)
+			return;
+		bool wasBroken = IsBroken();
+		float hp = GetHealth("", "");
+		SetHealth("", "", Math.Max(hp - dmg, BROKEN_HP - 0.5));
+		DecreaseHealth("Engine", "", dmg * 0.3);
+		if (!wasBroken && IsBroken())
+		{
+			if (EngineIsOn())
+				EngineStop();
+			Print("[Drezina] мотодрезина сломана");
+			for (int i = 0; i < CrewSize(); i++)
+			{
+				Human h = CrewMember(i);
+				if (h && h.GetIdentity())
+					DrezinaTrackManager.Notify(h.GetIdentity(), "Мотодрезина сломана — почините горелкой (с газовым баллоном).");
+			}
+		}
+	}
+
+	// удар: на скорости резко встали у другой дрезины или у глухого торца пути
+	void ServerImpactCheck(DrezinaTrack t, float d, float v, float dt)
+	{
+		float prev = m_SrvPrevV;
+		m_SrvPrevV = v;
+		float sp = Math.AbsFloat(prev);
+		if (sp < 3.0 || Math.AbsFloat(v) > 0.5)
+			return;
+		float moveDir = m_Face * Math.Sign(prev);
+		float head = d;
+		if (moveDir == -m_Face)
+			head = d - m_Face * TRAILER_GAP;
+		Drezina_Motor hit = null;
+		bool wall = false;
+		float clearance = DrezinaSettings.Get().HandcarClearance;
+		foreach (Drezina_Motor o : s_All)
+		{
+			if (!o || o == this || o.m_TrackId != m_TrackId || o.m_OffRail)
+				continue;
+			float od = ProjectDistOf(t, o.GetPosition());
+			float a1 = (od - head) * moveDir;
+			float a2 = (od - o.m_Face * TRAILER_GAP - head) * moveDir;
+			if (Math.Min(a1, a2) < clearance + 4.0 && Math.Max(a1, a2) > -1.0)
+				hit = o;
+		}
+		if (!hit)
+		{
+			float lo = Math.Min(END_GAP, t.GetLength() * 0.5) + TRAILER_GAP;
+			float hi = t.GetLength() - lo;
+			bool l0 = t.LinkAt(0) != null || t.SwitchNearEnd(0);
+			bool l1 = t.LinkAt(1) != null || t.SwitchNearEnd(1);
+			float dirD = Math.Sign(prev) * m_Face;
+			wall = (dirD > 0 && !l1 && d > hi - 4.0) || (dirD < 0 && !l0 && d < lo + 4.0);
+		}
+		if (!hit && !wall)
+			return;
+		float dmg = (sp - 3.0) * (sp - 3.0) * 10.0;      // 50 км/ч ≈ 1200 из 3000
+		Print("[Drezina] удар: скорость " + sp + " м/с, урон " + dmg + ", во что: " + (hit != null) + "/торец " + wall);
+		ServerDamage(dmg);
+		if (hit)
+			hit.ServerDamage(dmg);
+		// людям на борту
+		if (sp > 5.0)
+		{
+			for (int i = 0; i < CrewSize(); i++)
+			{
+				PlayerBase pb = PlayerBase.Cast(CrewMember(i));
+				if (pb && pb.IsAlive())
+				{
+					pb.DecreaseHealth("", "Health", (sp - 5.0) * 3.0);
+					pb.DecreaseHealth("", "Shock", (sp - 5.0) * 6.0);
+				}
+			}
+		}
+	}
+
+	// наезд: игроки, заражённые и звери перед дрезиной по ходу
+	void ServerRunOver(float v)
+	{
+		vector mat[4];
+		GetTransform(mat);
+		// v — скорость вдоль носа (mat[2]); вперёд — нос рамы (1.4 м от центра), задом — удлинённая
+		// задняя часть (2.6 м)
+		float front = 1.4;
+		if (v < 0)
+			front = 2.6;
+		float sgn = Math.Sign(v);
+		if (m_HitTimes.Count() > 40)
+			m_HitTimes.Clear();
+		vector headW = GetPosition() + mat[2] * (sgn * front);
+		array<Object> objs = new array<Object>;
+		GetGame().GetObjectsAtPosition(headW, 1.5, objs, null);
+		int now = GetGame().GetTime();
+		float sp = Math.AbsFloat(v);
+		foreach (Object ob : objs)
+		{
+			EntityAI e = EntityAI.Cast(ob);
+			if (!e || e == this || !e.IsAlive())
+				continue;
+			if (!e.IsInherited(Man) && !e.IsInherited(DayZCreatureAI))
+				continue;
+			PlayerBase pl = PlayerBase.Cast(e);
+			if (pl && pl.GetCommand_Vehicle() && pl.GetCommand_Vehicle().GetTransport() == this)
+				continue;                        // свои пассажиры
+			if (Math.AbsFloat(e.GetPosition()[1] - headW[1]) > 2.2)
+				continue;
+			int last;
+			if (m_HitTimes.Find(e, last) && now - last < 1500)
+				continue;
+			m_HitTimes.Set(e, now);
+			float dmg = (sp - 1.5) * (sp - 1.5) * 0.9;     // 50 км/ч ≈ 140 — насмерть, 18 км/ч ≈ 11
+			if (pl)
+			{
+				pl.DecreaseHealth("", "Health", dmg);
+				pl.DecreaseHealth("", "Shock", dmg * 1.5);
+			}
+			else
+				e.DecreaseHealth("", "", dmg);
+			ServerDamage(dmg * 0.5);
+			Print("[Drezina] наезд: " + e.GetType() + " скорость " + sp + " урон " + dmg);
 		}
 	}
 
