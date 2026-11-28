@@ -173,6 +173,8 @@ class Drezina_AlarmLamp extends ItemBase
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
 		m_Sound = SEffectManager.PlaySoundOnObject(PickSound(), this, 0.5, 0.3, true);
+		if (m_Sound)
+			m_Sound.SetSoundVolume(0.25);   // в 4 раза тише (и ванильный звук, и свой)
 	}
 
 	void Spin(float dt)
