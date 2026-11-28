@@ -1393,14 +1393,25 @@ class DrezinaTunnelManager
 		vector ax = Flat(j.DirA);
 		vector ay = Side(ax);
 		float near = WALL_OFF + 2.4;   // плита 3x3: угол клетки достаёт до стены даже по диагонали (не было дыр у стен острых Т-развязок)
-		int cnt = 0;
-		for (int ix = -9; ix <= 9; ix++)
+		// сетка — на всю длину путей зала: у острой Т-развязки съезд уходит за круг зала, и над ним
+		// не было потолка (стены съезда стояли под открытым небом)
+		float reach = j.Radius + 1.0;
+		foreach (vector rp : m_SlabPts)
+			reach = Math.Max(reach, FlatDistance(rp, c) + near);
+		foreach (array<vector> rpoly : m_SlabPolys)
 		{
-			for (int iy = -9; iy <= 9; iy++)
+			foreach (vector pp : rpoly)
+				reach = Math.Max(reach, FlatDistance(pp, c) + 2.0);
+		}
+		int gn = Math.Ceil(reach / 3.0);
+		int cnt = 0;
+		for (int ix = -gn; ix <= gn; ix++)
+		{
+			for (int iy = -gn; iy <= gn; iy++)
 			{
 				vector p = c + ax * (ix * 3.0) + ay * (iy * 3.0);
 				p[1] = c[1];
-				if (FlatDistance(p, c) > j.Radius + 1.0)
+				if (FlatDistance(p, c) > reach)
 					continue;
 				bool use = false;
 				foreach (vector tp : m_SlabPts)

@@ -553,7 +553,10 @@ def bunker_mound(name, mat, soil_mat=None):
                 top = smin(top, 0.25 - 0.7 * (y - WING_L), 3.0)
             fall = (abs(x) - wx) / 3.5
             h = smin(smax(h, top - fall * fall * 2.5, 1.6), top, 3.0) + noise(x, y) * 0.08
-        return max(h, -0.9)
+        # у подножия край насыпи уходит в землю на 4 м: на склоне карты под ней не видно щели
+        if h < -0.9:
+            return -4.0
+        return h
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
     vs = []
