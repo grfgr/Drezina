@@ -887,6 +887,7 @@ def build_entrance(outdir, save_fn, reset_fn):
         geo(f"geometry_wing{sx}", (WING_T, WING_L / math.cos(WING_FLARE), (WING_H0 + WING_H1) / 2 + 1.2),
             (sx * (wing_x(ym) + WING_T / 2), ym, ((WING_H0 + WING_H1) / 2 - 1.2) / 2), (0, 0, -sx * WING_FLARE))
     geo("geometry_portal_top", (1.96, 0.7, 0.98), (0, 0.15, 3.11))
+    geo("geometry_visor", (4.9, 1.3, 0.34), (0, 0.55, 3.69))      # козырёк: можно стоять и не пролетать сквозь
     geo("geometry_door", (1.96, 0.3, 2.58), (0, 0.1, 1.29))
     # насыпь: выпуклые куски по форме холма (по сетке 4 м), только из точек над землёй —
     # ни один кусок не перекрывает проход к двери
