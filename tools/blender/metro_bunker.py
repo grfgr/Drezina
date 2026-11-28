@@ -498,7 +498,17 @@ def wing_top(y):
     return WING_H0 + (WING_H1 - WING_H0) * max(0.0, min(1.0, y / WING_L))
 
 
-def bunker_mound(name, mat):
+def soil_patch(x, y):
+    """Проплешины земли на насыпи: несколько крупных пятен и вытоптанная полоса вдоль стенок."""
+    v = 0.5 + 0.5 * math.sin(x * 0.55 + 1.3) * math.sin(y * 0.47 + 0.4) + 0.25 * math.sin(x * 1.3 + y * 0.9 + 2.0)
+    if y > -1.5:
+        wx = wing_x(max(y, 0.0)) + WING_T
+        if abs(x) - wx < 1.2:
+            v += 0.6
+    return v
+
+
+def bunker_mound(name, mat, soil_mat=None):
     """Насыпь: неровный холм за порталом, по бокам спускается по стенкам, края уходят в землю."""
     nx, ny = 72, 60
     x0, x1, y0, y1 = -12.0, 12.0, -15.0, WING_L + 1.5
@@ -537,13 +547,20 @@ def bunker_mound(name, mat):
         vs.append(row)
     for j in range(ny):
         for i in range(nx):
-            bm.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
+            f = bm.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
+            if soil_mat is not None:
+                c = f.calc_center_median()
+                f.normal_update()
+                if soil_patch(c.x, c.y) > 0.95 or f.normal.z < 0.62:
+                    f.material_index = 1          # земля: пятна, крутые места, у стенок
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.to_mesh(me)
     bm.free()
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
     o.data.materials.append(mat)
+    if soil_mat is not None:
+        o.data.materials.append(soil_mat)
     MOUND_PTS[:] = [tuple(v.co) for v in me.vertices]
     MOUND_H[0] = height
     return o
@@ -583,8 +600,8 @@ def grass_tufts(name, count, seed):
         if (cx - 1.8) ** 2 + (cy + 4.0) ** 2 < 0.6:
             continue                                  # у вентиляционной трубы
         h = height(cx, cy)
-        if h < 0.1:
-            continue
+        if h < 0.1 or soil_patch(cx, cy) > 0.9:
+            continue                                  # на проплешинах травы нет
         for _ in range(rnd.randint(1, 3)):            # куртинка из 1-3 пучков
             x, y = cx + rnd.uniform(-0.6, 0.6), cy + rnd.uniform(-0.6, 0.6)
             z = height(x, y) - 0.08
@@ -704,12 +721,30 @@ def build_entrance(outdir, save_fn, reset_fn):
         p.append(box(f"vent_leg{k}", (0.03, 0.03, 0.3), (1.8 + math.cos(a) * 0.2, -4.0 + math.sin(a) * 0.2, 4.15), m["rust"]))
     concrete = join(p, "bunker_entrance")
     uv_box(concrete, 2.4)
-    mound = bunker_mound("mound", m["grass"])
-    uv_top(mound, 5.0)
-    o = join([concrete, mound], "bunker_entrance")
+    m["soil"] = hz.tex_material("metro_soil", "metro_soil", 1.0)
+    mound = bunker_mound("mound", m["grass"], m["soil"])
+    uv_top(mound, 3.5)
+    # камни на насыпи — в основном на проплешинах
+    sr = random.Random(5)
+    stones = []
+    tries = 0
+    while len(stones) < 34 and tries < 3000:
+        tries += 1
+        x, y = sr.uniform(-10, 10), sr.uniform(-13, WING_L + 1.0)
+        if y > -0.6 and abs(x) < wing_x(max(y, 0.0)) + WING_T + 0.3:
+            continue
+        if soil_patch(x, y) < 0.8 and sr.random() < 0.8:
+            continue
+        hz_ = MOUND_H[0](x, y)
+        if hz_ < -0.2:
+            continue
+        stones.append(rubble(f"stone{len(stones)}", (x, y, hz_ - 0.12), sr.uniform(0.12, 0.38), m["concrete"], 300 + len(stones)))
+    st = join(stones, "stones")
+    uv_box(st, 1.5)
+    o = join([concrete, mound, st], "bunker_entrance")
     smooth(o, 40)
     hz.selection(o, "bunker_entrance")
-    tufts = grass_tufts("bunker_grass", 220, 77)
+    tufts = grass_tufts("bunker_grass", 450, 77)
     hz.selection(tufts, "bunker_entrance")
     # геометрия
     geo("geometry_block", (BW, BD, 6.6), (0, -BD / 2, 0.3))
