@@ -59,6 +59,8 @@ class DrezinaTunnelManager
 
 	// клиент: маршруты метро на поверхности (для карты КПК)
 	ref array<ref DrezinaTunnelData> m_ClientTunnels = new array<ref DrezinaTunnelData>;
+	// клиент: пересечения (развязки) — какие линии и где на поверхности
+	ref array<ref DrezinaJunction> m_ClientJunctions = new array<ref DrezinaJunction>;
 
 	static DrezinaTunnelManager Get()
 	{
@@ -95,10 +97,27 @@ class DrezinaTunnelManager
 		{
 			rpc.Write(t.Id);
 			rpc.Write(t.Zone);
+			rpc.Write(t.JoinA);
+			rpc.Write(t.JoinB);
 			int n = t.Route.Count();
 			rpc.Write(n);
 			for (int i = 0; i < n; i++)
 				rpc.Write(t.Route[i]);
+		}
+		// пересечения: центр зала переводим на поверхность (минус сдвиг подземной части линии A)
+		int jc = m_Junctions.Count();
+		rpc.Write(jc);
+		foreach (DrezinaJunction j : m_Junctions)
+		{
+			vector sp = j.Center;
+			DrezinaTunnelData ja = m_Tunnels.Get(j.A);
+			if (ja)
+				sp = Vector(sp[0] - ja.Offset[0], 0, sp[2] - ja.Offset[2]);
+			rpc.Write(j.A);
+			rpc.Write(j.B);
+			rpc.Write(sp);
+			rpc.Write(j.Tee);
+			rpc.Write(j.Ring);
 		}
 	}
 
@@ -127,6 +146,7 @@ class DrezinaTunnelManager
 		if (rpc_type != DrezinaRPC.TUNNELS_FULL)
 			return false;
 		m_ClientTunnels.Clear();
+		m_ClientJunctions.Clear();
 		int c;
 		if (!ctx.Read(c))
 			return true;
@@ -134,7 +154,7 @@ class DrezinaTunnelManager
 		{
 			DrezinaTunnelData t = new DrezinaTunnelData();
 			int n;
-			if (!ctx.Read(t.Id) || !ctx.Read(t.Zone) || !ctx.Read(n))
+			if (!ctx.Read(t.Id) || !ctx.Read(t.Zone) || !ctx.Read(t.JoinA) || !ctx.Read(t.JoinB) || !ctx.Read(n))
 				return true;
 			for (int k = 0; k < n; k++)
 			{
@@ -145,7 +165,18 @@ class DrezinaTunnelManager
 			}
 			m_ClientTunnels.Insert(t);
 		}
-		Print("[Drezina] клиент: получено метро " + m_ClientTunnels.Count());
+		int jc;
+		if (ctx.Read(jc))
+		{
+			for (int ji = 0; ji < jc; ji++)
+			{
+				DrezinaJunction j = new DrezinaJunction();
+				if (!ctx.Read(j.A) || !ctx.Read(j.B) || !ctx.Read(j.Center) || !ctx.Read(j.Tee) || !ctx.Read(j.Ring))
+					break;
+				m_ClientJunctions.Insert(j);
+			}
+		}
+		Print("[Drezina] клиент: получено метро " + m_ClientTunnels.Count() + ", пересечений " + m_ClientJunctions.Count());
 		return true;
 	}
 
@@ -2195,6 +2226,7 @@ class DrezinaTunnelManager
 		else if (cmd == "rebuild")
 		{
 			RespawnAll();
+			BroadcastAll();
 			DrezinaTrackManager.Notify(sender, "Метро пересоздано, пересечений со стрелками: " + m_Junctions.Count() + ".");
 		}
 		else
