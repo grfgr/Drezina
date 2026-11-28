@@ -163,7 +163,7 @@ class Drezina_AlarmLamp extends ItemBase
 		m_Glow = Drezina_AlarmGlow.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmGlow, p));
 		m_Beam = Drezina_AlarmBeam.Cast(ScriptedLightBase.CreateLight(Drezina_AlarmBeam, p));
 		m_Angle = Math.RandomFloat(0, 360);
-		m_Sound = SEffectManager.PlaySoundOnObject(PickSound(), this, 0.5, 0.3, true);
+		// без звука: десятки зацикленных звуков маячков забивали звуковые каналы (пропадал звук мотора дрезины)
 	}
 
 	void Spin(float dt)

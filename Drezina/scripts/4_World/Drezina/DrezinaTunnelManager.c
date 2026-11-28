@@ -1392,7 +1392,7 @@ class DrezinaTunnelManager
 		vector c = j.Center;
 		vector ax = Flat(j.DirA);
 		vector ay = Side(ax);
-		float near = WALL_OFF + 1.9;
+		float near = WALL_OFF + 2.4;   // плита 3x3: угол клетки достаёт до стены даже по диагонали (не было дыр у стен острых Т-развязок)
 		int cnt = 0;
 		for (int ix = -9; ix <= 9; ix++)
 		{

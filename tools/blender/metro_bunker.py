@@ -643,7 +643,8 @@ def mound_texture(tex_dir):
     def sstep(a, b, v):
         t = np.clip((v - a) / (b - a), 0, 1)
         return t * t * (3 - 2 * t)
-    m = np.maximum(sstep(0.82, 1.08, sp), sstep(1.1, 1.8, slope))[..., None]
+    # земли меньше: только проплешины и самые крутые места, остальное — трава карты
+    m = np.maximum(sstep(0.95, 1.2, sp), sstep(1.6, 2.4, slope))[..., None]
     col = G * (1 - m) + S * m
     nrm = GN * (1 - m) + SN * m
     def save(arr, name):
